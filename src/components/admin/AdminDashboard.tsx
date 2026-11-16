@@ -5,13 +5,16 @@ import {
   Briefcase,
   CloudUpload,
   ExternalLink,
+  Eye,
+  EyeOff,
   FolderKanban,
   Inbox,
+  KeyRound,
   LayoutDashboard,
   Lock,
   LogOut,
+  MailCheck,
   RefreshCw,
-  ShieldCheck,
   UserCog,
 } from 'lucide-react';
 import { useRefreshPortfolioContent } from '../../context/PortfolioContentContext';
@@ -24,12 +27,15 @@ import {
   deleteAdminProject,
   fetchAdminDashboardSnapshot,
   OWNER_ADMIN_EMAIL,
+  OWNER_ADMIN_UID,
+  reloadCurrentUser,
   saveAdminExperience,
   saveAdminMilestone,
   saveAdminProject,
   savePortfolioSettings,
   seedDefaultPortfolioToFirestore,
-  signInAdminWithGoogle,
+  sendAdminVerificationEmail,
+  signInAdminWithEmail,
   signOutAdmin,
   subscribeAdminAuth,
   updateAdminInquiryStatus,
@@ -52,6 +58,24 @@ interface AdminDashboardProps {
   onOpenViewerPreview: () => void;
 }
 
+function formatAuthError(err: unknown): string {
+  const raw = err instanceof Error ? err.message : String(err);
+  if (raw.includes('auth/operation-not-allowed')) {
+    return 'Email/Password sign-in is disabled. Enable Email/Password in Firebase Console → Authentication → Sign-in method.';
+  }
+  if (
+    raw.includes('auth/invalid-credential') ||
+    raw.includes('auth/wrong-password') ||
+    raw.includes('auth/user-not-found')
+  ) {
+    return 'Invalid email or password. Verify the credentials created in Firebase Console → Authentication → Users.';
+  }
+  if (raw.includes('auth/too-many-requests')) {
+    return 'Too many failed attempts. Please wait a minute and try again.';
+  }
+  return raw;
+}
+
 export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onOpenViewerPreview }) => {
   const refreshPublicPortfolio = useRefreshPortfolioContent();
 
@@ -60,6 +84,11 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onOpenViewerPrev
   const [authorized, setAuthorized] = useState(false);
   const [authBusy, setAuthBusy] = useState(false);
   const [authError, setAuthError] = useState<string | null>(null);
+  const [verificationSent, setVerificationSent] = useState(false);
+
+  const [loginEmail, setLoginEmail] = useState('');
+  const [loginPassword, setLoginPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
 
   const [activeTab, setActiveTab] = useState<AdminTab>('overview');
   const [loadingData, setLoadingData] = useState(false);
@@ -103,6 +132,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onOpenViewerPrev
   useEffect(() => {
     const unsub = subscribeAdminAuth(async (nextUser) => {
       setUser(nextUser);
+      setVerificationSent(false);
       if (!nextUser) {
         setAuthorized(false);
         setAuthReady(true);
@@ -118,28 +148,62 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onOpenViewerPrev
     return unsub;
   }, [loadDashboard]);
 
-  const handleGoogleLogin = async () => {
+  const handleEmailLogin = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!loginEmail.trim() || !loginPassword) return;
     setAuthBusy(true);
     setAuthError(null);
     try {
-      await signInAdminWithGoogle();
+      await signInAdminWithEmail(loginEmail, loginPassword);
+      setLoginPassword('');
     } catch (err) {
-      const msg = err instanceof Error ? err.message : 'Google sign-in could not complete.';
-      setAuthError(msg);
+      setAuthError(formatAuthError(err));
     } finally {
       setAuthBusy(false);
     }
   };
 
-  const handleSwitchAccount = async () => {
+  const handleSendVerification = async () => {
+    if (!user) return;
+    setAuthBusy(true);
+    setAuthError(null);
+    try {
+      await sendAdminVerificationEmail(user);
+      setVerificationSent(true);
+    } catch (err) {
+      setAuthError(formatAuthError(err));
+    } finally {
+      setAuthBusy(false);
+    }
+  };
+
+  const handleCheckVerification = async () => {
+    setAuthBusy(true);
+    setAuthError(null);
+    try {
+      const refreshed = await reloadCurrentUser();
+      setUser(refreshed);
+      const isOk = await verifyAdminAccess(refreshed);
+      setAuthorized(isOk);
+      if (isOk) {
+        void loadDashboard();
+      } else {
+        setAuthError('Email is not verified yet. Open the link in your inbox, then tap Unlock.');
+      }
+    } catch (err) {
+      setAuthError(formatAuthError(err));
+    } finally {
+      setAuthBusy(false);
+    }
+  };
+
+  const handleSignOut = async () => {
     setAuthBusy(true);
     setAuthError(null);
     try {
       await signOutAdmin();
-      await signInAdminWithGoogle();
     } catch (err) {
-      const msg = err instanceof Error ? err.message : 'Account switch failed.';
-      setAuthError(msg);
+      setAuthError(formatAuthError(err));
     } finally {
       setAuthBusy(false);
     }
@@ -182,7 +246,6 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onOpenViewerPrev
     { id: 'inquiries', label: 'Inquiries', icon: Inbox, badge: newInquiriesCount },
   ];
 
-  // Loading Auth Gate
   if (!authReady) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-[#050507] px-6 text-[#F4F4F5]">
@@ -194,8 +257,13 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onOpenViewerPrev
     );
   }
 
-  // Signed-out or Unauthorized Gate
   if (!user || !authorized) {
+    const isOwnerUnverified =
+      Boolean(user) &&
+      !user?.emailVerified &&
+      (user?.uid === OWNER_ADMIN_UID ||
+        user?.email?.toLowerCase() === OWNER_ADMIN_EMAIL.toLowerCase());
+
     return (
       <div className="design-grid-bg flex min-h-screen flex-col justify-between bg-[#050507] px-6 py-10 text-[#F4F4F5]">
         <header className="mx-auto flex w-full max-w-4xl items-center justify-between">
@@ -214,75 +282,154 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onOpenViewerPrev
 
         <main className="mx-auto my-auto w-full max-w-md rounded-2xl border border-white/12 bg-[#0B0C10] p-7 shadow-2xl sm:p-8">
           <div className="inline-flex h-11 w-11 items-center justify-center rounded-lg border border-[#DC2626]/30 bg-[#DC2626]/10 text-[#EF4444]">
-            <Lock className="h-5 w-5" aria-hidden="true" />
+            {isOwnerUnverified ? (
+              <MailCheck className="h-5 w-5" aria-hidden="true" />
+            ) : (
+              <Lock className="h-5 w-5" aria-hidden="true" />
+            )}
           </div>
 
           <h1 className="mt-5 font-display text-3xl font-bold tracking-tight text-white">
-            PORTFOLIO ADMIN ACCESS
+            {isOwnerUnverified ? 'VERIFY YOUR EMAIL' : 'ADMIN SIGN IN'}
           </h1>
 
-          {user && !authorized ? (
+          {isOwnerUnverified && user ? (
             <div className="mt-4 space-y-4">
               <p className="text-sm leading-relaxed text-zinc-300">
-                Signed in as <span className="font-mono text-white">{user.email}</span>, which does
-                not have administrator permission.
+                Signed in as <span className="font-mono text-white">{user.email}</span>. Verify
+                this email address once so Firestore Security Rules unlock database writes.
               </p>
-              <p className="text-xs leading-relaxed text-zinc-400">
-                Sign in with the verified owner account{' '}
-                <span className="font-mono text-zinc-200">{OWNER_ADMIN_EMAIL}</span> to manage
-                portfolio content and view client briefs.
-              </p>
+
+              {verificationSent && (
+                <p className="rounded-md border border-emerald-500/30 bg-emerald-500/10 p-3 text-xs text-emerald-200">
+                  Verification link sent to {user.email}. Click the link in your inbox (check spam
+                  too), then tap &ldquo;I&rsquo;ve Verified&rdquo; below.
+                </p>
+              )}
+
               {authError && (
-                <p className="rounded-md border border-[#DC2626]/40 bg-[#DC2626]/10 p-3 text-xs text-red-200">
+                <p className="rounded-md border border-[#DC2626]/40 bg-[#DC2626]/10 p-3 text-xs leading-relaxed text-red-200">
                   {authError}
                 </p>
               )}
+
               <div className="flex flex-col gap-2.5 pt-2">
                 <button
                   type="button"
                   disabled={authBusy}
-                  onClick={handleSwitchAccount}
+                  onClick={handleSendVerification}
                   className="inline-flex min-h-[44px] w-full items-center justify-center gap-2 rounded-md bg-[#DC2626] px-4 py-2.5 text-sm font-semibold text-white hover:bg-[#B91C1C] disabled:opacity-60"
                 >
-                  {authBusy ? 'Opening Google Sign-In...' : 'Switch Google Account'}
+                  {authBusy ? 'Sending...' : 'Send Verification Email'}
                 </button>
                 <button
                   type="button"
                   disabled={authBusy}
-                  onClick={() => void signOutAdmin()}
-                  className="inline-flex min-h-[42px] w-full items-center justify-center rounded-md border border-white/15 px-4 py-2 text-xs font-medium text-zinc-300 hover:bg-white/5"
+                  onClick={handleCheckVerification}
+                  className="inline-flex min-h-[42px] w-full items-center justify-center rounded-md border border-white/20 px-4 py-2 text-xs font-semibold text-white hover:bg-white/5"
+                >
+                  I&rsquo;ve Verified — Unlock Dashboard
+                </button>
+                <button
+                  type="button"
+                  disabled={authBusy}
+                  onClick={handleSignOut}
+                  className="inline-flex min-h-[40px] w-full items-center justify-center rounded-md px-4 py-2 text-xs font-medium text-zinc-400 hover:text-white"
                 >
                   Sign Out
                 </button>
               </div>
             </div>
-          ) : (
-            <div className="mt-4 space-y-5">
+          ) : user && !authorized ? (
+            <div className="mt-4 space-y-4">
               <p className="text-sm leading-relaxed text-zinc-300">
-                Sign in with your verified Google account to edit personal details, publish
-                websites, apps &amp; games, and reply to client inquiries.
+                The account <span className="font-mono text-white">{user.email}</span> is not
+                authorized as an administrator.
+              </p>
+              <p className="text-xs leading-relaxed text-zinc-400">
+                Sign in with your verified administrator email and password configured in Firebase
+                Authentication.
+              </p>
+              {authError && (
+                <p className="rounded-md border border-[#DC2626]/40 bg-[#DC2626]/10 p-3 text-xs leading-relaxed text-red-200">
+                  {authError}
+                </p>
+              )}
+              <div className="pt-2">
+                <button
+                  type="button"
+                  disabled={authBusy}
+                  onClick={handleSignOut}
+                  className="inline-flex min-h-[44px] w-full items-center justify-center gap-2 rounded-md bg-[#DC2626] px-4 py-2.5 text-sm font-semibold text-white hover:bg-[#B91C1C] disabled:opacity-60"
+                >
+                  Try Another Account
+                </button>
+              </div>
+            </div>
+          ) : (
+            <form onSubmit={handleEmailLogin} className="mt-4 space-y-4">
+              <p className="text-sm leading-relaxed text-zinc-300">
+                Enter your administrator email and password to manage portfolio content and client
+                inquiries.
               </p>
 
-              <div className="rounded-lg border border-white/10 bg-[#070709] p-3.5 text-xs text-zinc-400">
-                Owner email: <span className="font-mono text-zinc-200">{OWNER_ADMIN_EMAIL}</span>
-              </div>
-
               {authError && (
-                <p className="rounded-md border border-[#DC2626]/40 bg-[#DC2626]/10 p-3 text-xs text-red-200">
+                <p className="rounded-md border border-[#DC2626]/40 bg-[#DC2626]/10 p-3 text-xs leading-relaxed text-red-200">
                   {authError}
                 </p>
               )}
 
+              <div>
+                <label htmlFor="admin-email" className="block text-xs font-medium text-zinc-300">
+                  Email Address
+                </label>
+                <input
+                  id="admin-email"
+                  type="email"
+                  required
+                  autoComplete="email"
+                  value={loginEmail}
+                  onChange={(e) => setLoginEmail(e.target.value)}
+                  placeholder="Enter admin email"
+                  className="mt-1.5 min-h-[44px] w-full rounded-md border border-white/15 bg-[#070709] px-3.5 py-2 text-sm text-white placeholder:text-zinc-500 focus:border-[#DC2626] focus:outline-none"
+                />
+              </div>
+
+              <div>
+                <label htmlFor="admin-pass" className="block text-xs font-medium text-zinc-300">
+                  Password
+                </label>
+                <div className="relative mt-1.5">
+                  <input
+                    id="admin-pass"
+                    type={showPassword ? 'text' : 'password'}
+                    required
+                    autoComplete="current-password"
+                    value={loginPassword}
+                    onChange={(e) => setLoginPassword(e.target.value)}
+                    placeholder="Enter password"
+                    className="min-h-[44px] w-full rounded-md border border-white/15 bg-[#070709] py-2 pr-11 pl-3.5 text-sm text-white placeholder:text-zinc-500 focus:border-[#DC2626] focus:outline-none"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowPassword((prev) => !prev)}
+                    aria-label={showPassword ? 'Hide password' : 'Show password'}
+                    className="absolute top-1/2 right-2 inline-flex h-9 w-9 -translate-y-1/2 items-center justify-center text-zinc-400 hover:text-white"
+                  >
+                    {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                  </button>
+                </div>
+              </div>
+
               <button
-                type="button"
+                type="submit"
                 disabled={authBusy}
-                onClick={handleGoogleLogin}
-                className="inline-flex min-h-[46px] w-full items-center justify-center gap-2.5 rounded-md bg-[#DC2626] px-5 py-3 text-sm font-semibold text-white transition-colors hover:bg-[#B91C1C] disabled:opacity-60"
+                className="inline-flex min-h-[46px] w-full items-center justify-center gap-2 rounded-md bg-[#DC2626] px-5 py-3 text-sm font-semibold text-white transition-colors hover:bg-[#B91C1C] disabled:opacity-60"
               >
-                <ShieldCheck className="h-4 w-4" aria-hidden="true" />
-                {authBusy ? 'Signing In...' : 'Continue with Google'}
+                <KeyRound className="h-4 w-4" aria-hidden="true" />
+                {authBusy ? 'Signing In...' : 'Sign In'}
               </button>
-            </div>
+            </form>
           )}
         </main>
 
@@ -411,7 +558,6 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onOpenViewerPrev
             </div>
           </div>
 
-          {/* Mobile Navigation Scroll Strip */}
           <nav
             className="mt-3 flex gap-1.5 overflow-x-auto pb-1 lg:hidden"
             aria-label="Mobile admin navigation"
@@ -475,7 +621,6 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onOpenViewerPrev
                 </div>
               )}
 
-              {/* Metrics Row */}
               <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
                 <div className="rounded-xl border border-white/10 bg-[#090A0F] p-5">
                   <p className="text-xs text-zinc-400">Published Projects</p>
@@ -509,7 +654,6 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onOpenViewerPrev
                 </div>
               </div>
 
-              {/* Quick Actions */}
               <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
                 <div className="rounded-xl border border-white/10 bg-[#090A0F] p-5">
                   <h2 className="text-sm font-semibold text-white">Quick Shortcuts</h2>
@@ -550,11 +694,12 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onOpenViewerPrev
                 </div>
 
                 <div className="rounded-xl border border-white/10 bg-[#090A0F] p-5">
-                  <h2 className="text-sm font-semibold text-white">Domain &amp; Layout Safety</h2>
+                  <h2 className="text-sm font-semibold text-white">Domain &amp; Isolation Security</h2>
                   <ul className="mt-3 space-y-2 text-xs leading-relaxed text-zinc-400">
                     <li>
                       Viewer Website:{' '}
-                      <span className="font-mono text-zinc-200">sbshanto.web.app</span>
+                      <span className="font-mono text-zinc-200">sbshanto.web.app</span> (Zero admin
+                      code in bundle)
                     </li>
                     <li>
                       Admin Portal:{' '}

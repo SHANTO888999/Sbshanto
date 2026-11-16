@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { lazy, Suspense, useEffect, useState } from 'react';
 import { motion, useScroll, useSpring } from 'motion/react';
 import { ArrowLeft } from 'lucide-react';
 import { ProjectItem } from './data/portfolioData';
@@ -16,9 +16,21 @@ import { ExperienceSection } from './components/ExperienceSection';
 import { ContactSection } from './components/ContactSection';
 import { ProjectModal } from './components/ProjectModal';
 import { InquiryModal } from './components/InquiryModal';
-import { AdminDashboard } from './components/admin/AdminDashboard';
+
+const IS_VIEWER_ONLY = import.meta.env.VITE_APP_MODE === 'viewer';
+const IS_ADMIN_ONLY = import.meta.env.VITE_APP_MODE === 'admin';
+
+const AdminDashboardLazy = IS_VIEWER_ONLY
+  ? null
+  : lazy(() =>
+      import('./components/admin/AdminDashboard').then((m) => ({
+        default: m.AdminDashboard,
+      }))
+    );
 
 function detectInitialAdminMode(): boolean {
+  if (IS_VIEWER_ONLY) return false;
+  if (IS_ADMIN_ONLY) return true;
   if (typeof window === 'undefined') return false;
   const host = window.location.hostname.toLowerCase();
   const path = window.location.pathname.toLowerCase();
@@ -41,6 +53,7 @@ export default function App() {
   const [cameFromAdmin, setCameFromAdmin] = useState<boolean>(() => detectInitialAdminMode());
 
   useEffect(() => {
+    if (IS_VIEWER_ONLY) return;
     const handlePopState = () => {
       setIsAdminRoute(detectInitialAdminMode());
     };
@@ -85,7 +98,7 @@ export default function App() {
   const handleOpenViewerPreview = () => {
     setCameFromAdmin(true);
     setIsAdminRoute(false);
-    if (window.location.pathname.startsWith('/admin')) {
+    if (!IS_ADMIN_ONLY && window.location.pathname.startsWith('/admin')) {
       window.history.pushState({}, '', '/');
     }
     window.scrollTo({ top: 0, behavior: 'auto' });
@@ -94,7 +107,7 @@ export default function App() {
   const handleReturnToAdmin = () => {
     setIsAdminRoute(true);
     const host = window.location.hostname.toLowerCase();
-    if (!host.startsWith('sbadminshanto.') && !window.location.pathname.startsWith('/admin')) {
+    if (!IS_ADMIN_ONLY && !host.startsWith('sbadminshanto.') && !window.location.pathname.startsWith('/admin')) {
       window.history.pushState({}, '', '/admin');
     }
     window.scrollTo({ top: 0, behavior: 'auto' });
@@ -102,8 +115,16 @@ export default function App() {
 
   return (
     <PortfolioContentProvider>
-      {isAdminRoute ? (
-        <AdminDashboard onOpenViewerPreview={handleOpenViewerPreview} />
+      {!IS_VIEWER_ONLY && isAdminRoute && AdminDashboardLazy ? (
+        <Suspense
+          fallback={
+            <div className="flex min-h-screen items-center justify-center bg-[#050507] text-xs text-zinc-400">
+              Loading admin workspace...
+            </div>
+          }
+        >
+          <AdminDashboardLazy onOpenViewerPreview={handleOpenViewerPreview} />
+        </Suspense>
       ) : (
         <DesignCanvasProvider>
           <div className="min-h-screen bg-[#050507] text-[#F4F4F5]">
@@ -113,7 +134,7 @@ export default function App() {
               aria-hidden="true"
             />
 
-            {cameFromAdmin && (
+            {!IS_VIEWER_ONLY && cameFromAdmin && (
               <div className="fixed right-4 bottom-4 z-50">
                 <button
                   type="button"

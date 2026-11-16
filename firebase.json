@@ -5,7 +5,7 @@
   "hosting": [
     {
       "site": "sbshanto",
-      "public": "dist",
+      "public": "dist-viewer",
       "ignore": [
         "firebase.json",
         "**/.*",
@@ -20,7 +20,7 @@
     },
     {
       "site": "sbadminshanto",
-      "public": "dist",
+      "public": "dist-admin",
       "ignore": [
         "firebase.json",
         "**/.*",

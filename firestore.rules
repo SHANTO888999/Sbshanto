@@ -25,7 +25,10 @@ service cloud.firestore {
     function isBootstrappedAdmin() {
       return isSignedIn()
         && request.auth.token.email_verified == true
-        && request.auth.token.email == 'sbgang01recovery@gmail.com';
+        && (
+          request.auth.uid == '7uGlVyZQVLSofZlGXTVceJnfCg23'
+          || request.auth.token.email == 'sbgang01recovery@gmail.com'
+        );
     }
 
     function isAdmin() {

@@ -1,9 +1,9 @@
 import { initializeApp } from 'firebase/app';
 import {
   getAuth,
-  GoogleAuthProvider,
   onAuthStateChanged,
-  signInWithPopup,
+  sendEmailVerification,
+  signInWithEmailAndPassword,
   signOut,
   type User,
 } from 'firebase/auth';
@@ -41,12 +41,11 @@ import {
 import { DEFAULT_PORTFOLIO_CONTENT } from './data/portfolioData';
 
 export const OWNER_ADMIN_EMAIL = 'sbgang01recovery@gmail.com';
+export const OWNER_ADMIN_UID = '7uGlVyZQVLSofZlGXTVceJnfCg23';
 
 const app = initializeApp(firebaseConfig);
 export const db = getFirestore(app, firebaseConfig.firestoreDatabaseId);
 export const auth = getAuth(app);
-export const googleProvider = new GoogleAuthProvider();
-googleProvider.setCustomParameters({ prompt: 'select_account' });
 
 export enum OperationType {
   CREATE = 'create',
@@ -176,9 +175,19 @@ export function subscribeAdminAuth(callback: (user: User | null) => void): () =>
   return onAuthStateChanged(auth, callback);
 }
 
-export async function signInAdminWithGoogle(): Promise<User> {
-  const cred = await signInWithPopup(auth, googleProvider);
+export async function signInAdminWithEmail(email: string, password: string): Promise<User> {
+  const cred = await signInWithEmailAndPassword(auth, email.trim(), password);
   return cred.user;
+}
+
+export async function sendAdminVerificationEmail(user: User): Promise<void> {
+  await sendEmailVerification(user);
+}
+
+export async function reloadCurrentUser(): Promise<User | null> {
+  if (!auth.currentUser) return null;
+  await auth.currentUser.reload();
+  return auth.currentUser;
 }
 
 export async function signOutAdmin(): Promise<void> {
@@ -187,7 +196,10 @@ export async function signOutAdmin(): Promise<void> {
 
 export async function verifyAdminAccess(user: User | null): Promise<boolean> {
   if (!user || !user.emailVerified) return false;
-  if (user.email?.toLowerCase() === OWNER_ADMIN_EMAIL.toLowerCase()) {
+  if (
+    user.uid === OWNER_ADMIN_UID ||
+    user.email?.toLowerCase() === OWNER_ADMIN_EMAIL.toLowerCase()
+  ) {
     return true;
   }
   try {
