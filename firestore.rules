@@ -1,0 +1,233 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    function isValidId(id) {
+      return id is string && id.size() >= 1 && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    function incoming() {
+      return request.resource.data;
+    }
+
+    function existing() {
+      return resource.data;
+    }
+
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isBootstrappedAdmin() {
+      return isSignedIn()
+        && request.auth.token.email_verified == true
+        && request.auth.token.email == 'sbgang01recovery@gmail.com';
+    }
+
+    function isAdmin() {
+      return isBootstrappedAdmin()
+        || (
+          isSignedIn()
+          && request.auth.token.email_verified == true
+          && exists(/databases/$(database)/documents/admins/$(request.auth.uid))
+        );
+    }
+
+    function isValidOptionalUrl(data, field, maxLen) {
+      return !(field in data) || (data[field] is string && data[field].size() <= maxLen);
+    }
+
+    function isValidPortfolioSettings(data) {
+      return data.keys().hasAll([
+          'greeting', 'displayName', 'backdropName', 'wordmark', 'role', 'bio',
+          'portraitUrl', 'email', 'githubHandle', 'githubUrl', 'availability',
+          'disciplineSummary', 'craftMetricValue', 'craftMetricSuffix', 'craftMetricLabel',
+          'craftSummary', 'quoteText', 'quoteAuthor', 'quoteRole',
+          'manifestoLead', 'manifestoAvailability', 'prototypeTurnaround',
+          'heroMetrics', 'wireframeScenes', 'techStack', 'services', 'techPartners', 'updatedAt'
+        ])
+        && data.keys().hasOnly([
+          'greeting', 'displayName', 'backdropName', 'wordmark', 'role', 'bio',
+          'portraitUrl', 'email', 'githubHandle', 'githubUrl', 'availability',
+          'disciplineSummary', 'craftMetricValue', 'craftMetricSuffix', 'craftMetricLabel',
+          'craftSummary', 'quoteText', 'quoteAuthor', 'quoteRole',
+          'manifestoLead', 'manifestoAvailability', 'prototypeTurnaround',
+          'heroMetrics', 'wireframeScenes', 'techStack', 'services', 'techPartners', 'updatedAt'
+        ])
+        && data.greeting is string && data.greeting.size() >= 1 && data.greeting.size() <= 40
+        && data.displayName is string && data.displayName.size() >= 1 && data.displayName.size() <= 24
+        && data.backdropName is string && data.backdropName.size() >= 1 && data.backdropName.size() <= 14
+        && data.wordmark is string && data.wordmark.size() >= 1 && data.wordmark.size() <= 20
+        && data.role is string && data.role.size() >= 1 && data.role.size() <= 80
+        && data.bio is string && data.bio.size() >= 1 && data.bio.size() <= 300
+        && data.portraitUrl is string && data.portraitUrl.size() >= 1 && data.portraitUrl.size() <= 500
+        && data.email is string && data.email.size() >= 3 && data.email.size() <= 100
+        && data.githubHandle is string && data.githubHandle.size() >= 1 && data.githubHandle.size() <= 48
+        && data.githubUrl is string && data.githubUrl.size() >= 1 && data.githubUrl.size() <= 300
+        && data.availability is string && data.availability.size() >= 1 && data.availability.size() <= 48
+        && data.disciplineSummary is string && data.disciplineSummary.size() >= 1 && data.disciplineSummary.size() <= 48
+        && data.craftMetricValue is string && data.craftMetricValue.size() >= 1 && data.craftMetricValue.size() <= 12
+        && data.craftMetricSuffix is string && data.craftMetricSuffix.size() <= 6
+        && data.craftMetricLabel is string && data.craftMetricLabel.size() >= 1 && data.craftMetricLabel.size() <= 64
+        && data.craftSummary is string && data.craftSummary.size() >= 1 && data.craftSummary.size() <= 260
+        && data.quoteText is string && data.quoteText.size() >= 1 && data.quoteText.size() <= 220
+        && data.quoteAuthor is string && data.quoteAuthor.size() >= 1 && data.quoteAuthor.size() <= 40
+        && data.quoteRole is string && data.quoteRole.size() >= 1 && data.quoteRole.size() <= 80
+        && data.manifestoLead is string && data.manifestoLead.size() >= 1 && data.manifestoLead.size() <= 240
+        && data.manifestoAvailability is string && data.manifestoAvailability.size() >= 1 && data.manifestoAvailability.size() <= 200
+        && data.prototypeTurnaround is string && data.prototypeTurnaround.size() >= 1 && data.prototypeTurnaround.size() <= 32
+        && data.heroMetrics is list && data.heroMetrics.size() >= 1 && data.heroMetrics.size() <= 4
+        && data.heroMetrics[0] is map
+        && data.wireframeScenes is list && data.wireframeScenes.size() >= 1 && data.wireframeScenes.size() <= 6
+        && data.wireframeScenes[0] is map
+        && data.techStack is list && data.techStack.size() >= 1 && data.techStack.size() <= 8
+        && data.techStack[0] is map
+        && data.services is list && data.services.size() >= 1 && data.services.size() <= 6
+        && data.services[0] is map
+        && data.techPartners is list && data.techPartners.size() >= 1 && data.techPartners.size() <= 8
+        && data.techPartners[0] is string
+        && data.updatedAt == request.time;
+    }
+
+    function isValidProject(data) {
+      return data.keys().hasAll([
+          'index', 'title', 'category', 'year', 'platform', 'client', 'role',
+          'stack', 'summary', 'architectureNotes', 'previewTheme', 'dimensions',
+          'published', 'sortOrder', 'updatedAt'
+        ])
+        && data.keys().hasOnly([
+          'index', 'title', 'category', 'year', 'platform', 'client', 'role',
+          'stack', 'summary', 'architectureNotes', 'previewTheme', 'dimensions',
+          'coverImageUrl', 'liveUrl', 'repoUrl', 'published', 'sortOrder', 'updatedAt'
+        ])
+        && data.index is string && data.index.size() >= 1 && data.index.size() <= 8
+        && data.title is string && data.title.size() >= 1 && data.title.size() <= 80
+        && data.category in ['Websites', 'Apps', 'Games', 'UI/UX Design']
+        && data.year is string && data.year.size() >= 1 && data.year.size() <= 16
+        && data.platform is string && data.platform.size() >= 1 && data.platform.size() <= 48
+        && data.client is string && data.client.size() >= 1 && data.client.size() <= 48
+        && data.role is string && data.role.size() >= 1 && data.role.size() <= 80
+        && data.stack is list && data.stack.size() >= 1 && data.stack.size() <= 6
+        && data.stack[0] is string && data.stack[0].size() <= 32
+        && data.summary is string && data.summary.size() >= 1 && data.summary.size() <= 340
+        && data.architectureNotes is string && data.architectureNotes.size() >= 1 && data.architectureNotes.size() <= 360
+        && data.previewTheme in ['web-commerce', 'app-workspace', 'game-rift', 'app-realtime', 'game-drift', 'ui-system']
+        && data.dimensions is string && data.dimensions.size() >= 1 && data.dimensions.size() <= 24
+        && isValidOptionalUrl(data, 'coverImageUrl', 500)
+        && isValidOptionalUrl(data, 'liveUrl', 300)
+        && isValidOptionalUrl(data, 'repoUrl', 300)
+        && data.published is bool
+        && data.sortOrder is int && data.sortOrder >= 0 && data.sortOrder <= 1000
+        && data.updatedAt == request.time;
+    }
+
+    function isValidMilestone(data) {
+      return data.keys().hasAll(['title', 'context', 'project', 'year', 'outcome', 'published', 'sortOrder', 'updatedAt'])
+        && data.keys().hasOnly(['title', 'context', 'project', 'year', 'outcome', 'published', 'sortOrder', 'updatedAt'])
+        && data.title is string && data.title.size() >= 1 && data.title.size() <= 110
+        && data.context is string && data.context.size() >= 1 && data.context.size() <= 64
+        && data.project is string && data.project.size() >= 1 && data.project.size() <= 56
+        && data.year is string && data.year.size() >= 1 && data.year.size() <= 12
+        && data.outcome is string && data.outcome.size() >= 1 && data.outcome.size() <= 260
+        && data.published is bool
+        && data.sortOrder is int && data.sortOrder >= 0 && data.sortOrder <= 1000
+        && data.updatedAt == request.time;
+    }
+
+    function isValidExperience(data) {
+      return data.keys().hasAll(['period', 'role', 'org', 'description', 'published', 'sortOrder', 'updatedAt'])
+        && data.keys().hasOnly(['period', 'role', 'org', 'description', 'published', 'sortOrder', 'updatedAt'])
+        && data.period is string && data.period.size() >= 1 && data.period.size() <= 32
+        && data.role is string && data.role.size() >= 1 && data.role.size() <= 80
+        && data.org is string && data.org.size() >= 1 && data.org.size() <= 80
+        && data.description is string && data.description.size() >= 1 && data.description.size() <= 280
+        && data.published is bool
+        && data.sortOrder is int && data.sortOrder >= 0 && data.sortOrder <= 1000
+        && data.updatedAt == request.time;
+    }
+
+    function isValidInquiry(data) {
+      return data.keys().hasAll(['name', 'email', 'scope', 'brief', 'status', 'createdAt'])
+        && data.keys().hasOnly(['name', 'email', 'scope', 'brief', 'status', 'createdAt', 'updatedAt'])
+        && data.name is string && data.name.size() >= 1 && data.name.size() <= 80
+        && data.email is string && data.email.size() >= 3 && data.email.size() <= 120 && data.email.matches('^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$')
+        && data.scope is string && data.scope.size() >= 1 && data.scope.size() <= 80
+        && data.brief is string && data.brief.size() >= 1 && data.brief.size() <= 2000
+        && data.status in ['new', 'read', 'replied', 'archived'];
+    }
+
+    match /site_settings/{settingId} {
+      allow get: if isValidId(settingId);
+      allow list: if false;
+      allow create: if isValidId(settingId) && isAdmin() && isValidPortfolioSettings(incoming());
+      allow update: if isValidId(settingId) && isAdmin() && isValidPortfolioSettings(incoming())
+        && incoming().diff(existing()).affectedKeys().hasOnly([
+          'greeting', 'displayName', 'backdropName', 'wordmark', 'role', 'bio',
+          'portraitUrl', 'email', 'githubHandle', 'githubUrl', 'availability',
+          'disciplineSummary', 'craftMetricValue', 'craftMetricSuffix', 'craftMetricLabel',
+          'craftSummary', 'quoteText', 'quoteAuthor', 'quoteRole',
+          'manifestoLead', 'manifestoAvailability', 'prototypeTurnaround',
+          'heroMetrics', 'wireframeScenes', 'techStack', 'services', 'techPartners', 'updatedAt'
+        ]);
+      allow delete: if isValidId(settingId) && isAdmin();
+    }
+
+    match /projects/{projectId} {
+      allow get: if isValidId(projectId) && (existing().published == true || isAdmin());
+      allow list: if existing().published == true || isBootstrappedAdmin();
+      allow create: if isValidId(projectId) && isAdmin() && isValidProject(incoming());
+      allow update: if isValidId(projectId) && isAdmin() && isValidProject(incoming())
+        && incoming().diff(existing()).affectedKeys().hasOnly([
+          'index', 'title', 'category', 'year', 'platform', 'client', 'role',
+          'stack', 'summary', 'architectureNotes', 'previewTheme', 'dimensions',
+          'coverImageUrl', 'liveUrl', 'repoUrl', 'published', 'sortOrder', 'updatedAt'
+        ]);
+      allow delete: if isValidId(projectId) && isAdmin();
+    }
+
+    match /milestones/{milestoneId} {
+      allow get: if isValidId(milestoneId) && (existing().published == true || isAdmin());
+      allow list: if existing().published == true || isBootstrappedAdmin();
+      allow create: if isValidId(milestoneId) && isAdmin() && isValidMilestone(incoming());
+      allow update: if isValidId(milestoneId) && isAdmin() && isValidMilestone(incoming())
+        && incoming().diff(existing()).affectedKeys().hasOnly([
+          'title', 'context', 'project', 'year', 'outcome', 'published', 'sortOrder', 'updatedAt'
+        ]);
+      allow delete: if isValidId(milestoneId) && isAdmin();
+    }
+
+    match /experience/{experienceId} {
+      allow get: if isValidId(experienceId) && (existing().published == true || isAdmin());
+      allow list: if existing().published == true || isBootstrappedAdmin();
+      allow create: if isValidId(experienceId) && isAdmin() && isValidExperience(incoming());
+      allow update: if isValidId(experienceId) && isAdmin() && isValidExperience(incoming())
+        && incoming().diff(existing()).affectedKeys().hasOnly([
+          'period', 'role', 'org', 'description', 'published', 'sortOrder', 'updatedAt'
+        ]);
+      allow delete: if isValidId(experienceId) && isAdmin();
+    }
+
+    match /inquiries/{inquiryId} {
+      allow create: if isValidId(inquiryId) && isValidInquiry(incoming())
+        && !('updatedAt' in incoming())
+        && incoming().status == 'new'
+        && incoming().createdAt == request.time;
+      allow get: if isValidId(inquiryId) && isAdmin();
+      allow list: if isBootstrappedAdmin();
+      allow update: if isValidId(inquiryId) && isAdmin() && isValidInquiry(incoming())
+        && incoming().diff(existing()).affectedKeys().hasOnly(['status', 'updatedAt'])
+        && incoming().createdAt == existing().createdAt
+        && incoming().updatedAt == request.time;
+      allow delete: if isValidId(inquiryId) && isAdmin();
+    }
+
+    match /admins/{adminUid} {
+      allow get: if isSignedIn() && isValidId(adminUid) && request.auth.uid == adminUid;
+      allow list, create, update, delete: if false;
+    }
+  }
+}

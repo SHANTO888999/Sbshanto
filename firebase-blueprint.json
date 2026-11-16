@@ -1,0 +1,151 @@
+{
+  "entities": {
+    "PortfolioSettings": {
+      "title": "PortfolioSettings",
+      "description": "Public portfolio profile, hero metrics, wireframe comparison scenes, tech stack, services, and technology partners.",
+      "type": "object",
+      "properties": {
+        "greeting": { "type": "string", "maxLength": 40 },
+        "displayName": { "type": "string", "maxLength": 24 },
+        "backdropName": { "type": "string", "maxLength": 14 },
+        "wordmark": { "type": "string", "maxLength": 20 },
+        "role": { "type": "string", "maxLength": 80 },
+        "bio": { "type": "string", "maxLength": 300 },
+        "portraitUrl": { "type": "string", "maxLength": 500 },
+        "email": { "type": "string", "maxLength": 100 },
+        "githubHandle": { "type": "string", "maxLength": 48 },
+        "githubUrl": { "type": "string", "maxLength": 300 },
+        "availability": { "type": "string", "maxLength": 48 },
+        "disciplineSummary": { "type": "string", "maxLength": 48 },
+        "craftMetricValue": { "type": "string", "maxLength": 12 },
+        "craftMetricSuffix": { "type": "string", "maxLength": 6 },
+        "craftMetricLabel": { "type": "string", "maxLength": 64 },
+        "craftSummary": { "type": "string", "maxLength": 260 },
+        "quoteText": { "type": "string", "maxLength": 220 },
+        "quoteAuthor": { "type": "string", "maxLength": 40 },
+        "quoteRole": { "type": "string", "maxLength": 80 },
+        "manifestoLead": { "type": "string", "maxLength": 240 },
+        "manifestoAvailability": { "type": "string", "maxLength": 200 },
+        "prototypeTurnaround": { "type": "string", "maxLength": 32 },
+        "heroMetrics": { "type": "array" },
+        "wireframeScenes": { "type": "array" },
+        "techStack": { "type": "array" },
+        "services": { "type": "array" },
+        "techPartners": { "type": "array" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["greeting", "displayName", "backdropName", "wordmark", "role", "bio", "email", "updatedAt"]
+    },
+    "Project": {
+      "title": "Project",
+      "description": "Portfolio showcase project for Websites, Apps, Games, or UI/UX Design.",
+      "type": "object",
+      "properties": {
+        "index": { "type": "string", "maxLength": 8 },
+        "title": { "type": "string", "maxLength": 80 },
+        "category": { "type": "string", "enum": ["Websites", "Apps", "Games", "UI/UX Design"] },
+        "year": { "type": "string", "maxLength": 16 },
+        "platform": { "type": "string", "maxLength": 48 },
+        "client": { "type": "string", "maxLength": 48 },
+        "role": { "type": "string", "maxLength": 80 },
+        "stack": { "type": "array" },
+        "summary": { "type": "string", "maxLength": 340 },
+        "architectureNotes": { "type": "string", "maxLength": 360 },
+        "previewTheme": {
+          "type": "string",
+          "enum": ["web-commerce", "app-workspace", "game-rift", "app-realtime", "game-drift", "ui-system"]
+        },
+        "dimensions": { "type": "string", "maxLength": 24 },
+        "coverImageUrl": { "type": "string", "maxLength": 500 },
+        "liveUrl": { "type": "string", "maxLength": 300 },
+        "repoUrl": { "type": "string", "maxLength": 300 },
+        "published": { "type": "boolean" },
+        "sortOrder": { "type": "integer" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["index", "title", "category", "year", "platform", "client", "role", "stack", "summary", "architectureNotes", "previewTheme", "dimensions", "published", "sortOrder", "updatedAt"]
+    },
+    "Milestone": {
+      "title": "Milestone",
+      "description": "Portfolio achievement or client milestone entry.",
+      "type": "object",
+      "properties": {
+        "title": { "type": "string", "maxLength": 110 },
+        "context": { "type": "string", "maxLength": 64 },
+        "project": { "type": "string", "maxLength": 56 },
+        "year": { "type": "string", "maxLength": 12 },
+        "outcome": { "type": "string", "maxLength": 260 },
+        "published": { "type": "boolean" },
+        "sortOrder": { "type": "integer" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["title", "context", "project", "year", "outcome", "published", "sortOrder", "updatedAt"]
+    },
+    "Experience": {
+      "title": "Experience",
+      "description": "Developer career and studio timeline entry.",
+      "type": "object",
+      "properties": {
+        "period": { "type": "string", "maxLength": 32 },
+        "role": { "type": "string", "maxLength": 80 },
+        "org": { "type": "string", "maxLength": 80 },
+        "description": { "type": "string", "maxLength": 280 },
+        "published": { "type": "boolean" },
+        "sortOrder": { "type": "integer" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["period", "role", "org", "description", "published", "sortOrder", "updatedAt"]
+    },
+    "Inquiry": {
+      "title": "Inquiry",
+      "description": "Visitor-submitted project inquiry brief stored privately for the portfolio owner.",
+      "type": "object",
+      "properties": {
+        "name": { "type": "string", "maxLength": 80 },
+        "email": { "type": "string", "maxLength": 120 },
+        "scope": { "type": "string", "maxLength": 80 },
+        "brief": { "type": "string", "maxLength": 2000 },
+        "status": { "type": "string", "enum": ["new", "read", "replied", "archived"] },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["name", "email", "scope", "brief", "status", "createdAt"]
+    },
+    "AdminUser": {
+      "title": "AdminUser",
+      "description": "Trusted administrator registry keyed by Firebase Auth UID.",
+      "type": "object",
+      "properties": {
+        "email": { "type": "string", "maxLength": 120 },
+        "role": { "type": "string", "enum": ["admin"] }
+      },
+      "required": ["email", "role"]
+    }
+  },
+  "firestore": {
+    "/site_settings/{settingId}": {
+      "schema": { "$ref": "#/entities/PortfolioSettings" },
+      "description": "Public portfolio configuration and profile content."
+    },
+    "/projects/{projectId}": {
+      "schema": { "$ref": "#/entities/Project" },
+      "description": "Published portfolio projects displayed in Works and inspected in ProjectModal."
+    },
+    "/milestones/{milestoneId}": {
+      "schema": { "$ref": "#/entities/Milestone" },
+      "description": "Published milestones and achievements displayed in AwardsSection."
+    },
+    "/experience/{experienceId}": {
+      "schema": { "$ref": "#/entities/Experience" },
+      "description": "Published builder timeline entries displayed in ExperienceSection."
+    },
+    "/inquiries/{inquiryId}": {
+      "schema": { "$ref": "#/entities/Inquiry" },
+      "description": "Private visitor project inquiries readable only by verified admins."
+    },
+    "/admins/{adminUid}": {
+      "schema": { "$ref": "#/entities/AdminUser" },
+      "description": "Admin UID allowlist for RBAC verification."
+    }
+  }
+}
