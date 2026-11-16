@@ -1,13 +1,16 @@
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import type { User } from 'firebase/auth';
 import {
+  ArrowLeft,
   Award,
   Briefcase,
+  ChevronRight,
   CloudUpload,
   ExternalLink,
   Eye,
   EyeOff,
   FolderKanban,
+  Home,
   Inbox,
   KeyRound,
   LayoutDashboard,
@@ -46,13 +49,26 @@ import {
   type AdminProjectRecord,
   type InquiryStatus,
 } from '../../firebase';
+import { handleFormEnterToNext } from '../../utils/formKeyboardNav';
 import { AdminCareerEditor } from './AdminCareerEditor';
 import { AdminInquiriesInbox } from './AdminInquiriesInbox';
-import { AdminProfileEditor } from './AdminProfileEditor';
+import { AdminProfileEditor, type ProfileSubTab } from './AdminProfileEditor';
 import { AdminProjectsEditor } from './AdminProjectsEditor';
 import { ConfirmDialog, StatusNotice } from './FieldControls';
 
 type AdminTab = 'overview' | 'profile' | 'projects' | 'career' | 'inquiries';
+
+const PROFILE_SUB_LABELS: Record<ProfileSubTab, string> = {
+  identity: 'Hero & Portrait',
+  contact: 'Contact & Quote',
+  metrics: 'Metrics & Partners',
+  process: 'Services & Stack',
+};
+
+const CAREER_SUB_LABELS: Record<'milestones' | 'experience', string> = {
+  milestones: 'Milestones',
+  experience: 'Career Timeline',
+};
 
 interface AdminDashboardProps {
   onOpenViewerPreview: () => void;
@@ -90,11 +106,31 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onOpenViewerPrev
   const [loginPassword, setLoginPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
 
-  const [activeTab, setActiveTab] = useState<AdminTab>('overview');
+  const [tabHistory, setTabHistory] = useState<AdminTab[]>(['overview']);
+  const activeTab = tabHistory[tabHistory.length - 1] ?? 'overview';
+
+  const [profileSubHistory, setProfileSubHistory] = useState<ProfileSubTab[]>(['identity']);
+  const activeProfileSubTab = profileSubHistory[profileSubHistory.length - 1] ?? 'identity';
+
+  const [careerSubHistory, setCareerSubHistory] = useState<Array<'milestones' | 'experience'>>([
+    'milestones',
+  ]);
+  const activeCareerSubTab = careerSubHistory[careerSubHistory.length - 1] ?? 'milestones';
+
+  const [subViewLabel, setSubViewLabel] = useState<string | null>(null);
+  const [exitSubViewNonce, setExitSubViewNonce] = useState(0);
+  const [keyboardOffsetPx, setKeyboardOffsetPx] = useState(0);
+
   const [loadingData, setLoadingData] = useState(false);
   const [saving, setSaving] = useState(false);
   const [notice, setNotice] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
   const [seedConfirmOpen, setSeedConfirmOpen] = useState(false);
+
+  const pushedStepsRef = useRef(0);
+  const suppressPopRef = useRef(false);
+  const closingViaBackRef = useRef(false);
+  const prevSubViewRef = useRef<string | null>(null);
+  const stepBackRef = useRef<() => boolean>(() => false);
 
   const [snapshot, setSnapshot] = useState<AdminDashboardSnapshot>({
     hasRemoteSettings: false,
@@ -115,13 +151,191 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onOpenViewerPrev
     };
   }, []);
 
+  // Track mobile virtual keyboard height so admin forms always scroll smoothly above keyboard
+  useEffect(() => {
+    const vv = window.visualViewport;
+    if (!vv) return;
+    const updateOffset = () => {
+      const hiddenBottom = Math.max(0, Math.round(window.innerHeight - vv.height - vv.offsetTop));
+      setKeyboardOffsetPx(hiddenBottom > 60 ? hiddenBottom : 0);
+    };
+    updateOffset();
+    vv.addEventListener('resize', updateOffset);
+    vv.addEventListener('scroll', updateOffset);
+    return () => {
+      vv.removeEventListener('resize', updateOffset);
+      vv.removeEventListener('scroll', updateOffset);
+    };
+  }, []);
+
+  const pushHistoryStep = useCallback(() => {
+    pushedStepsRef.current += 1;
+    window.history.pushState({ adminStep: pushedStepsRef.current }, '');
+  }, []);
+
+  const popHistoryStep = useCallback(() => {
+    if (pushedStepsRef.current > 0) {
+      pushedStepsRef.current -= 1;
+      suppressPopRef.current = true;
+      window.history.back();
+    }
+  }, []);
+
+  const navigateToTab = useCallback(
+    (nextTab: AdminTab) => {
+      if (subViewLabel) {
+        closingViaBackRef.current = true;
+        setExitSubViewNonce((n) => n + 1);
+        setSubViewLabel(null);
+        prevSubViewRef.current = null;
+      }
+      if (nextTab === 'overview') {
+        setTabHistory(['overview']);
+        setProfileSubHistory(['identity']);
+        setCareerSubHistory(['milestones']);
+        return;
+      }
+      setTabHistory((prev) => {
+        if (prev[prev.length - 1] === nextTab) return prev;
+        pushHistoryStep();
+        return [...prev.slice(-9), nextTab];
+      });
+    },
+    [pushHistoryStep, subViewLabel]
+  );
+
+  const navigateProfileSubTab = useCallback(
+    (nextSub: ProfileSubTab) => {
+      setProfileSubHistory((prev) => {
+        if (prev[prev.length - 1] === nextSub) return prev;
+        pushHistoryStep();
+        return [...prev.slice(-7), nextSub];
+      });
+    },
+    [pushHistoryStep]
+  );
+
+  const navigateCareerSubTab = useCallback(
+    (nextSub: 'milestones' | 'experience') => {
+      setCareerSubHistory((prev) => {
+        if (prev[prev.length - 1] === nextSub) return prev;
+        pushHistoryStep();
+        return [...prev.slice(-7), nextSub];
+      });
+    },
+    [pushHistoryStep]
+  );
+
+  const handleSubViewChange = useCallback(
+    (nextLabel: string | null) => {
+      const hadSubView = prevSubViewRef.current !== null;
+      if (nextLabel !== null && !hadSubView) {
+        prevSubViewRef.current = nextLabel;
+        setSubViewLabel(nextLabel);
+        pushHistoryStep();
+      } else if (nextLabel === null && hadSubView) {
+        prevSubViewRef.current = null;
+        setSubViewLabel(null);
+        if (closingViaBackRef.current) {
+          closingViaBackRef.current = false;
+        } else {
+          popHistoryStep();
+        }
+      } else if (nextLabel !== prevSubViewRef.current) {
+        prevSubViewRef.current = nextLabel;
+        setSubViewLabel(nextLabel);
+      }
+    },
+    [popHistoryStep, pushHistoryStep]
+  );
+
+  const performStepBack = useCallback((): boolean => {
+    if (seedConfirmOpen) {
+      setSeedConfirmOpen(false);
+      return true;
+    }
+    if (subViewLabel) {
+      closingViaBackRef.current = true;
+      prevSubViewRef.current = null;
+      setSubViewLabel(null);
+      setExitSubViewNonce((n) => n + 1);
+      return true;
+    }
+    if (activeTab === 'profile' && profileSubHistory.length > 1) {
+      setProfileSubHistory((prev) => prev.slice(0, -1));
+      return true;
+    }
+    if (activeTab === 'career' && careerSubHistory.length > 1) {
+      setCareerSubHistory((prev) => prev.slice(0, -1));
+      return true;
+    }
+    if (tabHistory.length > 1) {
+      setTabHistory((prev) => prev.slice(0, -1));
+      return true;
+    }
+    if (activeTab !== 'overview') {
+      setTabHistory(['overview']);
+      return true;
+    }
+    return false;
+  }, [
+    seedConfirmOpen,
+    subViewLabel,
+    activeTab,
+    profileSubHistory.length,
+    careerSubHistory.length,
+    tabHistory.length,
+  ]);
+
+  useEffect(() => {
+    stepBackRef.current = performStepBack;
+  }, [performStepBack]);
+
+  useEffect(() => {
+    const onPopState = () => {
+      if (suppressPopRef.current) {
+        suppressPopRef.current = false;
+        return;
+      }
+      if (pushedStepsRef.current > 0) {
+        pushedStepsRef.current -= 1;
+      }
+      stepBackRef.current();
+    };
+    window.addEventListener('popstate', onPopState);
+    return () => window.removeEventListener('popstate', onPopState);
+  }, []);
+
+  const handleUiBack = useCallback(() => {
+    const stepped = performStepBack();
+    if (stepped) {
+      popHistoryStep();
+    }
+  }, [performStepBack, popHistoryStep]);
+
   const loadDashboard = useCallback(async () => {
     setLoadingData(true);
+    setNotice(null);
     try {
       const data = await fetchAdminDashboardSnapshot();
       setSnapshot(data);
       setProfileDraft(data.settingsBundle);
     } catch (err) {
+      const rawMsg = err instanceof Error ? err.message : '';
+      if (rawMsg.includes('Missing or insufficient permissions')) {
+        try {
+          await reloadCurrentUser();
+          const retryData = await fetchAdminDashboardSnapshot();
+          setSnapshot(retryData);
+          setProfileDraft(retryData.settingsBundle);
+          return;
+        } catch (retryErr) {
+          const retryMsg =
+            retryErr instanceof Error ? retryErr.message : 'Unable to load cloud portfolio data.';
+          setNotice({ type: 'error', text: retryMsg });
+          return;
+        }
+      }
       const msg = err instanceof Error ? err.message : 'Unable to load cloud portfolio data.';
       setNotice({ type: 'error', text: msg });
     } finally {
@@ -265,7 +479,10 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onOpenViewerPrev
         user?.email?.toLowerCase() === OWNER_ADMIN_EMAIL.toLowerCase());
 
     return (
-      <div className="design-grid-bg flex min-h-screen flex-col justify-between bg-[#050507] px-6 py-10 text-[#F4F4F5]">
+      <div
+        data-admin-workspace="true"
+        className="design-grid-bg flex min-h-[100dvh] flex-col justify-between gap-6 bg-[#050507] px-6 py-8 pb-20 text-[#F4F4F5]"
+      >
         <header className="mx-auto flex w-full max-w-4xl items-center justify-between">
           <span className="font-display text-xl font-bold tracking-tight text-white">
             SHANTO<span className="text-[#DC2626]">.</span> ADMIN
@@ -367,7 +584,11 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onOpenViewerPrev
               </div>
             </div>
           ) : (
-            <form onSubmit={handleEmailLogin} className="mt-4 space-y-4">
+            <form
+              onSubmit={handleEmailLogin}
+              onKeyDown={handleFormEnterToNext}
+              className="mt-4 space-y-4"
+            >
               <p className="text-sm leading-relaxed text-zinc-300">
                 Enter your administrator email and password to manage portfolio content and client
                 inquiries.
@@ -388,6 +609,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onOpenViewerPrev
                   type="email"
                   required
                   autoComplete="email"
+                  enterKeyHint="next"
                   value={loginEmail}
                   onChange={(e) => setLoginEmail(e.target.value)}
                   placeholder="Enter admin email"
@@ -405,6 +627,8 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onOpenViewerPrev
                     type={showPassword ? 'text' : 'password'}
                     required
                     autoComplete="current-password"
+                    enterKeyHint="go"
+                    data-enter-submit="true"
                     value={loginPassword}
                     onChange={(e) => setLoginPassword(e.target.value)}
                     placeholder="Enter password"
@@ -440,8 +664,16 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onOpenViewerPrev
     );
   }
 
+  const canGoBack =
+    Boolean(subViewLabel) || activeTab !== 'overview' || tabHistory.length > 1;
+
+  const currentTabLabel = navItems.find((n) => n.id === activeTab)?.label ?? 'Overview';
+
   return (
-    <div className="min-h-screen bg-[#050507] text-[#F4F4F5] lg:flex">
+    <div
+      data-admin-workspace="true"
+      className="min-h-[100dvh] bg-[#050507] text-[#F4F4F5] lg:flex"
+    >
       {/* Desktop Sidebar */}
       <aside className="hidden w-64 shrink-0 flex-col justify-between border-r border-white/10 bg-[#08090D] p-5 lg:flex">
         <div>
@@ -460,7 +692,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onOpenViewerPrev
                 <button
                   key={item.id}
                   type="button"
-                  onClick={() => setActiveTab(item.id)}
+                  onClick={() => navigateToTab(item.id)}
                   className={`flex min-h-[44px] w-full items-center justify-between rounded-md px-3.5 py-2 text-left text-sm font-medium transition-colors ${
                     active
                       ? 'bg-[#DC2626] text-white'
@@ -510,16 +742,33 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onOpenViewerPrev
       <div className="flex min-w-0 flex-1 flex-col">
         {/* Top Bar */}
         <header className="sticky top-0 z-30 border-b border-white/10 bg-[#050507]/95 px-4 py-3 backdrop-blur-md sm:px-6 lg:px-8">
-          <div className="flex items-center justify-between gap-4">
-            <div className="flex min-w-0 items-center gap-3">
-              <span className="font-display text-lg font-bold tracking-tight text-white lg:hidden">
+          <div className="flex items-center justify-between gap-3">
+            <div className="flex min-w-0 items-center gap-2.5">
+              {canGoBack && (
+                <button
+                  type="button"
+                  onClick={handleUiBack}
+                  aria-label="Go back one step"
+                  className="inline-flex min-h-[38px] items-center gap-1.5 rounded-md border border-white/15 bg-[#0E1016] px-3 py-1.5 text-xs font-semibold text-white hover:border-[#DC2626]/60 hover:bg-white/5 shrink-0"
+                >
+                  <ArrowLeft className="h-3.5 w-3.5 text-[#EF4444]" aria-hidden="true" />
+                  <span>Back</span>
+                </button>
+              )}
+
+              <span className="truncate font-display text-lg font-bold tracking-tight text-white lg:hidden">
                 SHANTO<span className="text-[#DC2626]">.</span> ADMIN
               </span>
+
               <span className="hidden text-xs font-medium text-zinc-400 lg:inline">
                 Portfolio Control Center /{' '}
-                <span className="text-white">
-                  {navItems.find((n) => n.id === activeTab)?.label}
-                </span>
+                <span className="text-white">{currentTabLabel}</span>
+                {subViewLabel && (
+                  <>
+                    {' / '}
+                    <span className="text-[#EF4444]">{subViewLabel}</span>
+                  </>
+                )}
               </span>
             </div>
 
@@ -568,7 +817,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onOpenViewerPrev
                 <button
                   key={item.id}
                   type="button"
-                  onClick={() => setActiveTab(item.id)}
+                  onClick={() => navigateToTab(item.id)}
                   className={`min-h-[38px] rounded-md px-3 py-1.5 text-xs font-medium transition-colors whitespace-nowrap shrink-0 ${
                     active
                       ? 'bg-[#DC2626] text-white'
@@ -581,9 +830,87 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onOpenViewerPrev
               );
             })}
           </nav>
+
+          {/* Multi-Level Clickable Breadcrumb Back Bar */}
+          {canGoBack && (
+            <div
+              aria-label="Back navigation trail"
+              className="mt-2.5 flex flex-wrap items-center gap-1.5 border-t border-white/10 pt-2.5 text-xs"
+            >
+              <button
+                type="button"
+                onClick={() => navigateToTab('overview')}
+                className="inline-flex min-h-[30px] items-center gap-1 rounded border border-white/10 bg-[#0B0C10] px-2.5 py-1 text-zinc-300 hover:border-white/25 hover:text-white"
+              >
+                <Home className="h-3 w-3 text-[#EF4444]" aria-hidden="true" />
+                Overview
+              </button>
+
+              {activeTab !== 'overview' && (
+                <>
+                  <ChevronRight className="h-3.5 w-3.5 text-zinc-600" aria-hidden="true" />
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (subViewLabel) {
+                        closingViaBackRef.current = true;
+                        prevSubViewRef.current = null;
+                        setSubViewLabel(null);
+                        setExitSubViewNonce((n) => n + 1);
+                        popHistoryStep();
+                      } else if (activeTab === 'profile') {
+                        setProfileSubHistory(['identity']);
+                      } else if (activeTab === 'career') {
+                        setCareerSubHistory(['milestones']);
+                      }
+                    }}
+                    className={`inline-flex min-h-[30px] items-center gap-1 rounded px-2.5 py-1 ${
+                      subViewLabel ||
+                      (activeTab === 'profile' && activeProfileSubTab !== 'identity') ||
+                      (activeTab === 'career' && activeCareerSubTab !== 'milestones')
+                        ? 'border border-white/10 bg-[#0B0C10] text-zinc-200 hover:border-white/25 hover:text-white'
+                        : 'bg-white/10 font-semibold text-white'
+                    }`}
+                  >
+                    {currentTabLabel}
+                  </button>
+                </>
+              )}
+
+              {activeTab === 'profile' && activeProfileSubTab !== 'identity' && (
+                <>
+                  <ChevronRight className="h-3.5 w-3.5 text-zinc-600" aria-hidden="true" />
+                  <span className="rounded bg-white/10 px-2.5 py-1 font-semibold text-white">
+                    {PROFILE_SUB_LABELS[activeProfileSubTab]}
+                  </span>
+                </>
+              )}
+
+              {activeTab === 'career' && activeCareerSubTab !== 'milestones' && !subViewLabel && (
+                <>
+                  <ChevronRight className="h-3.5 w-3.5 text-zinc-600" aria-hidden="true" />
+                  <span className="rounded bg-white/10 px-2.5 py-1 font-semibold text-white">
+                    {CAREER_SUB_LABELS[activeCareerSubTab]}
+                  </span>
+                </>
+              )}
+
+              {subViewLabel && (
+                <>
+                  <ChevronRight className="h-3.5 w-3.5 text-zinc-600" aria-hidden="true" />
+                  <span className="rounded bg-[#DC2626]/20 px-2.5 py-1 font-semibold text-red-200">
+                    {subViewLabel}
+                  </span>
+                </>
+              )}
+            </div>
+          )}
         </header>
 
-        <main className="mx-auto w-full max-w-6xl flex-1 space-y-6 px-4 py-6 sm:px-6 lg:px-8 lg:py-8">
+        <main
+          style={{ paddingBottom: `${Math.max(112, keyboardOffsetPx + 72)}px` }}
+          className="mx-auto w-full max-w-6xl flex-1 space-y-6 px-4 pt-6 sm:px-6 lg:px-8 lg:pt-8"
+        >
           <StatusNotice notice={notice} onDismiss={() => setNotice(null)} />
 
           {activeTab === 'overview' && (
@@ -660,7 +987,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onOpenViewerPrev
                   <div className="mt-4 grid grid-cols-1 gap-2.5 sm:grid-cols-2">
                     <button
                       type="button"
-                      onClick={() => setActiveTab('profile')}
+                      onClick={() => navigateToTab('profile')}
                       className="flex min-h-[44px] items-center gap-2.5 rounded-md border border-white/10 bg-[#0E1016] px-3.5 py-2 text-left text-xs font-medium text-zinc-200 hover:border-white/25 hover:text-white"
                     >
                       <UserCog className="h-4 w-4 text-[#EF4444]" aria-hidden="true" />
@@ -668,7 +995,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onOpenViewerPrev
                     </button>
                     <button
                       type="button"
-                      onClick={() => setActiveTab('projects')}
+                      onClick={() => navigateToTab('projects')}
                       className="flex min-h-[44px] items-center gap-2.5 rounded-md border border-white/10 bg-[#0E1016] px-3.5 py-2 text-left text-xs font-medium text-zinc-200 hover:border-white/25 hover:text-white"
                     >
                       <FolderKanban className="h-4 w-4 text-[#EF4444]" aria-hidden="true" />
@@ -676,7 +1003,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onOpenViewerPrev
                     </button>
                     <button
                       type="button"
-                      onClick={() => setActiveTab('career')}
+                      onClick={() => navigateToTab('career')}
                       className="flex min-h-[44px] items-center gap-2.5 rounded-md border border-white/10 bg-[#0E1016] px-3.5 py-2 text-left text-xs font-medium text-zinc-200 hover:border-white/25 hover:text-white"
                     >
                       <Briefcase className="h-4 w-4 text-[#EF4444]" aria-hidden="true" />
@@ -684,7 +1011,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onOpenViewerPrev
                     </button>
                     <button
                       type="button"
-                      onClick={() => setActiveTab('inquiries')}
+                      onClick={() => navigateToTab('inquiries')}
                       className="flex min-h-[44px] items-center gap-2.5 rounded-md border border-white/10 bg-[#0E1016] px-3.5 py-2 text-left text-xs font-medium text-zinc-200 hover:border-white/25 hover:text-white"
                     >
                       <Inbox className="h-4 w-4 text-[#EF4444]" aria-hidden="true" />
@@ -740,6 +1067,9 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onOpenViewerPrev
             <AdminProfileEditor
               draft={profileDraft}
               saving={saving}
+              subTab={activeProfileSubTab}
+              onChangeSubTab={navigateProfileSubTab}
+              onBack={handleUiBack}
               onChange={setProfileDraft}
               onSave={() =>
                 runMutation(
@@ -754,6 +1084,8 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onOpenViewerPrev
             <AdminProjectsEditor
               projects={snapshot.projects}
               saving={saving}
+              onSubViewChange={handleSubViewChange}
+              exitSubViewNonce={exitSubViewNonce}
               onSaveProject={(proj: AdminProjectRecord) =>
                 runMutation(
                   () => saveAdminProject(proj).then(() => undefined),
@@ -771,6 +1103,10 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onOpenViewerPrev
               milestones={snapshot.milestones}
               experience={snapshot.experience}
               saving={saving}
+              activeSubTab={activeCareerSubTab}
+              onChangeSubTab={navigateCareerSubTab}
+              onSubViewChange={handleSubViewChange}
+              exitSubViewNonce={exitSubViewNonce}
               onSaveMilestone={(item: AdminMilestoneRecord) =>
                 runMutation(
                   () => saveAdminMilestone(item).then(() => undefined),

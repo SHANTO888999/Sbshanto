@@ -1,29 +1,47 @@
 import React, { useEffect, useRef, useState } from 'react';
+import { isVideoMediaSource } from '../data/contentSchema';
 import { ProjectItem } from '../data/portfolioData';
 
 interface ProductPreviewCanvasProps {
   theme: ProjectItem['previewTheme'];
   coverImageUrl?: string;
+  coverMediaType?: 'image' | 'video';
   title?: string;
   isAnimating?: boolean;
+  controlPlayback?: boolean;
   className?: string;
 }
 
 export const ProductPreviewCanvas: React.FC<ProductPreviewCanvasProps> = ({
   theme,
   coverImageUrl,
+  coverMediaType,
   title = 'Project preview',
   isAnimating = false,
+  controlPlayback = false,
   className = '',
 }) => {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
+  const videoRef = useRef<HTMLVideoElement | null>(null);
   const [imageFailed, setImageFailed] = useState(false);
 
   useEffect(() => {
     setImageFailed(false);
-  }, [coverImageUrl]);
+  }, [coverImageUrl, coverMediaType]);
 
   const showCustomCover = Boolean(coverImageUrl && !imageFailed);
+  const isVideo = showCustomCover && isVideoMediaSource(coverImageUrl, coverMediaType);
+
+  useEffect(() => {
+    if (!isVideo || !controlPlayback) return;
+    const vid = videoRef.current;
+    if (!vid) return;
+    if (isAnimating) {
+      void vid.play().catch(() => {});
+    } else {
+      vid.pause();
+    }
+  }, [isVideo, controlPlayback, isAnimating]);
 
   useEffect(() => {
     if (showCustomCover) return;
@@ -282,16 +300,31 @@ export const ProductPreviewCanvas: React.FC<ProductPreviewCanvasProps> = ({
   return (
     <div className={`relative aspect-video overflow-hidden bg-[#0B0B0F] ${className}`}>
       {showCustomCover ? (
-        <img
-          src={coverImageUrl}
-          alt={title}
-          loading="lazy"
-          referrerPolicy="no-referrer"
-          onError={() => setImageFailed(true)}
-          className={`block h-full w-full object-cover transition-transform duration-500 ${
-            isAnimating ? 'scale-[1.03]' : 'scale-100'
-          }`}
-        />
+        isVideo ? (
+          <video
+            ref={videoRef}
+            src={coverImageUrl}
+            autoPlay
+            loop
+            muted
+            playsInline
+            preload="metadata"
+            aria-label={title}
+            onError={() => setImageFailed(true)}
+            className="block h-full w-full object-cover"
+          />
+        ) : (
+          <img
+            src={coverImageUrl}
+            alt={title}
+            loading="lazy"
+            referrerPolicy="no-referrer"
+            onError={() => setImageFailed(true)}
+            className={`block h-full w-full object-cover transition-transform duration-500 ${
+              isAnimating ? 'scale-[1.03]' : 'scale-100'
+            }`}
+          />
+        )
       ) : (
         <canvas ref={canvasRef} className="block h-full w-full object-cover" aria-hidden="true" />
       )}

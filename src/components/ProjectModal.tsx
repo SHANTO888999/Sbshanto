@@ -63,8 +63,10 @@ export const ProjectModal: React.FC<ProjectModalProps> = ({ project, onClose }) 
           <ProductPreviewCanvas
             theme={project.previewTheme}
             coverImageUrl={project.coverImageUrl}
+            coverMediaType={project.coverMediaType}
             title={project.title}
             isAnimating={isAnimating}
+            controlPlayback
           />
 
           <div className="flex items-center justify-between border-t border-white/10 bg-[#08080A] px-5 py-3">

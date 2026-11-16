@@ -53,6 +53,7 @@ const ProjectCardContent: React.FC<{
           <ProductPreviewCanvas
             theme={showingCloneTheme ? firstProject.previewTheme : project.previewTheme}
             coverImageUrl={showingCloneTheme ? firstProject.coverImageUrl : project.coverImageUrl}
+            coverMediaType={showingCloneTheme ? firstProject.coverMediaType : project.coverMediaType}
             title={project.title}
             isAnimating={isHovered}
           />

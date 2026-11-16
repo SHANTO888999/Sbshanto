@@ -56,7 +56,8 @@
           "enum": ["web-commerce", "app-workspace", "game-rift", "app-realtime", "game-drift", "ui-system"]
         },
         "dimensions": { "type": "string", "maxLength": 24 },
-        "coverImageUrl": { "type": "string", "maxLength": 500 },
+        "coverImageUrl": { "type": "string", "maxLength": 780000 },
+        "coverMediaType": { "type": "string", "enum": ["image", "video"] },
         "liveUrl": { "type": "string", "maxLength": 300 },
         "repoUrl": { "type": "string", "maxLength": 300 },
         "published": { "type": "boolean" },

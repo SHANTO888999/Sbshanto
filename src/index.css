@@ -17,7 +17,16 @@
   body {
     background-color: #050507;
     overflow-x: hidden;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
   }
+}
+
+[data-admin-workspace] input,
+[data-admin-workspace] textarea,
+[data-admin-workspace] select {
+  scroll-margin-top: 120px;
+  scroll-margin-bottom: 140px;
 }
 
 .design-grid-bg {

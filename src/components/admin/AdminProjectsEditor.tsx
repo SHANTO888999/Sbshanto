@@ -1,16 +1,23 @@
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
   ArrowLeft,
   Eye,
   EyeOff,
+  Film,
+  ImagePlus,
+  Loader2,
   Pencil,
   Plus,
   Save,
   Search,
   Trash2,
+  X,
 } from 'lucide-react';
 import type { PreviewTheme, ProjectCategory } from '../../data/contentSchema';
+import { isVideoMediaSource } from '../../data/contentSchema';
 import type { AdminProjectRecord } from '../../firebase';
+import { handleFormEnterToNext } from '../../utils/formKeyboardNav';
+import { processProjectPhotoFile, processProjectVideoFile } from '../../utils/mediaCompressor';
 import { ProductPreviewCanvas } from '../ProductPreviewCanvas';
 import { ConfirmDialog, LimitedInput, LimitedTextarea, SafeUrlInput } from './FieldControls';
 
@@ -19,6 +26,8 @@ interface AdminProjectsEditorProps {
   saving: boolean;
   onSaveProject: (project: AdminProjectRecord) => Promise<void>;
   onDeleteProject: (projectId: string) => Promise<void>;
+  onSubViewChange?: (label: string | null) => void;
+  exitSubViewNonce?: number;
 }
 
 const CATEGORIES: ReadonlyArray<Exclude<ProjectCategory, 'All'>> = [
@@ -54,6 +63,7 @@ function createBlankProject(nextOrder: number): AdminProjectRecord {
     previewTheme: 'web-commerce',
     dimensions: '1440 × 900',
     coverImageUrl: '',
+    coverMediaType: undefined,
     liveUrl: '',
     repoUrl: '',
     published: true,
@@ -66,12 +76,41 @@ export const AdminProjectsEditor: React.FC<AdminProjectsEditorProps> = ({
   saving,
   onSaveProject,
   onDeleteProject,
+  onSubViewChange,
+  exitSubViewNonce = 0,
 }) => {
   const [filterCategory, setFilterCategory] = useState<ProjectCategory>('All');
   const [searchQuery, setSearchQuery] = useState('');
   const [editing, setEditing] = useState<AdminProjectRecord | null>(null);
   const [stackInput, setStackInput] = useState('');
   const [deleteTarget, setDeleteTarget] = useState<AdminProjectRecord | null>(null);
+
+  const [mediaBusyLabel, setMediaBusyLabel] = useState<string | null>(null);
+  const [mediaError, setMediaError] = useState<string | null>(null);
+  const [mediaStatusNote, setMediaStatusNote] = useState<string | null>(null);
+
+  const photoInputRef = useRef<HTMLInputElement | null>(null);
+  const videoInputRef = useRef<HTMLInputElement | null>(null);
+  const lastExitNonceRef = useRef(exitSubViewNonce);
+
+  useEffect(() => {
+    if (exitSubViewNonce !== lastExitNonceRef.current) {
+      lastExitNonceRef.current = exitSubViewNonce;
+      setEditing(null);
+      setMediaError(null);
+      setMediaStatusNote(null);
+    }
+  }, [exitSubViewNonce]);
+
+  useEffect(() => {
+    if (!onSubViewChange) return;
+    if (!editing) {
+      onSubViewChange(null);
+      return;
+    }
+    const isExisting = projects.some((p) => p.id === editing.id);
+    onSubViewChange(isExisting ? 'Edit Project' : 'New Project');
+  }, [editing, projects, onSubViewChange]);
 
   const filtered = useMemo(() => {
     const q = searchQuery.trim().toLowerCase();
@@ -89,11 +128,15 @@ export const AdminProjectsEditor: React.FC<AdminProjectsEditorProps> = ({
   const startEdit = (proj: AdminProjectRecord) => {
     setEditing({ ...proj, stack: [...proj.stack] });
     setStackInput('');
+    setMediaError(null);
+    setMediaStatusNote(null);
   };
 
   const startNew = () => {
     setEditing(createBlankProject(projects.length));
     setStackInput('');
+    setMediaError(null);
+    setMediaStatusNote(null);
   };
 
   const addStackTag = () => {
@@ -108,17 +151,77 @@ export const AdminProjectsEditor: React.FC<AdminProjectsEditorProps> = ({
     setStackInput('');
   };
 
+  const handlePhotoPicked = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    e.target.value = '';
+    if (!file || !editing) return;
+    setMediaError(null);
+    setMediaStatusNote(null);
+    setMediaBusyLabel('Optimizing photo...');
+    try {
+      const result = await processProjectPhotoFile(file);
+      setEditing((prev) =>
+        prev
+          ? {
+              ...prev,
+              coverImageUrl: result.dataUrl,
+              coverMediaType: 'image',
+            }
+          : prev
+      );
+      setMediaStatusNote(`Photo ready (${result.sizeKB} KB)`);
+    } catch (err) {
+      setMediaError(err instanceof Error ? err.message : 'Failed to process selected photo.');
+    } finally {
+      setMediaBusyLabel(null);
+    }
+  };
+
+  const handleVideoPicked = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    e.target.value = '';
+    if (!file || !editing) return;
+    setMediaError(null);
+    setMediaStatusNote(null);
+    setMediaBusyLabel('Preparing video clip...');
+    try {
+      const result = await processProjectVideoFile(file, (label) => setMediaBusyLabel(label));
+      setEditing((prev) =>
+        prev
+          ? {
+              ...prev,
+              coverImageUrl: result.dataUrl,
+              coverMediaType: 'video',
+            }
+          : prev
+      );
+      setMediaStatusNote(
+        `Video loop ready (${result.sizeKB} KB · ~${Math.max(1, result.trimmedSeconds)}s)`
+      );
+    } catch (err) {
+      setMediaError(err instanceof Error ? err.message : 'Failed to process selected video.');
+    } finally {
+      setMediaBusyLabel(null);
+    }
+  };
+
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!editing) return;
+    if (!editing || mediaBusyLabel) return;
     const ensuredStack = editing.stack.length > 0 ? editing.stack : ['React', 'TypeScript'];
     await onSaveProject({ ...editing, stack: ensuredStack });
     setEditing(null);
   };
 
   if (editing) {
+    const coverValue = editing.coverImageUrl ?? '';
+    const isUploadedMedia = coverValue.startsWith('data:');
+    const isVideoCover = Boolean(
+      coverValue && isVideoMediaSource(coverValue, editing.coverMediaType)
+    );
+
     return (
-      <form onSubmit={handleSave} className="space-y-6">
+      <form onSubmit={handleSave} onKeyDown={handleFormEnterToNext} className="space-y-6 pb-8">
         <div className="flex flex-col gap-4 border-b border-white/10 pb-5 sm:flex-row sm:items-center sm:justify-between">
           <div className="flex items-center gap-3">
             <button
@@ -127,14 +230,14 @@ export const AdminProjectsEditor: React.FC<AdminProjectsEditorProps> = ({
               className="inline-flex min-h-[40px] items-center gap-1.5 rounded-md border border-white/15 px-3 py-1.5 text-xs font-medium text-zinc-300 hover:bg-white/5 hover:text-white"
             >
               <ArrowLeft className="h-3.5 w-3.5" aria-hidden="true" />
-              Back
+              Back to Projects
             </button>
             <div>
               <h2 className="font-display text-2xl font-bold text-white">
                 {projects.some((p) => p.id === editing.id) ? 'EDIT PROJECT' : 'NEW PROJECT'}
               </h2>
               <p className="text-xs text-zinc-400">
-                Character caps and fallback visuals protect the public showcase grid.
+                Press Enter to jump to the next field. Attach a photo or short video clip below.
               </p>
             </div>
           </div>
@@ -164,7 +267,7 @@ export const AdminProjectsEditor: React.FC<AdminProjectsEditorProps> = ({
 
             <button
               type="submit"
-              disabled={saving}
+              disabled={saving || Boolean(mediaBusyLabel)}
               className="inline-flex min-h-[40px] items-center gap-2 rounded-md bg-[#DC2626] px-4 py-2 text-xs font-semibold text-white hover:bg-[#B91C1C] disabled:opacity-60 whitespace-nowrap shrink-0"
             >
               <Save className="h-3.5 w-3.5" aria-hidden="true" />
@@ -239,6 +342,7 @@ export const AdminProjectsEditor: React.FC<AdminProjectsEditorProps> = ({
                   type="number"
                   min={0}
                   max={1000}
+                  enterKeyHint="next"
                   value={editing.sortOrder}
                   onChange={(e) =>
                     setEditing({
@@ -351,20 +455,22 @@ export const AdminProjectsEditor: React.FC<AdminProjectsEditorProps> = ({
                     type="text"
                     value={stackInput}
                     maxLength={24}
+                    enterKeyHint="next"
+                    data-enter-action="add-tag"
                     onChange={(e) => setStackInput(e.target.value)}
                     onKeyDown={(e) => {
-                      if (e.key === 'Enter') {
+                      if (e.key === 'Enter' && stackInput.trim()) {
                         e.preventDefault();
                         addStackTag();
                       }
                     }}
                     placeholder="Add technology (e.g. Next.js, Unity)"
-                    className="min-h-[40px] flex-1 rounded-md border border-white/15 bg-[#070709] px-3 py-1.5 text-xs text-white placeholder:text-zinc-500 focus:border-[#DC2626] focus:outline-none"
+                    className="min-h-[42px] flex-1 rounded-md border border-white/15 bg-[#070709] px-3 py-1.5 text-xs text-white placeholder:text-zinc-500 focus:border-[#DC2626] focus:outline-none"
                   />
                   <button
                     type="button"
                     onClick={addStackTag}
-                    className="min-h-[40px] rounded-md border border-white/15 px-3.5 py-1.5 text-xs font-medium text-zinc-200 hover:bg-white/5"
+                    className="min-h-[42px] rounded-md border border-white/15 px-3.5 py-1.5 text-xs font-medium text-zinc-200 hover:bg-white/5"
                   >
                     Add Tag
                   </button>
@@ -376,12 +482,103 @@ export const AdminProjectsEditor: React.FC<AdminProjectsEditorProps> = ({
           <div className="space-y-5 lg:col-span-5">
             <div className="rounded-xl border border-white/10 bg-[#090A0F] p-5">
               <p className="font-mono text-[11px] uppercase tracking-wider text-zinc-400">
-                Card Artwork &amp; Live Links
+                Project Photo, Short Video &amp; Links
               </p>
+
+              {/* Upload Photo or Short Video from Phone */}
+              <div className="mt-4 space-y-3 rounded-lg border border-white/10 bg-[#070709] p-3.5">
+                <div className="flex items-center justify-between gap-2">
+                  <span className="text-xs font-medium text-zinc-200">
+                    Cover Media (Photo or Short Clip)
+                  </span>
+                  {coverValue && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setEditing({
+                          ...editing,
+                          coverImageUrl: '',
+                          coverMediaType: undefined,
+                        });
+                        setMediaStatusNote(null);
+                        setMediaError(null);
+                      }}
+                      className="inline-flex items-center gap-1 rounded px-2 py-1 text-[11px] font-medium text-zinc-400 hover:bg-white/5 hover:text-[#EF4444]"
+                    >
+                      <X className="h-3 w-3" aria-hidden="true" />
+                      Clear
+                    </button>
+                  )}
+                </div>
+
+                <input
+                  ref={photoInputRef}
+                  type="file"
+                  accept="image/*"
+                  className="hidden"
+                  onChange={handlePhotoPicked}
+                />
+                <input
+                  ref={videoInputRef}
+                  type="file"
+                  accept="video/*"
+                  className="hidden"
+                  onChange={handleVideoPicked}
+                />
+
+                <div className="grid grid-cols-2 gap-2.5">
+                  <button
+                    type="button"
+                    disabled={Boolean(mediaBusyLabel)}
+                    onClick={() => photoInputRef.current?.click()}
+                    className="inline-flex min-h-[44px] items-center justify-center gap-2 rounded-md border border-white/15 bg-[#101218] px-3 py-2 text-xs font-medium text-white hover:border-[#DC2626]/60 hover:bg-[#161922] disabled:opacity-50"
+                  >
+                    <ImagePlus className="h-4 w-4 text-[#EF4444]" aria-hidden="true" />
+                    Pick Photo
+                  </button>
+
+                  <button
+                    type="button"
+                    disabled={Boolean(mediaBusyLabel)}
+                    onClick={() => videoInputRef.current?.click()}
+                    className="inline-flex min-h-[44px] items-center justify-center gap-2 rounded-md border border-white/15 bg-[#101218] px-3 py-2 text-xs font-medium text-white hover:border-[#DC2626]/60 hover:bg-[#161922] disabled:opacity-50"
+                  >
+                    <Film className="h-4 w-4 text-[#EF4444]" aria-hidden="true" />
+                    Short Video
+                  </button>
+                </div>
+
+                {mediaBusyLabel && (
+                  <div className="flex items-center gap-2 rounded-md border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-xs text-amber-200">
+                    <Loader2 className="h-3.5 w-3.5 animate-spin shrink-0" aria-hidden="true" />
+                    <span>{mediaBusyLabel}</span>
+                  </div>
+                )}
+
+                {mediaError && (
+                  <p className="rounded-md border border-[#DC2626]/40 bg-[#DC2626]/10 px-3 py-2 text-xs text-red-200">
+                    {mediaError}
+                  </p>
+                )}
+
+                {!mediaBusyLabel && (mediaStatusNote || isUploadedMedia) && (
+                  <p className="rounded-md border border-emerald-500/30 bg-emerald-500/10 px-3 py-2 text-xs text-emerald-200">
+                    {mediaStatusNote ??
+                      (isVideoCover
+                        ? 'Short video clip attached from device.'
+                        : 'Compressed photo attached from device.')}
+                  </p>
+                )}
+
+                <p className="text-[11px] leading-relaxed text-zinc-500">
+                  Photos auto-compress cleanly. Short videos (3–6 sec) auto-optimize into a silent
+                  loop for fast mobile loading.
+                </p>
+              </div>
 
               <div className="mt-4">
                 <label htmlFor="proj-theme" className="block text-xs font-medium text-zinc-200">
-                  Built-in Interactive Canvas Theme
+                  Fallback Vector Canvas Theme
                 </label>
                 <select
                   id="proj-theme"
@@ -397,9 +594,6 @@ export const AdminProjectsEditor: React.FC<AdminProjectsEditorProps> = ({
                     </option>
                   ))}
                 </select>
-                <p className="mt-1 text-xs text-zinc-500">
-                  Always renders cleanly even if optional cover image URL is omitted or fails.
-                </p>
               </div>
 
               <div className="mt-4 aspect-[16/10] w-full overflow-hidden rounded-lg border border-white/10 bg-[#050507]">
@@ -407,19 +601,33 @@ export const AdminProjectsEditor: React.FC<AdminProjectsEditorProps> = ({
                   theme={editing.previewTheme}
                   title={editing.title || 'Untitled Project'}
                   coverImageUrl={editing.coverImageUrl || undefined}
+                  coverMediaType={editing.coverMediaType}
+                  isAnimating
                 />
               </div>
 
               <div className="mt-4 space-y-4">
-                <SafeUrlInput
-                  id="proj-cover"
-                  label="Optional Cover Image URL"
-                  value={editing.coverImageUrl ?? ''}
-                  maxLength={500}
-                  placeholder="https://... or /assets/..."
-                  hint="Leave empty to use the built-in interactive vector preview above."
-                  onChange={(v) => setEditing({ ...editing, coverImageUrl: v })}
-                />
+                {!isUploadedMedia && (
+                  <SafeUrlInput
+                    id="proj-cover"
+                    label="Or Paste Photo / Video URL"
+                    value={coverValue}
+                    maxLength={500}
+                    placeholder="https://... (.jpg, .png, .webp, .mp4)"
+                    hint="Optional external image or MP4 link if you didn't pick from phone."
+                    onChange={(v) =>
+                      setEditing({
+                        ...editing,
+                        coverImageUrl: v,
+                        coverMediaType: v
+                          ? isVideoMediaSource(v)
+                            ? 'video'
+                            : 'image'
+                          : undefined,
+                      })
+                    }
+                  />
+                )}
                 <SafeUrlInput
                   id="proj-live"
                   label="Optional Live Demo URL"
@@ -434,11 +642,32 @@ export const AdminProjectsEditor: React.FC<AdminProjectsEditorProps> = ({
                   value={editing.repoUrl ?? ''}
                   maxLength={300}
                   placeholder="https://github.com/..."
+                  enterKeyHint="done"
                   onChange={(v) => setEditing({ ...editing, repoUrl: v })}
                 />
               </div>
             </div>
           </div>
+        </div>
+
+        {/* Bottom Mobile Action Bar */}
+        <div className="flex flex-wrap items-center justify-between gap-3 border-t border-white/10 pt-5">
+          <button
+            type="button"
+            onClick={() => setEditing(null)}
+            className="inline-flex min-h-[44px] items-center gap-2 rounded-md border border-white/15 px-4 py-2 text-xs font-medium text-zinc-300 hover:bg-white/5 hover:text-white"
+          >
+            <ArrowLeft className="h-3.5 w-3.5" aria-hidden="true" />
+            Back to Projects List
+          </button>
+          <button
+            type="submit"
+            disabled={saving || Boolean(mediaBusyLabel)}
+            className="inline-flex min-h-[44px] items-center gap-2 rounded-md bg-[#DC2626] px-5 py-2 text-xs font-semibold text-white hover:bg-[#B91C1C] disabled:opacity-60"
+          >
+            <Save className="h-3.5 w-3.5" aria-hidden="true" />
+            {saving ? 'Saving...' : 'Save Project'}
+          </button>
         </div>
       </form>
     );
@@ -452,7 +681,7 @@ export const AdminProjectsEditor: React.FC<AdminProjectsEditorProps> = ({
             PROJECTS SHOWCASE ({projects.length})
           </h2>
           <p className="mt-1 text-sm text-zinc-400">
-            Add, reorder, hide drafts, or update projects shown in the Works gallery.
+            Add photos or short videos, reorder, hide drafts, or update projects shown in Works.
           </p>
         </div>
 
@@ -493,6 +722,7 @@ export const AdminProjectsEditor: React.FC<AdminProjectsEditorProps> = ({
           <input
             type="text"
             value={searchQuery}
+            enterKeyHint="search"
             onChange={(e) => setSearchQuery(e.target.value)}
             placeholder="Filter projects..."
             aria-label="Filter projects"
@@ -537,6 +767,7 @@ export const AdminProjectsEditor: React.FC<AdminProjectsEditorProps> = ({
                     theme={proj.previewTheme}
                     title={proj.title}
                     coverImageUrl={proj.coverImageUrl}
+                    coverMediaType={proj.coverMediaType}
                   />
                 </div>
                 <div className="min-w-0">

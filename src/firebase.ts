@@ -35,6 +35,7 @@ import type {
 import {
   clampExact,
   clampText,
+  isVideoMediaSource,
   normalizePortfolioContent,
   sanitizePublicUrl,
 } from './data/contentSchema';
@@ -187,6 +188,7 @@ export async function sendAdminVerificationEmail(user: User): Promise<void> {
 export async function reloadCurrentUser(): Promise<User | null> {
   if (!auth.currentUser) return null;
   await auth.currentUser.reload();
+  await auth.currentUser.getIdToken(true);
   return auth.currentUser;
 }
 
@@ -196,6 +198,14 @@ export async function signOutAdmin(): Promise<void> {
 
 export async function verifyAdminAccess(user: User | null): Promise<boolean> {
   if (!user || !user.emailVerified) return false;
+  try {
+    const tokenResult = await user.getIdTokenResult();
+    if (!tokenResult.claims.email_verified) {
+      await user.getIdToken(true);
+    }
+  } catch {
+    // Proceed cleanly if token inspection fails
+  }
   if (
     user.uid === OWNER_ADMIN_UID ||
     user.email?.toLowerCase() === OWNER_ADMIN_EMAIL.toLowerCase()
@@ -281,7 +291,11 @@ export async function fetchLivePortfolioContent(): Promise<Partial<PortfolioCont
           architectureNotes: String(d.architectureNotes ?? ''),
           previewTheme: d.previewTheme as ProjectItem['previewTheme'],
           dimensions: String(d.dimensions ?? '1440 × 900'),
-          coverImageUrl: sanitizePublicUrl(d.coverImageUrl, '') || undefined,
+          coverImageUrl: sanitizePublicUrl(d.coverImageUrl, '', true) || undefined,
+          coverMediaType:
+            d.coverMediaType === 'video' || d.coverMediaType === 'image'
+              ? d.coverMediaType
+              : undefined,
           liveUrl: sanitizePublicUrl(d.liveUrl, '') || undefined,
           repoUrl: sanitizePublicUrl(d.repoUrl, '') || undefined,
           published: true,
@@ -396,7 +410,11 @@ export async function fetchAdminDashboardSnapshot(): Promise<AdminDashboardSnaps
         architectureNotes: String(d.architectureNotes ?? ''),
         previewTheme: (d.previewTheme as ProjectItem['previewTheme']) || 'web-commerce',
         dimensions: String(d.dimensions ?? '1440 × 900'),
-        coverImageUrl: sanitizePublicUrl(d.coverImageUrl, '') || undefined,
+        coverImageUrl: sanitizePublicUrl(d.coverImageUrl, '', true) || undefined,
+        coverMediaType:
+          d.coverMediaType === 'video' || d.coverMediaType === 'image'
+            ? d.coverMediaType
+            : undefined,
         liveUrl: sanitizePublicUrl(d.liveUrl, '') || undefined,
         repoUrl: sanitizePublicUrl(d.repoUrl, '') || undefined,
         published: d.published !== false,
@@ -576,8 +594,13 @@ function buildProjectPayload(project: AdminProjectRecord) {
     updatedAt: serverTimestamp(),
   };
 
-  const cover = sanitizePublicUrl(project.coverImageUrl, '');
-  if (cover) payload.coverImageUrl = cover.slice(0, 500);
+  const cover = sanitizePublicUrl(project.coverImageUrl, '', true);
+  if (cover) {
+    payload.coverImageUrl = cover.slice(0, 780_000);
+    payload.coverMediaType = isVideoMediaSource(cover, project.coverMediaType)
+      ? 'video'
+      : 'image';
+  }
 
   const live = sanitizePublicUrl(project.liveUrl, '');
   if (live) payload.liveUrl = live.slice(0, 300);

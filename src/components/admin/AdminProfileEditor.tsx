@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Plus, RotateCcw, Save, Trash2 } from 'lucide-react';
+import { ArrowLeft, Plus, RotateCcw, Save, Trash2 } from 'lucide-react';
 import type {
   HeroMetricItem,
   PortfolioContentBundle,
@@ -9,24 +9,36 @@ import type {
   WireframeRealScene,
 } from '../../data/contentSchema';
 import { DEFAULT_PORTFOLIO_CONTENT } from '../../data/portfolioData';
+import { handleFormEnterToNext } from '../../utils/formKeyboardNav';
 import { LimitedInput, LimitedTextarea, SafeUrlInput } from './FieldControls';
+
+export type ProfileSubTab = 'identity' | 'contact' | 'metrics' | 'process';
 
 interface AdminProfileEditorProps {
   draft: PortfolioContentBundle;
   saving: boolean;
+  subTab?: ProfileSubTab;
+  onChangeSubTab?: (tab: ProfileSubTab) => void;
+  onBack?: () => void;
   onChange: (next: PortfolioContentBundle) => void;
   onSave: () => Promise<void>;
 }
 
-type ProfileSubTab = 'identity' | 'contact' | 'metrics' | 'process';
-
 export const AdminProfileEditor: React.FC<AdminProfileEditorProps> = ({
   draft,
   saving,
+  subTab: controlledSubTab,
+  onChangeSubTab,
+  onBack,
   onChange,
   onSave,
 }) => {
-  const [subTab, setSubTab] = useState<ProfileSubTab>('identity');
+  const [internalSubTab, setInternalSubTab] = useState<ProfileSubTab>('identity');
+  const subTab = controlledSubTab ?? internalSubTab;
+  const setSubTab = (tab: ProfileSubTab) => {
+    setInternalSubTab(tab);
+    onChangeSubTab?.(tab);
+  };
   const [portraitLoadFailed, setPortraitLoadFailed] = useState(false);
 
   const p = draft.profile;
@@ -68,7 +80,7 @@ export const AdminProfileEditor: React.FC<AdminProfileEditorProps> = ({
   };
 
   return (
-    <form onSubmit={handleSubmit} className="space-y-6">
+    <form onSubmit={handleSubmit} onKeyDown={handleFormEnterToNext} className="space-y-6 pb-8">
       <div className="flex flex-col gap-4 border-b border-white/10 pb-5 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <h2 className="font-display text-2xl font-bold tracking-tight text-white">
@@ -750,6 +762,28 @@ export const AdminProfileEditor: React.FC<AdminProfileEditorProps> = ({
           </div>
         </div>
       )}
+      <div className="flex flex-wrap items-center justify-between gap-3 border-t border-white/10 pt-5">
+        {onBack ? (
+          <button
+            type="button"
+            onClick={onBack}
+            className="inline-flex min-h-[44px] items-center gap-2 rounded-md border border-white/15 px-4 py-2 text-xs font-medium text-zinc-300 hover:bg-white/5 hover:text-white"
+          >
+            <ArrowLeft className="h-3.5 w-3.5" aria-hidden="true" />
+            Back
+          </button>
+        ) : (
+          <span />
+        )}
+        <button
+          type="submit"
+          disabled={saving}
+          className="inline-flex min-h-[44px] items-center gap-2 rounded-md bg-[#DC2626] px-5 py-2 text-xs font-semibold text-white transition-colors hover:bg-[#B91C1C] disabled:opacity-60"
+        >
+          <Save className="h-3.5 w-3.5" aria-hidden="true" />
+          {saving ? 'Saving Changes...' : 'Save Profile & Settings'}
+        </button>
+      </div>
     </form>
   );
 };

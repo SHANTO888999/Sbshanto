@@ -1,12 +1,17 @@
-import React, { useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { ArrowLeft, Eye, EyeOff, Pencil, Plus, Save, Trash2 } from 'lucide-react';
 import type { AdminExperienceRecord, AdminMilestoneRecord } from '../../firebase';
+import { handleFormEnterToNext } from '../../utils/formKeyboardNav';
 import { ConfirmDialog, LimitedInput, LimitedTextarea } from './FieldControls';
 
 interface AdminCareerEditorProps {
   milestones: AdminMilestoneRecord[];
   experience: AdminExperienceRecord[];
   saving: boolean;
+  activeSubTab?: 'milestones' | 'experience';
+  onChangeSubTab?: (tab: 'milestones' | 'experience') => void;
+  onSubViewChange?: (label: string | null) => void;
+  exitSubViewNonce?: number;
   onSaveMilestone: (item: AdminMilestoneRecord) => Promise<void>;
   onDeleteMilestone: (id: string) => Promise<void>;
   onSaveExperience: (item: AdminExperienceRecord) => Promise<void>;
@@ -17,12 +22,22 @@ export const AdminCareerEditor: React.FC<AdminCareerEditorProps> = ({
   milestones,
   experience,
   saving,
+  activeSubTab: controlledSubTab,
+  onChangeSubTab,
+  onSubViewChange,
+  exitSubViewNonce = 0,
   onSaveMilestone,
   onDeleteMilestone,
   onSaveExperience,
   onDeleteExperience,
 }) => {
-  const [activeSubTab, setActiveSubTab] = useState<'milestones' | 'experience'>('milestones');
+  const [internalSubTab, setInternalSubTab] = useState<'milestones' | 'experience'>('milestones');
+  const activeSubTab = controlledSubTab ?? internalSubTab;
+  const setActiveSubTab = (tab: 'milestones' | 'experience') => {
+    setInternalSubTab(tab);
+    onChangeSubTab?.(tab);
+  };
+
   const [editingMilestone, setEditingMilestone] = useState<AdminMilestoneRecord | null>(null);
   const [editingExp, setEditingExp] = useState<AdminExperienceRecord | null>(null);
   const [deleteConfirm, setDeleteConfirm] = useState<
@@ -30,6 +45,31 @@ export const AdminCareerEditor: React.FC<AdminCareerEditorProps> = ({
     | { kind: 'experience'; id: string; label: string }
     | null
   >(null);
+
+  const lastExitNonceRef = useRef(exitSubViewNonce);
+
+  useEffect(() => {
+    if (exitSubViewNonce !== lastExitNonceRef.current) {
+      lastExitNonceRef.current = exitSubViewNonce;
+      setEditingMilestone(null);
+      setEditingExp(null);
+    }
+  }, [exitSubViewNonce]);
+
+  useEffect(() => {
+    if (!onSubViewChange) return;
+    if (editingMilestone) {
+      const isExisting = milestones.some((m) => m.id === editingMilestone.id);
+      onSubViewChange(isExisting ? 'Edit Milestone' : 'New Milestone');
+      return;
+    }
+    if (editingExp) {
+      const isExisting = experience.some((ex) => ex.id === editingExp.id);
+      onSubViewChange(isExisting ? 'Edit Experience' : 'New Experience');
+      return;
+    }
+    onSubViewChange(null);
+  }, [editingMilestone, editingExp, milestones, experience, onSubViewChange]);
 
   if (editingMilestone) {
     return (
@@ -39,7 +79,8 @@ export const AdminCareerEditor: React.FC<AdminCareerEditorProps> = ({
           await onSaveMilestone(editingMilestone);
           setEditingMilestone(null);
         }}
-        className="space-y-6"
+        onKeyDown={handleFormEnterToNext}
+        className="space-y-6 pb-8"
       >
         <div className="flex flex-col gap-4 border-b border-white/10 pb-5 sm:flex-row sm:items-center sm:justify-between">
           <div className="flex items-center gap-3">
@@ -139,6 +180,7 @@ export const AdminCareerEditor: React.FC<AdminCareerEditorProps> = ({
               type="number"
               min={0}
               max={1000}
+              enterKeyHint="done"
               value={editingMilestone.sortOrder}
               onChange={(e) =>
                 setEditingMilestone({
@@ -149,6 +191,25 @@ export const AdminCareerEditor: React.FC<AdminCareerEditorProps> = ({
               className="mt-1.5 min-h-[44px] w-full rounded-md border border-white/15 bg-[#070709] px-3 py-2 font-mono text-sm tabular-nums text-white focus:border-[#DC2626] focus:outline-none"
             />
           </div>
+        </div>
+
+        <div className="flex flex-wrap items-center justify-between gap-3 border-t border-white/10 pt-5">
+          <button
+            type="button"
+            onClick={() => setEditingMilestone(null)}
+            className="inline-flex min-h-[44px] items-center gap-2 rounded-md border border-white/15 px-4 py-2 text-xs font-medium text-zinc-300 hover:bg-white/5 hover:text-white"
+          >
+            <ArrowLeft className="h-3.5 w-3.5" aria-hidden="true" />
+            Back to Milestones
+          </button>
+          <button
+            type="submit"
+            disabled={saving}
+            className="inline-flex min-h-[44px] items-center gap-2 rounded-md bg-[#DC2626] px-5 py-2 text-xs font-semibold text-white hover:bg-[#B91C1C] disabled:opacity-60"
+          >
+            <Save className="h-3.5 w-3.5" aria-hidden="true" />
+            {saving ? 'Saving...' : 'Save Milestone'}
+          </button>
         </div>
       </form>
     );
@@ -162,7 +223,8 @@ export const AdminCareerEditor: React.FC<AdminCareerEditorProps> = ({
           await onSaveExperience(editingExp);
           setEditingExp(null);
         }}
-        className="space-y-6"
+        onKeyDown={handleFormEnterToNext}
+        className="space-y-6 pb-8"
       >
         <div className="flex flex-col gap-4 border-b border-white/10 pb-5 sm:flex-row sm:items-center sm:justify-between">
           <div className="flex items-center gap-3">
@@ -255,6 +317,7 @@ export const AdminCareerEditor: React.FC<AdminCareerEditorProps> = ({
               type="number"
               min={0}
               max={1000}
+              enterKeyHint="done"
               value={editingExp.sortOrder}
               onChange={(e) =>
                 setEditingExp({
@@ -265,6 +328,25 @@ export const AdminCareerEditor: React.FC<AdminCareerEditorProps> = ({
               className="mt-1.5 min-h-[44px] w-full rounded-md border border-white/15 bg-[#070709] px-3 py-2 font-mono text-sm tabular-nums text-white focus:border-[#DC2626] focus:outline-none"
             />
           </div>
+        </div>
+
+        <div className="flex flex-wrap items-center justify-between gap-3 border-t border-white/10 pt-5">
+          <button
+            type="button"
+            onClick={() => setEditingExp(null)}
+            className="inline-flex min-h-[44px] items-center gap-2 rounded-md border border-white/15 px-4 py-2 text-xs font-medium text-zinc-300 hover:bg-white/5 hover:text-white"
+          >
+            <ArrowLeft className="h-3.5 w-3.5" aria-hidden="true" />
+            Back to Timeline
+          </button>
+          <button
+            type="submit"
+            disabled={saving}
+            className="inline-flex min-h-[44px] items-center gap-2 rounded-md bg-[#DC2626] px-5 py-2 text-xs font-semibold text-white hover:bg-[#B91C1C] disabled:opacity-60"
+          >
+            <Save className="h-3.5 w-3.5" aria-hidden="true" />
+            {saving ? 'Saving...' : 'Save Entry'}
+          </button>
         </div>
       </form>
     );

@@ -58,6 +58,7 @@ export interface ProjectItem {
   previewTheme: PreviewTheme;
   dimensions: string;
   coverImageUrl?: string;
+  coverMediaType?: 'image' | 'video';
   liveUrl?: string;
   repoUrl?: string;
   published?: boolean;
@@ -150,10 +151,37 @@ export function clampExact(value: unknown, maxLength: number, fallback: string):
   return cleaned.slice(0, maxLength);
 }
 
-export function sanitizePublicUrl(value: unknown, fallback = ''): string {
+const SAFE_MEDIA_DATA_URL_RE =
+  /^data:(image\/(png|jpeg|jpg|webp|gif)|video\/(mp4|webm|quicktime|ogg));base64,[A-Za-z0-9+/=]+$/i;
+
+export function isVideoMediaSource(
+  url?: string,
+  mediaType?: 'image' | 'video'
+): boolean {
+  if (mediaType === 'video') return true;
+  if (mediaType === 'image') return false;
+  if (!url) return false;
+  const normalized = url.trim().toLowerCase();
+  if (normalized.startsWith('data:video/')) return true;
+  const withoutHashOrQuery = normalized.split(/[?#]/)[0] ?? '';
+  return /\.(mp4|webm|mov|m4v|ogv|ogg)$/.test(withoutHashOrQuery);
+}
+
+export function sanitizePublicUrl(
+  value: unknown,
+  fallback = '',
+  allowMediaDataUrl = false
+): string {
   if (typeof value !== 'string') return fallback;
   const trimmed = value.trim();
   if (!trimmed) return fallback;
+
+  if (allowMediaDataUrl && trimmed.startsWith('data:')) {
+    if (trimmed.length <= 780_000 && SAFE_MEDIA_DATA_URL_RE.test(trimmed)) {
+      return trimmed;
+    }
+    return fallback;
+  }
 
   if (trimmed.startsWith('/') && !trimmed.startsWith('//')) {
     return trimmed;
@@ -246,6 +274,15 @@ export function normalizePortfolioContent(
       const rawIndex = clampExact(p.index, 4, '');
       const formattedIndex = rawIndex || String(idx + 1).padStart(2, '0');
 
+      const coverUrl = sanitizePublicUrl(p.coverImageUrl, '', true) || undefined;
+      const mediaType: 'image' | 'video' | undefined = coverUrl
+        ? p.coverMediaType === 'video' || p.coverMediaType === 'image'
+          ? p.coverMediaType
+          : isVideoMediaSource(coverUrl)
+            ? 'video'
+            : 'image'
+        : undefined;
+
       return {
         id: sanitizeId(p.id, 'proj', idx),
         index: formattedIndex,
@@ -264,7 +301,8 @@ export function normalizePortfolioContent(
         ),
         previewTheme,
         dimensions: clampExact(p.dimensions, 20, '1440 × 900'),
-        coverImageUrl: sanitizePublicUrl(p.coverImageUrl, '') || undefined,
+        coverImageUrl: coverUrl,
+        coverMediaType: mediaType,
         liveUrl: sanitizePublicUrl(p.liveUrl, '') || undefined,
         repoUrl: sanitizePublicUrl(p.repoUrl, '') || undefined,
         published: true,

@@ -27,7 +27,7 @@ service cloud.firestore {
         && request.auth.token.email_verified == true
         && (
           request.auth.uid == '7uGlVyZQVLSofZlGXTVceJnfCg23'
-          || request.auth.token.email == 'sbgang01recovery@gmail.com'
+          || ('email' in request.auth.token && request.auth.token.email == 'sbgang01recovery@gmail.com')
         );
     }
 
@@ -42,6 +42,22 @@ service cloud.firestore {
 
     function isValidOptionalUrl(data, field, maxLen) {
       return !(field in data) || (data[field] is string && data[field].size() <= maxLen);
+    }
+
+    function isValidOptionalProjectMedia(data, field, maxLen) {
+      return !(field in data) || (
+        data[field] is string
+        && data[field].size() <= maxLen
+        && (
+          data[field] == ''
+          || data[field].matches('^(https?://|/|data:(image/(png|jpeg|jpg|webp|gif)|video/(mp4|webm|quicktime|ogg));base64,).*')
+        )
+      );
+    }
+
+    function isValidOptionalMediaType(data) {
+      return !('coverMediaType' in data)
+        || (data.coverMediaType is string && data.coverMediaType in ['image', 'video']);
     }
 
     function isValidPortfolioSettings(data) {
@@ -105,7 +121,7 @@ service cloud.firestore {
         && data.keys().hasOnly([
           'index', 'title', 'category', 'year', 'platform', 'client', 'role',
           'stack', 'summary', 'architectureNotes', 'previewTheme', 'dimensions',
-          'coverImageUrl', 'liveUrl', 'repoUrl', 'published', 'sortOrder', 'updatedAt'
+          'coverImageUrl', 'coverMediaType', 'liveUrl', 'repoUrl', 'published', 'sortOrder', 'updatedAt'
         ])
         && data.index is string && data.index.size() >= 1 && data.index.size() <= 8
         && data.title is string && data.title.size() >= 1 && data.title.size() <= 80
@@ -120,7 +136,8 @@ service cloud.firestore {
         && data.architectureNotes is string && data.architectureNotes.size() >= 1 && data.architectureNotes.size() <= 360
         && data.previewTheme in ['web-commerce', 'app-workspace', 'game-rift', 'app-realtime', 'game-drift', 'ui-system']
         && data.dimensions is string && data.dimensions.size() >= 1 && data.dimensions.size() <= 24
-        && isValidOptionalUrl(data, 'coverImageUrl', 500)
+        && isValidOptionalProjectMedia(data, 'coverImageUrl', 780000)
+        && isValidOptionalMediaType(data)
         && isValidOptionalUrl(data, 'liveUrl', 300)
         && isValidOptionalUrl(data, 'repoUrl', 300)
         && data.published is bool
@@ -180,21 +197,21 @@ service cloud.firestore {
     }
 
     match /projects/{projectId} {
-      allow get: if isValidId(projectId) && (existing().published == true || isAdmin());
-      allow list: if existing().published == true || isBootstrappedAdmin();
+      allow get: if isValidId(projectId) && (isAdmin() || existing().published == true);
+      allow list: if isBootstrappedAdmin() || existing().published == true;
       allow create: if isValidId(projectId) && isAdmin() && isValidProject(incoming());
       allow update: if isValidId(projectId) && isAdmin() && isValidProject(incoming())
         && incoming().diff(existing()).affectedKeys().hasOnly([
           'index', 'title', 'category', 'year', 'platform', 'client', 'role',
           'stack', 'summary', 'architectureNotes', 'previewTheme', 'dimensions',
-          'coverImageUrl', 'liveUrl', 'repoUrl', 'published', 'sortOrder', 'updatedAt'
+          'coverImageUrl', 'coverMediaType', 'liveUrl', 'repoUrl', 'published', 'sortOrder', 'updatedAt'
         ]);
       allow delete: if isValidId(projectId) && isAdmin();
     }
 
     match /milestones/{milestoneId} {
-      allow get: if isValidId(milestoneId) && (existing().published == true || isAdmin());
-      allow list: if existing().published == true || isBootstrappedAdmin();
+      allow get: if isValidId(milestoneId) && (isAdmin() || existing().published == true);
+      allow list: if isBootstrappedAdmin() || existing().published == true;
       allow create: if isValidId(milestoneId) && isAdmin() && isValidMilestone(incoming());
       allow update: if isValidId(milestoneId) && isAdmin() && isValidMilestone(incoming())
         && incoming().diff(existing()).affectedKeys().hasOnly([
@@ -204,8 +221,8 @@ service cloud.firestore {
     }
 
     match /experience/{experienceId} {
-      allow get: if isValidId(experienceId) && (existing().published == true || isAdmin());
-      allow list: if existing().published == true || isBootstrappedAdmin();
+      allow get: if isValidId(experienceId) && (isAdmin() || existing().published == true);
+      allow list: if isBootstrappedAdmin() || existing().published == true;
       allow create: if isValidId(experienceId) && isAdmin() && isValidExperience(incoming());
       allow update: if isValidId(experienceId) && isAdmin() && isValidExperience(incoming())
         && incoming().diff(existing()).affectedKeys().hasOnly([

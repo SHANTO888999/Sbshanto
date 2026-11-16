@@ -2,6 +2,8 @@ import React, { useEffect } from 'react';
 import { AlertTriangle, CheckCircle2, X } from 'lucide-react';
 import { sanitizePublicUrl } from '../../data/contentSchema';
 
+type EnterKeyHintValue = 'enter' | 'done' | 'go' | 'next' | 'previous' | 'search' | 'send';
+
 interface LimitedInputProps {
   id: string;
   label: string;
@@ -12,6 +14,7 @@ interface LimitedInputProps {
   hint?: string;
   required?: boolean;
   type?: 'text' | 'email' | 'url';
+  enterKeyHint?: EnterKeyHintValue;
 }
 
 export const LimitedInput: React.FC<LimitedInputProps> = ({
@@ -24,6 +27,7 @@ export const LimitedInput: React.FC<LimitedInputProps> = ({
   hint,
   required = false,
   type = 'text',
+  enterKeyHint = 'next',
 }) => {
   const count = value.length;
   const nearLimit = count >= Math.floor(maxLength * 0.85);
@@ -50,6 +54,7 @@ export const LimitedInput: React.FC<LimitedInputProps> = ({
         value={value}
         maxLength={maxLength}
         required={required}
+        enterKeyHint={enterKeyHint}
         onChange={(e) => onChange(e.target.value.slice(0, maxLength))}
         placeholder={placeholder}
         className="mt-1.5 min-h-[44px] w-full rounded-md border border-white/15 bg-[#070709] px-3.5 py-2 text-sm text-white placeholder:text-zinc-500 transition-colors focus:border-[#DC2626] focus:outline-none"
@@ -69,6 +74,7 @@ interface LimitedTextareaProps {
   placeholder?: string;
   hint?: string;
   required?: boolean;
+  enterKeyHint?: EnterKeyHintValue;
 }
 
 export const LimitedTextarea: React.FC<LimitedTextareaProps> = ({
@@ -81,6 +87,7 @@ export const LimitedTextarea: React.FC<LimitedTextareaProps> = ({
   placeholder,
   hint,
   required = false,
+  enterKeyHint = 'next',
 }) => {
   const count = value.length;
   const nearLimit = count >= Math.floor(maxLength * 0.85);
@@ -107,6 +114,7 @@ export const LimitedTextarea: React.FC<LimitedTextareaProps> = ({
         value={value}
         maxLength={maxLength}
         required={required}
+        enterKeyHint={enterKeyHint}
         onChange={(e) => onChange(e.target.value.slice(0, maxLength))}
         placeholder={placeholder}
         className="mt-1.5 w-full rounded-md border border-white/15 bg-[#070709] px-3.5 py-2.5 text-sm leading-relaxed text-white placeholder:text-zinc-500 transition-colors focus:border-[#DC2626] focus:outline-none"
@@ -125,6 +133,7 @@ interface SafeUrlInputProps {
   placeholder?: string;
   hint?: string;
   required?: boolean;
+  enterKeyHint?: EnterKeyHintValue;
 }
 
 export const SafeUrlInput: React.FC<SafeUrlInputProps> = ({
@@ -136,6 +145,7 @@ export const SafeUrlInput: React.FC<SafeUrlInputProps> = ({
   placeholder,
   hint,
   required = false,
+  enterKeyHint = 'next',
 }) => {
   const trimmed = value.trim();
   const isValid = !trimmed || Boolean(sanitizePublicUrl(trimmed, ''));
@@ -157,6 +167,7 @@ export const SafeUrlInput: React.FC<SafeUrlInputProps> = ({
         value={value}
         maxLength={maxLength}
         required={required}
+        enterKeyHint={enterKeyHint}
         onChange={(e) => onChange(e.target.value.slice(0, maxLength))}
         placeholder={placeholder}
         className={`mt-1.5 min-h-[44px] w-full rounded-md border bg-[#070709] px-3.5 py-2 font-mono text-xs text-white placeholder:text-zinc-500 transition-colors focus:outline-none ${
