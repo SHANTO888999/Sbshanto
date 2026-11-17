@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { ChevronDown, Trophy } from 'lucide-react';
 import { usePortfolioContent } from '../context/PortfolioContentContext';
 import { DesignBlock, TypedText, useBlockStage } from './DesignCursorSystem';
@@ -39,6 +39,12 @@ export const AwardsSection: React.FC = () => {
   const { profile, milestones } = usePortfolioContent();
   const [expandedId, setExpandedId] = useState<string>(() => milestones[0]?.id ?? '');
 
+  useEffect(() => {
+    if (milestones.length > 0 && expandedId !== '' && !milestones.some((m) => m.id === expandedId)) {
+      setExpandedId(milestones[0].id);
+    }
+  }, [milestones, expandedId]);
+
   return (
     <section
       id="milestones"
@@ -78,6 +84,7 @@ export const AwardsSection: React.FC = () => {
                   key={item.id}
                   shape="row"
                   slotIndex={idx + 1}
+                  cloneGroup="milestones"
                   isCloneItem={idx > 0}
                   className="py-4"
                 >

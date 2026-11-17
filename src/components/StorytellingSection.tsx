@@ -67,6 +67,7 @@ export const StorytellingSection: React.FC = () => {
                     key={service.index}
                     shape="row"
                     slotIndex={idx + 3}
+                    cloneGroup="services"
                     isCloneItem={idx > 0}
                     className="py-4"
                   >

@@ -166,23 +166,27 @@ export const ContactSection: React.FC<ContactSectionProps> = ({ onOpenInquiry })
         </div>
 
         {/* Bottom Copyright Row */}
-        <div className="mt-14 flex flex-col items-start justify-between gap-4 border-t border-white/10 pt-6 text-xs text-zinc-500 sm:flex-row sm:items-center">
-          <p>&copy; {new Date().getFullYear()} {profile.backdropName}. All rights reserved.</p>
-          <div className="flex items-center gap-6">
-            <a href="#works" className="transition-colors hover:text-zinc-300">
-              Works
-            </a>
-            <a href="#milestones" className="transition-colors hover:text-zinc-300">
-              Milestones
-            </a>
-            <a href="#process" className="transition-colors hover:text-zinc-300">
-              Process
-            </a>
-            <a href="#top" className="transition-colors hover:text-zinc-300">
-              Back to Top
-            </a>
+        <DesignBlock shape="row" slotIndex={2} label="Footer Bar">
+          <div className="mt-14 flex flex-col items-start justify-between gap-4 border-t border-white/10 pt-6 text-xs text-zinc-500 sm:flex-row sm:items-center">
+            <p>
+              &copy; {new Date().getFullYear()} <TypedText text={`${profile.backdropName}. All rights reserved.`} />
+            </p>
+            <div className="flex items-center gap-6">
+              <a href="#works" className="transition-colors hover:text-zinc-300">
+                <TypedText text="Works" />
+              </a>
+              <a href="#milestones" className="transition-colors hover:text-zinc-300">
+                <TypedText text="Milestones" />
+              </a>
+              <a href="#process" className="transition-colors hover:text-zinc-300">
+                <TypedText text="Process" />
+              </a>
+              <a href="#top" className="transition-colors hover:text-zinc-300">
+                <TypedText text="Back to Top" />
+              </a>
+            </div>
           </div>
-        </div>
+        </DesignBlock>
       </div>
     </footer>
   );

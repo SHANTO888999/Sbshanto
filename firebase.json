@@ -1,5 +1,6 @@
 {
   "firestore": {
+    "database": "ai-studio-portfoliocraft-e7b255ed-128e-4415-9cb0-dc1a4fad9447",
     "rules": "firestore.rules"
   },
   "hosting": [

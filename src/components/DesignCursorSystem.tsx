@@ -14,6 +14,8 @@ import { cursorAudio } from '../utils/cursorAudio';
 
 export type WireframeShape = 'navbar' | 'hero-copy' | 'image' | 'card' | 'row' | 'panel' | 'metrics';
 
+export type ClonePhase = 'none' | 'pasted' | 'selected';
+
 export type BlockStage =
   | 'hidden'
   | 'layout-drag'
@@ -24,24 +26,29 @@ export type BlockStage =
   | 'done';
 
 const BASE_STAGE_DURATIONS: Record<Exclude<BlockStage, 'hidden' | 'done'>, number> = {
-  'layout-drag': 560,
-  'type-draft': 1680,
-  'resize-scale': 1060,
-  'style-color': 860,
-  'place-drop': 940,
+  'layout-drag': 440,
+  'type-draft': 1380,
+  'resize-scale': 760,
+  'style-color': 640,
+  'place-drop': 680,
 };
 
 const MAX_CONCURRENT_BLOCKS = 4;
-const STAGGER_DISPATCH_MS = 480;
+const STAGGER_DISPATCH_MS = 380;
 
-const SCATTER_PRESETS = [
-  { x: -24, y: 18, rotate: -2.2 },
-  { x: 22, y: -18, rotate: 2.1 },
-  { x: 26, y: 16, rotate: -1.8 },
-  { x: -20, y: -16, rotate: 2.0 },
-  { x: 16, y: 22, rotate: -2.4 },
-  { x: -26, y: 12, rotate: 1.7 },
+const ORTHOGONAL_OFFSETS = [
+  { x: 0, y: -12 },
+  { x: 0, y: -10 },
+  { x: 0, y: -14 },
+  { x: 0, y: -8 },
+  { x: 0, y: -12 },
+  { x: 0, y: -10 },
 ];
+
+interface RegisteredBlockMeta {
+  cloneGroup?: string;
+  isCloneItem?: boolean;
+}
 
 interface RegisteredBlock {
   id: string;
@@ -51,7 +58,14 @@ interface RegisteredBlock {
   stageStartedAt: number;
   stageDurationMs: number;
   slotLane: number | null;
+  cloneGroup?: string;
+  isCloneItem: boolean;
   setStage: (stage: BlockStage) => void;
+}
+
+interface BuildProgressState {
+  completed: number;
+  total: number;
 }
 
 interface DesignCanvasContextValue {
@@ -66,9 +80,15 @@ interface DesignCanvasContextValue {
   prepareSectionJump: () => void;
   replayBuildKey: number;
   triggerReplay: () => void;
-  heroStep: number; // 0: black+orbit, 1: layout drag, 2: type small, 3: resize large, 4: color crimson, 5: drop into place, 6: complete
+  heroStep: number; // 0: black+orbit, 1: burst+layout drag, 2: type, 3: resize, 4: color crimson, 5: drop into place, 6: complete
   skipHeroBuild: () => void;
-  registerBlock: (id: string, el: HTMLElement, setStage: (s: BlockStage) => void) => void;
+  buildProgress: BuildProgressState;
+  registerBlock: (
+    id: string,
+    el: HTMLElement,
+    setStage: (s: BlockStage) => void,
+    meta?: RegisteredBlockMeta
+  ) => void;
   unregisterBlock: (id: string) => void;
   updateBlockInView: (id: string, inView: boolean) => void;
 }
@@ -87,6 +107,7 @@ const DesignCanvasContext = createContext<DesignCanvasContextValue>({
   triggerReplay: () => {},
   heroStep: 6,
   skipHeroBuild: () => {},
+  buildProgress: { completed: 0, total: 0 },
   registerBlock: () => {},
   unregisterBlock: () => {},
   updateBlockInView: () => {},
@@ -104,6 +125,7 @@ interface DesignBlockStageContextValue {
   stage: BlockStage;
   cursorsEnabled: boolean;
   isCloneHighlight: boolean;
+  clonePhase: ClonePhase;
   charProgress: number;
   registerTypedLine: (id: string, el: HTMLElement, len: number) => void;
   unregisterTypedLine: (id: string) => void;
@@ -114,6 +136,7 @@ const DesignBlockStageContext = createContext<DesignBlockStageContextValue>({
   stage: 'done',
   cursorsEnabled: true,
   isCloneHighlight: false,
+  clonePhase: 'none',
   charProgress: 999999,
   registerTypedLine: () => {},
   unregisterTypedLine: () => {},
@@ -245,6 +268,7 @@ export const TypedText: React.FC<{
     stage,
     cursorsEnabled,
     isCloneHighlight,
+    clonePhase,
     registerTypedLine,
     unregisterTypedLine,
     getLineSlice,
@@ -269,8 +293,9 @@ export const TypedText: React.FC<{
     );
   }
 
+  const isLayoutDrag = stage === 'layout-drag';
   const isTyping = stage === 'type-draft';
-  const showClonedSelection = isTyping && isCloneHighlight;
+  const showClonedSelection = isCloneHighlight && (isLayoutDrag || isTyping);
   const isMonochromeDraft = stage === 'type-draft' || stage === 'resize-scale';
 
   let charCount = 0;
@@ -305,7 +330,13 @@ export const TypedText: React.FC<{
 
       {showClonedSelection ? (
         <span className="col-start-1 row-start-1 font-mono opacity-95">
-          <span className="rounded-sm bg-[#38BDF8]/25 px-0.5 text-zinc-200 ring-1 ring-[#38BDF8]/55">
+          <span
+            className={`rounded-[2px] px-0.5 transition-colors duration-200 ${
+              clonePhase === 'selected'
+                ? 'bg-[#38BDF8]/40 text-white ring-1 ring-[#38BDF8]'
+                : 'bg-[#38BDF8]/18 text-zinc-200 ring-1 ring-[#38BDF8]/45'
+            }`}
+          >
             {cloneFrom ?? text}
           </span>
         </span>
@@ -400,9 +431,54 @@ const clamp01 = (v: number) => Math.max(0, Math.min(1, v));
 const easeOutCubic = (p: number) => 1 - Math.pow(1 - clamp01(p), 3);
 
 /**
- * Unified 18-Cursor Circular Orbit & Live Work Dispatcher:
- * Idle cursors smoothly orbit in concentric circular rings; active cursors peel out to
- * drag/type/resize/color/drop each real block and spiral back into orbit when done.
+ * Finds the best visible source card in the same cloneGroup (Card #1 if visible on screen,
+ * otherwise the nearest completed visible card in that group when scrolled deep through many rows).
+ */
+function findVisibleCloneSourceRect(
+  cloneGroup: string | undefined,
+  dstRect: DOMRect
+): DOMRect | null {
+  if (typeof window === 'undefined' || !cloneGroup) return null;
+  const vh = window.innerHeight;
+  const vw = window.innerWidth;
+  const isVisible = (r: DOMRect) =>
+    r.width > 0 &&
+    r.height > 0 &&
+    r.bottom > 68 &&
+    r.top < vh - 16 &&
+    r.right > 0 &&
+    r.left < vw;
+
+  const templateEl = document.querySelector(
+    `[data-clone-template="${cloneGroup}"]`
+  ) as HTMLElement | null;
+  if (templateEl) {
+    const tRect = templateEl.getBoundingClientRect();
+    if (isVisible(tRect)) return tRect;
+  }
+
+  const doneEls = Array.from(
+    document.querySelectorAll(`[data-clone-done="${cloneGroup}"]`)
+  ) as HTMLElement[];
+
+  let bestRect: DOMRect | null = null;
+  let bestDist = Infinity;
+  for (const el of doneEls) {
+    const r = el.getBoundingClientRect();
+    if (!isVisible(r)) continue;
+    const d = Math.hypot(r.left - dstRect.left, r.top - dstRect.top);
+    if (d > 8 && d < bestDist) {
+      bestDist = d;
+      bestRect = r;
+    }
+  }
+  return bestRect;
+}
+
+/**
+ * Clean 18-Cursor Circular Orbit & Live Work Dispatcher:
+ * Smoothly orbits in clean concentric rings around center on boot, then peels out
+ * cleanly to drag/copy-paste/type/resize/color/drop each visible block on screen.
  */
 const CollaborativeCursorRosterOverlay: React.FC<{
   active: boolean;
@@ -435,7 +511,6 @@ const CollaborativeCursorRosterOverlay: React.FC<{
       const vh = window.innerHeight;
       const step = heroStepRef.current;
       const elapsedSec = (now - bootTime) * 0.001;
-
       const isNarrow = vw < 640;
 
       const orbitCenterX =
@@ -443,13 +518,13 @@ const CollaborativeCursorRosterOverlay: React.FC<{
           ? vw * 0.5
           : isNarrow
             ? vw * 0.84 + Math.sin(elapsedSec * 0.32) * 5
-            : vw * 0.74 + Math.sin(elapsedSec * 0.28) * 26;
+            : vw * 0.74 + Math.sin(elapsedSec * 0.28) * 24;
       const orbitCenterY =
         step === 0
           ? vh * 0.5
           : isNarrow
             ? Math.max(78, vh * 0.14) + Math.cos(elapsedSec * 0.26) * 5
-            : vh * 0.42 + Math.cos(elapsedSec * 0.24) * 22;
+            : vh * 0.42 + Math.cos(elapsedSec * 0.24) * 20;
 
       const targets: Array<{ x: number; y: number; working: boolean; lockTight?: boolean }> =
         ROSTER_18.map((_, idx) => {
@@ -501,9 +576,11 @@ const CollaborativeCursorRosterOverlay: React.FC<{
         return el.getBoundingClientRect();
       };
 
+      const stepElapsed = now - heroStepStartedAtRef.current;
+
       // PHASE A: HERO ORCHESTRATION (steps 1..5)
       if (step === 1) {
-        const p = easeOutCubic((now - heroStepStartedAtRef.current) / 1150);
+        const p = easeOutCubic(stepElapsed / 1000);
         const navRect = queryRect('[data-cursor-target="navbar"]');
         const leftRect = queryRect('[data-cursor-target="hero-left"]');
         const rightRect = queryRect('[data-cursor-target="hero-right"]');
@@ -518,7 +595,6 @@ const CollaborativeCursorRosterOverlay: React.FC<{
           assignTarget(1, rightRect.left + 12 + p * (rightRect.width - 18), rightRect.top + 12 + p * (rightRect.height - 18));
         }
       } else if (step === 2) {
-        const p = clamp01((now - heroStepStartedAtRef.current) / 2450);
         const caretRect = queryRect('[data-hero-caret="true"]');
         const shantoCaretRect = queryRect('[data-hero-shanto-caret="true"]');
         const kpiCaretRect = queryRect('[data-hero-kpi-caret="true"]');
@@ -539,7 +615,7 @@ const CollaborativeCursorRosterOverlay: React.FC<{
           assignTarget(6, kpiCaretRect.right + 2, kpiCaretRect.bottom - 1, true);
         }
       } else if (step === 3) {
-        const p = easeOutCubic((now - heroStepStartedAtRef.current - 260) / 880);
+        const p = easeOutCubic((stepElapsed - 220) / 820);
         const titleRect = queryRect('[data-cursor-target="hero-title-box"]');
         const leftRect = queryRect('[data-cursor-target="hero-left"]');
         const shantoRect = queryRect('[data-cursor-target="hero-shanto"]');
@@ -553,14 +629,12 @@ const CollaborativeCursorRosterOverlay: React.FC<{
         if (leftRect) {
           assignTarget(10, leftRect.left + leftRect.width * (0.62 + 0.38 * p), leftRect.bottom - 6, true);
         }
-        [1, 2, 3].forEach((kpiIdx, offset) => {
-          const kpiRect = queryRect(`[data-cursor-target="hero-kpi-${kpiIdx}"]`);
-          if (kpiRect) {
-            assignTarget(8 + (offset % 3), kpiRect.right - 2, kpiRect.bottom - 2, true);
-          }
-        });
+        const kpi0Rect = queryRect('[data-cursor-target="hero-kpi-0"]');
+        if (kpi0Rect) {
+          assignTarget(8, kpi0Rect.right - 2, kpi0Rect.bottom - 2, true);
+        }
       } else if (step === 4) {
-        const p = easeOutCubic((now - heroStepStartedAtRef.current) / 1350);
+        const p = easeOutCubic(stepElapsed / 1150);
         const titleRect = queryRect('[data-cursor-target="hero-title-box"]');
         const leftRect = queryRect('[data-cursor-target="hero-left"]');
         const shantoRect = queryRect('[data-cursor-target="hero-shanto"]');
@@ -574,10 +648,40 @@ const CollaborativeCursorRosterOverlay: React.FC<{
         if (leftRect) {
           assignTarget(13, leftRect.left + p * (leftRect.width * 0.72), leftRect.bottom - 10);
         }
+        // Cursors 14, 15, 16 first land ONTOP of Card #0 (40+) to grab copies, then pull them to Slots 1, 2, 3!
+        const kpi0Rect = queryRect('[data-cursor-target="hero-kpi-0"]');
+        if (stepElapsed < 360) {
+          [0, 1, 2].forEach((slotOffset) => {
+            if (kpi0Rect) {
+              assignTarget(
+                14 + slotOffset,
+                kpi0Rect.left + kpi0Rect.width * (0.28 + slotOffset * 0.22),
+                kpi0Rect.top + 14,
+                true
+              );
+            }
+          });
+        } else {
+          [1, 2, 3].forEach((kpiIdx, idxOffset) => {
+            const kpiRect = queryRect(`[data-cursor-target="hero-kpi-${kpiIdx}"]`);
+            if (kpiRect) {
+              assignTarget(
+                14 + (idxOffset % 4),
+                kpiRect.left + Math.min(28, kpiRect.width * 0.35),
+                kpiRect.top + 12,
+                true
+              );
+            }
+          });
+        }
       } else if (step === 5) {
         const cutoutRect = queryRect('[data-cursor-target="hero-cutout"]');
         if (cutoutRect) {
           assignTarget(14, cutoutRect.left + cutoutRect.width * 0.5, cutoutRect.top + 12, true);
+        }
+        const kpiEditCaret = queryRect('[data-hero-kpi-edit-caret="true"]');
+        if (kpiEditCaret) {
+          assignTarget(4, kpiEditCaret.right + 2, kpiEditCaret.bottom - 1, true);
         }
         [0, 1, 2, 3].forEach((kpiIdx) => {
           const kpiRect = queryRect(`[data-cursor-target="hero-kpi-${kpiIdx}"]`);
@@ -608,23 +712,35 @@ const CollaborativeCursorRosterOverlay: React.FC<{
         const laneSet = LANE_CURSORS[block.slotLane % LANE_CURSORS.length];
         const cursorIds = laneSet[block.stage] || [];
 
-        const isCloneBlock = block.el.getAttribute('data-clone-item') === 'true';
+        const isCloneBlock = block.isCloneItem;
 
         if (block.stage === 'layout-drag') {
-          cursorIds.forEach((cid) => {
-            assignTarget(
-              cid,
-              rect.left + 6 + p * Math.max(18, rect.width - 10),
-              rect.top + 6 + p * Math.max(14, rect.height - 10)
-            );
-          });
           if (isCloneBlock) {
+            const elapsedStageMs = now - block.stageStartedAt;
             const amberCloneId = 14 + (block.slotLane % 4);
-            assignTarget(
-              amberCloneId,
-              rect.left + 8 + (1 - p) * 20,
-              rect.top + 8 + (1 - p) * 14
-            );
+            let dragX = rect.left + Math.min(28, rect.width * 0.24);
+            let dragY = rect.top + 14;
+
+            if (elapsedStageMs < 220 && block.cloneGroup) {
+              const srcRect = findVisibleCloneSourceRect(block.cloneGroup, rect);
+              if (srcRect) {
+                dragX = srcRect.left + Math.min(40, srcRect.width * 0.35);
+                dragY = srcRect.top + 16;
+              }
+            }
+
+            cursorIds.forEach((cid) => {
+              assignTarget(cid, dragX, dragY, true);
+            });
+            assignTarget(amberCloneId, dragX + 4, dragY + 4, true);
+          } else {
+            cursorIds.forEach((cid) => {
+              assignTarget(
+                cid,
+                rect.left + 6 + p * Math.max(18, rect.width - 10),
+                rect.top + 6 + p * Math.max(14, rect.height - 10)
+              );
+            });
           }
         } else if (block.stage === 'type-draft') {
           const caretEl = block.el.querySelector('[data-typed-caret="true"]');
@@ -634,18 +750,15 @@ const CollaborativeCursorRosterOverlay: React.FC<{
               assignTarget(cid, cRect.right + 2, cRect.bottom - 1, true);
             });
           } else {
-            // Park neatly at top-left paste handle while clone badge flashes (never sweep through text!)
             cursorIds.forEach((cid) => {
-              assignTarget(cid, rect.left + 8, rect.top + 10, true);
+              assignTarget(cid, rect.left + 12, rect.top + 14, true);
             });
           }
         } else if (block.stage === 'resize-scale') {
-          // Lock tightly onto the live scaling bottom-right corner handle
           cursorIds.forEach((cid) => {
             assignTarget(cid, rect.right - 2, rect.bottom - 2, true);
           });
         } else if (block.stage === 'style-color') {
-          // Sweep cleanly along top border / color rim without blocking text center
           cursorIds.forEach((cid) => {
             assignTarget(
               cid,
@@ -654,7 +767,6 @@ const CollaborativeCursorRosterOverlay: React.FC<{
             );
           });
         } else if (block.stage === 'place-drop') {
-          // Grab top handle cleanly to align into grid slot
           cursorIds.forEach((cid) => {
             assignTarget(cid, rect.left + rect.width * 0.5, rect.top + 4, true);
           });
@@ -1206,8 +1318,8 @@ function computeTypeDurationMs(blockEl: HTMLElement): number {
   lineEls.forEach((n) => {
     totalChars += Number(n.getAttribute('data-char-len') || 0);
   });
-  const cloneDelayMs = blockEl.getAttribute('data-clone-item') === 'true' ? 460 : 0;
-  return cloneDelayMs + Math.max(1050, Math.min(2500, 560 + totalChars * 14));
+  const cloneSelectDelayMs = blockEl.getAttribute('data-clone-item') === 'true' ? 460 : 0;
+  return cloneSelectDelayMs + Math.max(980, Math.min(2200, 480 + totalChars * 13));
 }
 
 export const DesignCanvasProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
@@ -1227,6 +1339,20 @@ export const DesignCanvasProvider: React.FC<{ children: React.ReactNode }> = ({ 
   const blocksRef = useRef<Map<string, RegisteredBlock>>(new Map());
   const blockTimersRef = useRef<Map<string, number[]>>(new Map());
   const lastDispatchAtRef = useRef<number>(0);
+
+  const [buildProgress, setBuildProgress] = useState<BuildProgressState>({
+    completed: 0,
+    total: 0,
+  });
+
+  const syncBuildProgress = useCallback(() => {
+    const blocks = Array.from(blocksRef.current.values());
+    const completed = blocks.filter((b) => b.stage === 'done').length;
+    const total = blocks.length;
+    setBuildProgress((prev) =>
+      prev.completed === completed && prev.total === total ? prev : { completed, total }
+    );
+  }, []);
 
   useEffect(() => {
     if (typeof window === 'undefined') return;
@@ -1272,12 +1398,12 @@ export const DesignCanvasProvider: React.FC<{ children: React.ReactNode }> = ({ 
 
     advanceHero(0);
 
-    const t1 = window.setTimeout(() => advanceHero(1), 950);
-    const t2 = window.setTimeout(() => advanceHero(2), 2250);
-    const t3 = window.setTimeout(() => advanceHero(3), 4850);
-    const t4 = window.setTimeout(() => advanceHero(4), 6450);
-    const t5 = window.setTimeout(() => advanceHero(5), 8050);
-    const t6 = window.setTimeout(() => advanceHero(6), 9650);
+    const t1 = window.setTimeout(() => advanceHero(1), 900);
+    const t2 = window.setTimeout(() => advanceHero(2), 2000);
+    const t3 = window.setTimeout(() => advanceHero(3), 4250);
+    const t4 = window.setTimeout(() => advanceHero(4), 5600);
+    const t5 = window.setTimeout(() => advanceHero(5), 7000);
+    const t6 = window.setTimeout(() => advanceHero(6), 9400);
 
     return () => {
       window.clearTimeout(t1);
@@ -1317,7 +1443,12 @@ export const DesignCanvasProvider: React.FC<{ children: React.ReactNode }> = ({ 
   }, [cursorsEnabled, heroStep]);
 
   const registerBlock = useCallback(
-    (id: string, el: HTMLElement, setStage: (s: BlockStage) => void) => {
+    (
+      id: string,
+      el: HTMLElement,
+      setStage: (s: BlockStage) => void,
+      meta?: RegisteredBlockMeta
+    ) => {
       const prefersReduced =
         typeof window !== 'undefined' &&
         window.matchMedia('(prefers-reduced-motion: reduce)').matches;
@@ -1330,21 +1461,25 @@ export const DesignCanvasProvider: React.FC<{ children: React.ReactNode }> = ({ 
         inView: existing?.inView ?? false,
         stage: nextStage,
         stageStartedAt: existing?.stageStartedAt ?? 0,
-        stageDurationMs: existing?.stageDurationMs ?? 1000,
+        stageDurationMs: existing?.stageDurationMs ?? 900,
         slotLane: existing?.slotLane ?? null,
+        cloneGroup: meta?.cloneGroup ?? existing?.cloneGroup,
+        isCloneItem: Boolean(meta?.isCloneItem ?? existing?.isCloneItem),
         setStage,
       });
       setStage(nextStage);
+      syncBuildProgress();
     },
-    [cursorsEnabled]
+    [cursorsEnabled, syncBuildProgress]
   );
 
   const unregisterBlock = useCallback(
     (id: string) => {
       clearBlockTimers(id);
       blocksRef.current.delete(id);
+      syncBuildProgress();
     },
-    [clearBlockTimers]
+    [clearBlockTimers, syncBuildProgress]
   );
 
   const updateBlockInView = useCallback((id: string, inView: boolean) => {
@@ -1367,7 +1502,8 @@ export const DesignCanvasProvider: React.FC<{ children: React.ReactNode }> = ({ 
       block.setStage(initialStage);
     });
     lastDispatchAtRef.current = 0;
-  }, [cursorsEnabled, replayBuildKey, clearBlockTimers]);
+    syncBuildProgress();
+  }, [cursorsEnabled, replayBuildKey, clearBlockTimers, syncBuildProgress]);
 
   // Strict Viewport-Visible Sequential Dispatcher:
   // Blocks wait at 'hidden' until comfortably inside the visible viewport;
@@ -1380,11 +1516,11 @@ export const DesignCanvasProvider: React.FC<{ children: React.ReactNode }> = ({ 
       clearBlockTimers(block.id);
       const timers: number[] = [];
 
-      const dLayout = BASE_STAGE_DURATIONS['layout-drag'];
+      const dLayout = block.isCloneItem ? 880 : BASE_STAGE_DURATIONS['layout-drag'];
       const typeDur = computeTypeDurationMs(block.el);
       const dResize = BASE_STAGE_DURATIONS['resize-scale'];
       const dColor = BASE_STAGE_DURATIONS['style-color'];
-      const dDrop = BASE_STAGE_DURATIONS['place-drop'];
+      const dDrop = block.isCloneItem ? 440 : BASE_STAGE_DURATIONS['place-drop'];
 
       const setBlockStage = (
         nextStage: BlockStage,
@@ -1404,6 +1540,7 @@ export const DesignCanvasProvider: React.FC<{ children: React.ReactNode }> = ({ 
           cursorAudio.playDropSnap();
         } else if (nextStage === 'done') {
           block.slotLane = null;
+          syncBuildProgress();
         }
       };
 
@@ -1411,17 +1548,31 @@ export const DesignCanvasProvider: React.FC<{ children: React.ReactNode }> = ({ 
       lastDispatchAtRef.current = performance.now();
       setBlockStage('layout-drag', dLayout);
 
-      const d1 = dLayout;
-      const d2 = d1 + typeDur;
-      const d3 = d2 + dResize;
-      const d4 = d3 + dColor;
-      const d5 = d4 + dDrop;
+      if (block.isCloneItem) {
+        // Forward-only Copy-Paste pipeline for duplicate cards:
+        // 1. layout-drag (880ms): Cursor goes to Card #1, grabs copy, and drags it into destination slot
+        // 2. type-draft: Select-All blue highlight (460ms) -> live edit text into real item
+        // 3. place-drop (440ms): Align & snap straight to done (skips wireframe & backwards resize/recolor)
+        const d1 = dLayout;
+        const d2 = d1 + typeDur;
+        const d3 = d2 + dDrop;
 
-      timers.push(window.setTimeout(() => setBlockStage('type-draft', typeDur), d1));
-      timers.push(window.setTimeout(() => setBlockStage('resize-scale', dResize), d2));
-      timers.push(window.setTimeout(() => setBlockStage('style-color', dColor), d3));
-      timers.push(window.setTimeout(() => setBlockStage('place-drop', dDrop), d4));
-      timers.push(window.setTimeout(() => setBlockStage('done', 0), d5));
+        timers.push(window.setTimeout(() => setBlockStage('type-draft', typeDur), d1));
+        timers.push(window.setTimeout(() => setBlockStage('place-drop', dDrop), d2));
+        timers.push(window.setTimeout(() => setBlockStage('done', 0), d3));
+      } else {
+        const d1 = dLayout;
+        const d2 = d1 + typeDur;
+        const d3 = d2 + dResize;
+        const d4 = d3 + dColor;
+        const d5 = d4 + dDrop;
+
+        timers.push(window.setTimeout(() => setBlockStage('type-draft', typeDur), d1));
+        timers.push(window.setTimeout(() => setBlockStage('resize-scale', dResize), d2));
+        timers.push(window.setTimeout(() => setBlockStage('style-color', dColor), d3));
+        timers.push(window.setTimeout(() => setBlockStage('place-drop', dDrop), d4));
+        timers.push(window.setTimeout(() => setBlockStage('done', 0), d5));
+      }
 
       blockTimersRef.current.set(block.id, timers);
     };
@@ -1432,24 +1583,51 @@ export const DesignCanvasProvider: React.FC<{ children: React.ReactNode }> = ({ 
       const now = performance.now();
       const vh = window.innerHeight;
       const maxConcurrent = window.innerWidth < 640 ? 3 : MAX_CONCURRENT_BLOCKS;
-      const dispatchStagger = window.innerWidth < 640 ? 360 : STAGGER_DISPATCH_MS;
+      const baseStagger = window.innerWidth < 640 ? 340 : STAGGER_DISPATCH_MS;
       const blocks = Array.from(blocksRef.current.values());
 
       const activeBlocks = blocks.filter(
         (b) => b.stage !== 'hidden' && b.stage !== 'done'
       );
 
+      const effectiveStagger = activeBlocks.some((b) => b.isCloneItem) ? 200 : baseStagger;
+
       if (activeBlocks.length >= maxConcurrent) return;
-      if (activeBlocks.length > 0 && now - lastDispatchAtRef.current < dispatchStagger) {
+      if (activeBlocks.length > 0 && now - lastDispatchAtRef.current < effectiveStagger) {
         return;
       }
 
-      // Check bounding box directly inside viewport so tall mobile cards never stall
+      // Strict Comfortable Viewport Gate + Template-First Clone Gating:
+      // Duplicate cards (isCloneItem) NEVER start until Card #1 of their cloneGroup finishes!
+      const topSafe = 68;
+      const bottomSafe = vh - (vh < 700 ? 84 : 108);
+      const atPageBottom =
+        window.innerHeight + window.scrollY >= document.documentElement.scrollHeight - 24;
+
       const candidates = blocks
         .filter((b) => {
           if (b.stage !== 'hidden' || !b.el.isConnected) return false;
+          if (b.isCloneItem && b.cloneGroup) {
+            const templateBlock = blocks.find(
+              (t) => t.el.isConnected && !t.isCloneItem && t.cloneGroup === b.cloneGroup
+            );
+            if (templateBlock && templateBlock.stage !== 'done') {
+              const tr = templateBlock.el.getBoundingClientRect();
+              const templateVisibleOrActive =
+                templateBlock.stage !== 'hidden' || (tr.bottom > topSafe && tr.top < vh);
+              if (templateVisibleOrActive) {
+                return false;
+              }
+            }
+          }
           const r = b.el.getBoundingClientRect();
-          return r.width > 0 && r.height > 0 && r.top < vh * 0.94 && r.bottom > 24;
+          if (r.width <= 0 || r.height <= 0) return false;
+          if (atPageBottom) {
+            return r.top < vh - 16 && r.bottom > topSafe;
+          }
+          const visiblePx = Math.min(bottomSafe, r.bottom) - Math.max(topSafe, r.top);
+          const minVisibleRequired = Math.min(110, Math.max(36, r.height * 0.45));
+          return r.top < vh * 0.78 && r.bottom > topSafe && visiblePx >= minVisibleRequired;
         })
         .map((b) => ({ block: b, rect: b.el.getBoundingClientRect() }))
         .sort((a, b) => {
@@ -1518,21 +1696,27 @@ export const DesignCanvasProvider: React.FC<{ children: React.ReactNode }> = ({ 
         return;
       }
 
+      const topSafe = 68;
+      const bottomSafe = vh - (vh < 700 ? 84 : 108);
       let activeCount = 0;
-      let unfinishedAboveFold = false;
+      let hasWaitingVisible = false;
+
       blocksRef.current.forEach((b) => {
         if (!b.el.isConnected) return;
-        const rect = b.el.getBoundingClientRect();
-        const isInUpperCanvas = rect.top < vh * 0.72 && rect.bottom > 60;
+        const r = b.el.getBoundingClientRect();
         if (b.stage !== 'hidden' && b.stage !== 'done') {
           activeCount += 1;
-          if (isInUpperCanvas) unfinishedAboveFold = true;
-        } else if (b.stage === 'hidden' && b.inView && rect.top < vh * 0.58) {
-          unfinishedAboveFold = true;
+        } else if (b.stage === 'hidden' && r.width > 0 && r.height > 0) {
+          const visiblePx = Math.min(bottomSafe, r.bottom) - Math.max(topSafe, r.top);
+          const minVisibleRequired = Math.min(110, Math.max(36, r.height * 0.45));
+          if (r.top < vh * 0.78 && r.bottom > topSafe && visiblePx >= minVisibleRequired) {
+            hasWaitingVisible = true;
+          }
         }
       });
 
-      const speedPxPerSec = unfinishedAboveFold || activeCount >= 2 ? 0 : activeCount === 1 ? 24 : 90;
+      // Pause scrolling completely while visible sections finish building cleanly in view!
+      const speedPxPerSec = hasWaitingVisible || activeCount > 0 ? 0 : 120;
 
       if (speedPxPerSec > 0) {
         exactY = Math.min(maxScroll, exactY + speedPxPerSec * dt);
@@ -1628,6 +1812,7 @@ export const DesignCanvasProvider: React.FC<{ children: React.ReactNode }> = ({ 
         triggerReplay,
         heroStep,
         skipHeroBuild,
+        buildProgress,
         registerBlock,
         unregisterBlock,
         updateBlockInView,
@@ -1652,6 +1837,7 @@ interface DesignBlockProps {
   delay?: number;
   slotIndex?: number;
   shape?: WireframeShape;
+  cloneGroup?: string;
   isCloneItem?: boolean;
 }
 
@@ -1660,6 +1846,7 @@ export const DesignBlock: React.FC<DesignBlockProps> = ({
   className = '',
   slotIndex = 0,
   shape = 'panel',
+  cloneGroup,
   isCloneItem = false,
 }) => {
   const reactId = useId();
@@ -1677,6 +1864,9 @@ export const DesignBlock: React.FC<DesignBlockProps> = ({
     return cursorsEnabled && !prefersReduced ? 'hidden' : 'done';
   });
   const [isCloneHighlight, setIsCloneHighlight] = useState(false);
+  const [clonePhase, setClonePhase] = useState<ClonePhase>('none');
+  const [cloneDragOrigin, setCloneDragOrigin] = useState<{ x: number; y: number }>({ x: 0, y: 0 });
+  const [cloneDragStep, setCloneDragStep] = useState<'idle' | 'at-source' | 'dragging'>('idle');
   const [isNarrow, setIsNarrow] = useState(() =>
     typeof window !== 'undefined' ? window.innerWidth < 640 : false
   );
@@ -1687,6 +1877,42 @@ export const DesignBlock: React.FC<DesignBlockProps> = ({
     window.addEventListener('resize', onResize, { passive: true });
     return () => window.removeEventListener('resize', onResize);
   }, []);
+
+  // Measure Card #1 position so clone cards spawn AT Card #1 and physically get dragged to their destination slot
+  useLayoutEffect(() => {
+    if (!cursorsEnabled || !isCloneItem || stage !== 'layout-drag') {
+      setCloneDragStep('idle');
+      setCloneDragOrigin({ x: 0, y: 0 });
+      return;
+    }
+
+    let dx = -36;
+    let dy = -18;
+    if (blockRef.current) {
+      const dstRect = blockRef.current.getBoundingClientRect();
+      const srcRect = findVisibleCloneSourceRect(cloneGroup, dstRect);
+      if (srcRect) {
+        dx = srcRect.left - dstRect.left;
+        dy = srcRect.top - dstRect.top;
+      } else if (typeof window !== 'undefined') {
+        const vw = window.innerWidth;
+        dx =
+          dstRect.left > vw * 0.45
+            ? -Math.min(180, Math.max(24, dstRect.left - 24))
+            : Math.min(140, Math.max(0, vw - dstRect.right - 24));
+        dy = Math.max(76 - dstRect.top, -120);
+      }
+    }
+
+    setCloneDragOrigin({ x: dx, y: dy });
+    setCloneDragStep('at-source');
+
+    const startDragTimer = window.setTimeout(() => {
+      setCloneDragStep('dragging');
+    }, 220);
+
+    return () => window.clearTimeout(startDragTimer);
+  }, [cursorsEnabled, isCloneItem, stage, cloneGroup]);
 
   // Sequential line-by-line typing registry & character progress inside this block
   const linesMapRef = useRef<Map<string, TypedLineRecord>>(new Map());
@@ -1745,11 +1971,33 @@ export const DesignBlock: React.FC<DesignBlockProps> = ({
     return { visibleChars, isActiveLine };
   }, [charProgress]);
 
-  // Run sequential character ticker whenever this block enters 'type-draft'
+  // Run sequential character ticker + forward-only Copy-Paste -> Select-All -> Edit on cloned blocks
   useEffect(() => {
-    if (!cursorsEnabled || stage !== 'type-draft') {
+    if (!cursorsEnabled) {
       setIsCloneHighlight(false);
-      if (stage === 'hidden' || stage === 'layout-drag') {
+      setClonePhase('none');
+      setCharProgress(totalCharsRef.current + 100);
+      return;
+    }
+
+    if (stage === 'layout-drag') {
+      if (isCloneItem) {
+        // Show pasted duplicate of Card #1 immediately inside the #38BDF8 paste frame!
+        setIsCloneHighlight(true);
+        setClonePhase('pasted');
+        setCharProgress(-1);
+      } else {
+        setIsCloneHighlight(false);
+        setClonePhase('none');
+        setCharProgress(0);
+      }
+      return;
+    }
+
+    if (stage !== 'type-draft') {
+      setIsCloneHighlight(false);
+      setClonePhase('none');
+      if (stage === 'hidden') {
         setCharProgress(0);
       } else {
         setCharProgress(totalCharsRef.current + 100);
@@ -1759,9 +2007,9 @@ export const DesignBlock: React.FC<DesignBlockProps> = ({
 
     rebuildLineOrder();
     const totalChars = Math.max(1, totalCharsRef.current);
-    const arrivalLeadMs = 200;
+    const arrivalLeadMs = 160;
     const totalWindowMs =
-      Math.max(1050, Math.min(2500, 560 + totalChars * 14)) * 0.88;
+      Math.max(980, Math.min(2200, 480 + totalChars * 13)) * 0.85;
     const step = totalChars > 105 ? Math.ceil(totalChars / 78) : 1;
     const ticksNeeded = Math.ceil(totalChars / step);
     const intervalMs = Math.max(14, Math.floor(totalWindowMs / Math.max(1, ticksNeeded)));
@@ -1771,6 +2019,7 @@ export const DesignBlock: React.FC<DesignBlockProps> = ({
 
     const startTyping = () => {
       setIsCloneHighlight(false);
+      setClonePhase('none');
       setCharProgress(0);
       intervalId = window.setInterval(() => {
         setCharProgress((prev) => {
@@ -1786,10 +2035,14 @@ export const DesignBlock: React.FC<DesignBlockProps> = ({
     };
 
     if (isCloneItem) {
+      // Immediately switch pasted text into bright blue Select-All highlight, then clear & live-type real item
       setIsCloneHighlight(true);
+      setClonePhase('selected');
       setCharProgress(-1);
-      cloneTimerId = window.setTimeout(startTyping, 460 + arrivalLeadMs);
+      cloneTimerId = window.setTimeout(startTyping, 460);
     } else {
+      setIsCloneHighlight(false);
+      setClonePhase('none');
       setCharProgress(0);
       cloneTimerId = window.setTimeout(startTyping, arrivalLeadMs);
     }
@@ -1805,7 +2058,7 @@ export const DesignBlock: React.FC<DesignBlockProps> = ({
     for (let i = 0; i < reactId.length; i += 1) {
       hash = (hash * 31 + reactId.charCodeAt(i)) >>> 0;
     }
-    return SCATTER_PRESETS[hash % SCATTER_PRESETS.length];
+    return ORTHOGONAL_OFFSETS[hash % ORTHOGONAL_OFFSETS.length];
   }, [reactId, slotIndex]);
 
   useEffect(() => {
@@ -1818,7 +2071,7 @@ export const DesignBlock: React.FC<DesignBlockProps> = ({
       return;
     }
 
-    registerBlock(reactId, el, setStage);
+    registerBlock(reactId, el, setStage, { cloneGroup, isCloneItem });
 
     const observer = new IntersectionObserver(
       (entries) => {
@@ -1835,7 +2088,7 @@ export const DesignBlock: React.FC<DesignBlockProps> = ({
       observer.disconnect();
       unregisterBlock(reactId);
     };
-  }, [reactId, cursorsEnabled, registerBlock, unregisterBlock, updateBlockInView]);
+  }, [reactId, cursorsEnabled, cloneGroup, isCloneItem, registerBlock, unregisterBlock, updateBlockInView]);
 
   const isHidden = cursorsEnabled && stage === 'hidden';
   const isLayoutDrag = cursorsEnabled && stage === 'layout-drag';
@@ -1844,29 +2097,35 @@ export const DesignBlock: React.FC<DesignBlockProps> = ({
   const isStyleColor = cursorsEnabled && stage === 'style-color';
   const isPlaceDrop = cursorsEnabled && stage === 'place-drop';
 
+  const isCloneAtSource = isCloneItem && isLayoutDrag && cloneDragStep === 'at-source';
+  const isCloneDragging = isCloneItem && isLayoutDrag && cloneDragStep === 'dragging';
+
   const showSelectionBox =
     isLayoutDrag || isTypeDraft || isResizeScale || isStyleColor || isPlaceDrop;
 
-  const scatterScale = isNarrow ? 0.52 : 1;
-  const targetScale = isHidden || isLayoutDrag || isTypeDraft ? 0.62 : 1;
-  const targetX =
-    isHidden || isLayoutDrag || isTypeDraft
-      ? scatter.x * scatterScale
-      : isResizeScale || isStyleColor
-        ? scatter.x * scatterScale * 0.85
-        : 0;
-  const targetY =
-    isHidden || isLayoutDrag || isTypeDraft
-      ? scatter.y * scatterScale
-      : isResizeScale || isStyleColor
-        ? scatter.y * scatterScale * 0.85
-        : 0;
-  const targetRotate =
-    isHidden || isLayoutDrag || isTypeDraft
-      ? scatter.rotate
-      : isResizeScale || isStyleColor
-        ? scatter.rotate * 0.65
-        : 0;
+  const targetScale = isCloneItem
+    ? isHidden
+      ? 0.96
+      : isCloneAtSource
+        ? 0.985
+        : 1
+    : isHidden || isLayoutDrag || isTypeDraft
+      ? 0.94
+      : 1;
+  const targetX = isCloneAtSource ? cloneDragOrigin.x : 0;
+  const targetY = isCloneAtSource
+    ? cloneDragOrigin.y
+    : isCloneItem
+      ? isTypeDraft
+        ? -2
+        : 0
+      : isHidden || isLayoutDrag || isTypeDraft
+        ? isNarrow
+          ? scatter.y * 0.65
+          : scatter.y
+        : isResizeScale || isStyleColor
+          ? -4
+          : 0;
 
   return (
     <DesignBlockStageContext.Provider
@@ -1874,6 +2133,7 @@ export const DesignBlock: React.FC<DesignBlockProps> = ({
         stage: cursorsEnabled ? stage : 'done',
         cursorsEnabled,
         isCloneHighlight,
+        clonePhase,
         charProgress,
         registerTypedLine,
         unregisterTypedLine,
@@ -1883,7 +2143,9 @@ export const DesignBlock: React.FC<DesignBlockProps> = ({
       <div
         ref={blockRef}
         data-clone-item={isCloneItem ? 'true' : undefined}
-        className={`relative ${className}`}
+        data-clone-template={cloneGroup && !isCloneItem ? cloneGroup : undefined}
+        data-clone-done={cloneGroup && stage === 'done' ? cloneGroup : undefined}
+        className={`relative ${isCloneItem && isLayoutDrag ? 'z-20' : ''} ${className}`}
       >
         {(isResizeScale || isPlaceDrop) && (
           <div aria-hidden="true" className="pointer-events-none absolute inset-0 z-10">
@@ -1903,17 +2165,33 @@ export const DesignBlock: React.FC<DesignBlockProps> = ({
           data-block-frame="true"
           initial={false}
           animate={{
-            opacity: isHidden ? 0 : 1,
+            opacity: isHidden ? 0 : isCloneAtSource ? 0.96 : 1,
             scale: targetScale,
             x: targetX,
             y: targetY,
-            rotate: targetRotate,
+            rotate: 0,
           }}
-          transition={{
-            duration: isResizeScale ? 0.76 : isPlaceDrop ? 0.7 : 0.48,
-            delay: isResizeScale ? 0.26 : isPlaceDrop ? 0.2 : 0,
-            ease: isResizeScale ? [0.35, 0, 0.25, 1] : [0.22, 1, 0.36, 1],
-          }}
+          transition={
+            isCloneAtSource
+              ? {
+                  x: { duration: 0 },
+                  y: { duration: 0 },
+                  opacity: { duration: 0.14 },
+                  scale: { duration: 0.14 },
+                }
+              : isCloneDragging
+                ? {
+                    x: { duration: 0.58, ease: [0.22, 1, 0.36, 1] },
+                    y: { duration: 0.58, ease: [0.22, 1, 0.36, 1] },
+                    opacity: { duration: 0.2 },
+                    scale: { duration: 0.48, ease: [0.22, 1, 0.36, 1] },
+                  }
+                : {
+                    duration: isResizeScale ? 0.62 : isPlaceDrop ? 0.56 : 0.42,
+                    delay: isResizeScale ? 0.14 : isPlaceDrop ? 0.1 : 0,
+                    ease: isResizeScale ? [0.22, 1, 0.36, 1] : [0.16, 1, 0.3, 1],
+                  }
+          }
           style={{ transformOrigin: 'top left' }}
           className="relative h-full"
         >
@@ -1926,8 +2204,12 @@ export const DesignBlock: React.FC<DesignBlockProps> = ({
                   : isStyleColor
                     ? 'border-[#A855F7]/85 bg-transparent'
                     : isPlaceDrop
-                      ? 'border-[#F59E0B]/95 bg-transparent shadow-[0_14px_34px_rgba(245,158,11,0.14)]'
-                      : 'border-[#38BDF8]/80 bg-[#0B111E]/35'
+                      ? 'border-[#F59E0B]/95 bg-transparent shadow-[0_12px_30px_rgba(245,158,11,0.12)]'
+                      : isCloneItem && isLayoutDrag
+                        ? 'border-[#38BDF8] bg-[#38BDF8]/10 shadow-[0_14px_34px_rgba(56,189,248,0.22)]'
+                        : isCloneItem && isTypeDraft
+                          ? 'border-[#38BDF8]/90 bg-transparent'
+                          : 'border-[#38BDF8]/85 bg-[#08101E]/40'
               }`}
             >
               <span className="absolute -top-1 -left-1 h-2 w-2 border border-current bg-white" />
@@ -1935,38 +2217,71 @@ export const DesignBlock: React.FC<DesignBlockProps> = ({
               <span className="absolute -bottom-1 -left-1 h-2 w-2 border border-current bg-white" />
               <span className="absolute -bottom-1 -right-1 h-2 w-2 border border-current bg-white" />
 
+              {isCloneItem && isLayoutDrag && (
+                <span className="absolute -top-5 left-2 rounded-[3px] bg-[#38BDF8] px-1.5 py-0.5 font-mono text-[9px] font-bold tracking-wider text-[#050507] shadow-[0_2px_8px_rgba(56,189,248,0.45)]">
+                  COPY
+                </span>
+              )}
+
               {isResizeScale && (
                 <ResizeDimensionBadge
                   targetRef={frameRef}
                   active={isResizeScale}
-                  fromScaleX={0.62}
+                  fromScaleX={0.92}
                   toScaleX={1}
-                  fromScaleY={0.62}
+                  fromScaleY={0.92}
                   toScaleY={1}
-                  durationMs={760}
-                  delayMs={260}
+                  durationMs={620}
+                  delayMs={140}
                 />
               )}
 
-              {isLayoutDrag && (
-                <div className="flex h-full w-full flex-col justify-between overflow-hidden p-4 opacity-50">
+              {isLayoutDrag && !isCloneItem && (
+                <div className="flex h-full w-full flex-col justify-between overflow-hidden p-4 opacity-75">
                   {shape === 'card' && (
                     <div className="flex h-full flex-col justify-between gap-3">
-                      <div className="aspect-video w-full border border-[#38BDF8]/45 bg-[#1E293B]/35" />
+                      <div className="relative aspect-video w-full overflow-hidden border border-[#38BDF8]/55 bg-[#0D1A2D]/55">
+                        <svg
+                          viewBox="0 0 100 56"
+                          preserveAspectRatio="none"
+                          className="h-full w-full stroke-[#38BDF8]/30"
+                          fill="none"
+                        >
+                          <line x1="0" y1="0" x2="100" y2="56" strokeWidth="0.6" />
+                          <line x1="100" y1="0" x2="0" y2="56" strokeWidth="0.6" />
+                        </svg>
+                      </div>
                       <div className="space-y-2">
-                        <div className="h-3.5 w-2/3 border border-[#38BDF8]/45" />
-                        <div className="h-2.5 w-1/2 border border-[#38BDF8]/30" />
+                        <div className="h-3.5 w-2/3 border border-[#38BDF8]/50 bg-[#38BDF8]/10" />
+                        <div className="h-2.5 w-1/2 border border-[#38BDF8]/35" />
                       </div>
                     </div>
                   )}
                   {shape === 'image' && (
-                    <div className="h-full w-full border border-[#38BDF8]/45 bg-[#1E293B]/25" />
+                    <div className="relative h-full w-full overflow-hidden border border-[#38BDF8]/55 bg-[#0D1A2D]/45">
+                      <svg
+                        viewBox="0 0 100 100"
+                        preserveAspectRatio="none"
+                        className="h-full w-full stroke-[#38BDF8]/30"
+                        fill="none"
+                      >
+                        <line x1="0" y1="0" x2="100" y2="100" strokeWidth="0.5" />
+                        <line x1="100" y1="0" x2="0" y2="100" strokeWidth="0.5" />
+                      </svg>
+                    </div>
                   )}
                   {shape === 'row' && (
                     <div className="space-y-3">
                       {[0, 1, 2, 3].map((r) => (
-                        <div key={r} className="h-5 w-full border-b border-[#38BDF8]/35" />
+                        <div key={r} className="h-5 w-full border-b border-[#38BDF8]/40" />
                       ))}
+                    </div>
+                  )}
+                  {(shape === 'panel' || shape === 'metrics' || shape === 'navbar') && (
+                    <div className="space-y-2.5">
+                      <div className="h-3 w-1/3 border border-[#38BDF8]/45 bg-[#38BDF8]/12" />
+                      <div className="h-6 w-3/4 border border-[#38BDF8]/40" />
+                      <div className="h-3 w-1/2 border border-[#38BDF8]/30" />
                     </div>
                   )}
                 </div>
@@ -1975,12 +2290,12 @@ export const DesignBlock: React.FC<DesignBlockProps> = ({
           )}
 
           <div
-            className={`relative h-full transition-[opacity,filter] duration-400 ${
-              isHidden || isLayoutDrag ? 'opacity-0' : 'opacity-100'
+            className={`relative h-full transition-[opacity,filter] duration-350 ${
+              isHidden || (isLayoutDrag && !isCloneItem) ? 'opacity-0' : 'opacity-100'
             }`}
             style={{
               filter:
-                isTypeDraft || isResizeScale
+                !isCloneItem && (isTypeDraft || isResizeScale)
                   ? 'grayscale(1) contrast(0.92)'
                   : 'grayscale(0) contrast(1)',
             }}
@@ -1992,7 +2307,7 @@ export const DesignBlock: React.FC<DesignBlockProps> = ({
                 aria-hidden="true"
                 initial={{ left: '0%', opacity: 0.9 }}
                 animate={{ left: '100%', opacity: 0 }}
-                transition={{ duration: 0.78, ease: [0.22, 1, 0.36, 1] }}
+                transition={{ duration: 0.62, ease: [0.22, 1, 0.36, 1] }}
                 className="pointer-events-none absolute inset-y-0 z-20 w-10 bg-gradient-to-r from-[#A855F7]/30 via-[#DC2626]/35 to-transparent blur-[2px]"
               />
             )}

@@ -2,7 +2,10 @@ import { lazy, Suspense, useEffect, useState } from 'react';
 import { motion, useScroll, useSpring } from 'motion/react';
 import { ArrowLeft } from 'lucide-react';
 import { ProjectItem } from './data/portfolioData';
-import { PortfolioContentProvider } from './context/PortfolioContentContext';
+import {
+  PortfolioContentProvider,
+  useRefreshPortfolioContent,
+} from './context/PortfolioContentContext';
 import { DesignCanvasProvider } from './components/DesignCursorSystem';
 import { IntroSequence } from './components/IntroSequence';
 import { Navbar } from './components/Navbar';
@@ -46,11 +49,12 @@ function detectInitialAdminMode(): boolean {
   );
 }
 
-export default function App() {
+function AppShell() {
   const [selectedProject, setSelectedProject] = useState<ProjectItem | null>(null);
   const [inquiryOpen, setInquiryOpen] = useState(false);
   const [isAdminRoute, setIsAdminRoute] = useState<boolean>(() => detectInitialAdminMode());
   const [cameFromAdmin, setCameFromAdmin] = useState<boolean>(() => detectInitialAdminMode());
+  const refreshPortfolio = useRefreshPortfolioContent();
 
   useEffect(() => {
     if (IS_VIEWER_ONLY) return;
@@ -98,6 +102,7 @@ export default function App() {
   const handleOpenViewerPreview = () => {
     setCameFromAdmin(true);
     setIsAdminRoute(false);
+    void refreshPortfolio();
     if (!IS_ADMIN_ONLY && window.location.pathname.startsWith('/admin')) {
       window.history.pushState({}, '', '/');
     }
@@ -113,71 +118,79 @@ export default function App() {
     window.scrollTo({ top: 0, behavior: 'auto' });
   };
 
+  if (!IS_VIEWER_ONLY && isAdminRoute && AdminDashboardLazy) {
+    return (
+      <Suspense
+        fallback={
+          <div className="flex min-h-screen items-center justify-center bg-[#050507] text-xs text-zinc-400">
+            Loading admin workspace...
+          </div>
+        }
+      >
+        <AdminDashboardLazy onOpenViewerPreview={handleOpenViewerPreview} />
+      </Suspense>
+    );
+  }
+
+  return (
+    <DesignCanvasProvider>
+      <div className="min-h-screen bg-[#050507] text-[#F4F4F5]">
+        <motion.div
+          className="fixed top-0 right-0 left-0 z-50 h-[2px] origin-left bg-[#DC2626]"
+          style={{ scaleX }}
+          aria-hidden="true"
+        />
+
+        {!IS_VIEWER_ONLY && cameFromAdmin && (
+          <div className="fixed top-20 right-4 z-50">
+            <button
+              type="button"
+              onClick={handleReturnToAdmin}
+              className="inline-flex min-h-[42px] items-center gap-2 rounded-lg border border-white/20 bg-[#0D0E12]/95 px-4 py-2 text-xs font-semibold text-white shadow-xl backdrop-blur-md transition-colors hover:border-[#DC2626] hover:bg-[#14151C]"
+            >
+              <ArrowLeft className="h-3.5 w-3.5 text-[#EF4444]" aria-hidden="true" />
+              Back to Admin Panel
+            </button>
+          </div>
+        )}
+
+        <IntroSequence />
+
+        <Navbar onOpenInquiry={() => setInquiryOpen(true)} />
+
+        <main>
+          <HeroSection onOpenInquiry={() => setInquiryOpen(true)} />
+
+          <WorksSection onSelectProject={(proj) => setSelectedProject(proj)} />
+
+          <ClientsStrip />
+
+          <AwardsSection />
+
+          <RawToRealSection />
+
+          <StorytellingSection />
+
+          <ExperienceSection />
+        </main>
+
+        <ContactSection onOpenInquiry={() => setInquiryOpen(true)} />
+
+        <ProjectModal
+          project={selectedProject}
+          onClose={() => setSelectedProject(null)}
+        />
+
+        <InquiryModal isOpen={inquiryOpen} onClose={() => setInquiryOpen(false)} />
+      </div>
+    </DesignCanvasProvider>
+  );
+}
+
+export default function App() {
   return (
     <PortfolioContentProvider>
-      {!IS_VIEWER_ONLY && isAdminRoute && AdminDashboardLazy ? (
-        <Suspense
-          fallback={
-            <div className="flex min-h-screen items-center justify-center bg-[#050507] text-xs text-zinc-400">
-              Loading admin workspace...
-            </div>
-          }
-        >
-          <AdminDashboardLazy onOpenViewerPreview={handleOpenViewerPreview} />
-        </Suspense>
-      ) : (
-        <DesignCanvasProvider>
-          <div className="min-h-screen bg-[#050507] text-[#F4F4F5]">
-            <motion.div
-              className="fixed top-0 right-0 left-0 z-50 h-[2px] origin-left bg-[#DC2626]"
-              style={{ scaleX }}
-              aria-hidden="true"
-            />
-
-            {!IS_VIEWER_ONLY && cameFromAdmin && (
-              <div className="fixed right-4 bottom-4 z-50">
-                <button
-                  type="button"
-                  onClick={handleReturnToAdmin}
-                  className="inline-flex min-h-[42px] items-center gap-2 rounded-lg border border-white/20 bg-[#0D0E12]/95 px-4 py-2 text-xs font-semibold text-white shadow-xl backdrop-blur-md transition-colors hover:border-[#DC2626] hover:bg-[#14151C]"
-                >
-                  <ArrowLeft className="h-3.5 w-3.5 text-[#EF4444]" aria-hidden="true" />
-                  Back to Admin Panel
-                </button>
-              </div>
-            )}
-
-            <IntroSequence />
-
-            <Navbar onOpenInquiry={() => setInquiryOpen(true)} />
-
-            <main>
-              <HeroSection onOpenInquiry={() => setInquiryOpen(true)} />
-
-              <WorksSection onSelectProject={(proj) => setSelectedProject(proj)} />
-
-              <ClientsStrip />
-
-              <AwardsSection />
-
-              <RawToRealSection />
-
-              <StorytellingSection />
-
-              <ExperienceSection />
-            </main>
-
-            <ContactSection onOpenInquiry={() => setInquiryOpen(true)} />
-
-            <ProjectModal
-              project={selectedProject}
-              onClose={() => setSelectedProject(null)}
-            />
-
-            <InquiryModal isOpen={inquiryOpen} onClose={() => setInquiryOpen(false)} />
-          </div>
-        </DesignCanvasProvider>
-      )}
+      <AppShell />
     </PortfolioContentProvider>
   );
 }

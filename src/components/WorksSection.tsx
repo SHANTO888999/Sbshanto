@@ -35,7 +35,8 @@ const ProjectCardContent: React.FC<{
   onSelect,
 }) => {
   const { stage, isCloneHighlight } = useBlockStage();
-  const showingCloneTheme = isCloneCard && isCloneHighlight && stage === 'type-draft';
+  const showingCloneTheme =
+    isCloneCard && isCloneHighlight && (stage === 'layout-drag' || stage === 'type-draft');
 
   return (
     <article
@@ -126,7 +127,7 @@ export const WorksSection: React.FC<WorksSectionProps> = ({ onSelectProject }) =
       ? projects
       : projects.filter((item) => item.category === activeCategory);
 
-  const featuredTimelineProjects = projects.slice(0, 6);
+  const featuredTimelineProjects = projects.slice(0, 24);
 
   return (
     <section id="works" className="border-b border-white/10 bg-[#050507] py-20 lg:py-24">
@@ -183,9 +184,10 @@ export const WorksSection: React.FC<WorksSectionProps> = ({ onSelectProject }) =
 
               return (
                 <DesignBlock
-                  key={project.id}
+                  key={`${activeCategory}-${project.id}`}
                   shape="card"
                   slotIndex={idx}
+                  cloneGroup={`works-${activeCategory}`}
                   isCloneItem={idx > 0}
                   label={`Frame ${project.index} · ${project.dimensions}`}
                 >

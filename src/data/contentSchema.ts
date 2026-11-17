@@ -257,7 +257,7 @@ export function normalizePortfolioContent(
   const rawProjects = Array.isArray(raw.projects) ? raw.projects : defaults.projects;
   const projects: ProjectItem[] = rawProjects
     .filter((p) => p && p.published !== false)
-    .slice(0, 24)
+    .slice(0, 200)
     .map((p, idx) => {
       const category = VALID_CATEGORIES.includes(p.category)
         ? p.category
@@ -312,7 +312,7 @@ export function normalizePortfolioContent(
   const rawMilestones = Array.isArray(raw.milestones) ? raw.milestones : defaults.milestones;
   const milestones: MilestoneItem[] = rawMilestones
     .filter((m) => m && m.published !== false)
-    .slice(0, 12)
+    .slice(0, 100)
     .map((m, idx) => ({
       id: sanitizeId(m.id, 'ms', idx),
       title: clampText(m.title, 88, 'Studio Milestone'),
@@ -353,7 +353,7 @@ export function normalizePortfolioContent(
   const rawExperience = Array.isArray(raw.experience) ? raw.experience : defaults.experience;
   const experience: ExperienceItem[] = rawExperience
     .filter((e) => e && e.published !== false)
-    .slice(0, 10)
+    .slice(0, 100)
     .map((e, idx) => ({
       id: sanitizeId(e.id, 'exp', idx),
       period: clampExact(e.period, 24, '2024 — Present'),

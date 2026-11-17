@@ -32,6 +32,7 @@ export const ExperienceSection: React.FC = () => {
                     key={item.id}
                     shape="row"
                     slotIndex={idx + 1}
+                    cloneGroup="experience"
                     isCloneItem={idx > 0}
                     className="py-6"
                   >
