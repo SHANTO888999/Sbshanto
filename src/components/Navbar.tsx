@@ -3,9 +3,13 @@ import { Menu, X } from 'lucide-react';
 import { motion } from 'motion/react';
 import { usePortfolioContent } from '../context/PortfolioContentContext';
 import { useDesignCanvas } from './DesignCursorSystem';
+import { PWAInstallButton } from './PWAInstallButton';
 
 interface NavbarProps {
   onOpenInquiry: () => void;
+  onNavigateSection?: (href: string) => void;
+  mobileOpen?: boolean;
+  onMobileOpenChange?: (open: boolean) => void;
 }
 
 const NAV_ITEMS = [
@@ -16,8 +20,18 @@ const NAV_ITEMS = [
   { label: 'Contact', href: '#contact' },
 ];
 
-export const Navbar: React.FC<NavbarProps> = ({ onOpenInquiry }) => {
-  const [mobileOpen, setMobileOpen] = useState(false);
+export const Navbar: React.FC<NavbarProps> = ({
+  onOpenInquiry,
+  onNavigateSection,
+  mobileOpen: controlledMobileOpen,
+  onMobileOpenChange,
+}) => {
+  const [internalMobileOpen, setInternalMobileOpen] = useState(false);
+  const mobileOpen = controlledMobileOpen ?? internalMobileOpen;
+  const setMobileOpen = (next: boolean) => {
+    setInternalMobileOpen(next);
+    onMobileOpenChange?.(next);
+  };
   const { profile } = usePortfolioContent();
   const { cursorsEnabled, heroStep, prepareSectionJump } = useDesignCanvas();
   const wordmarkBase = profile.wordmark.endsWith('.')
@@ -56,11 +70,14 @@ export const Navbar: React.FC<NavbarProps> = ({ onOpenInquiry }) => {
           {/* Zone 1: Wordmark */}
           <a
             href="#top"
-            onClick={prepareSectionJump}
-            className="font-display text-xl font-bold tracking-tight text-white whitespace-nowrap shrink-0 focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-[#DC2626]"
+            onClick={() => {
+              onNavigateSection?.('#top');
+              prepareSectionJump();
+            }}
+            className="font-display text-xl font-bold tracking-tight text-white whitespace-nowrap shrink-0 focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-accent"
           >
             {wordmarkBase}
-            {wordmarkDot && <span className="text-[#DC2626]">{wordmarkDot}</span>}
+            {wordmarkDot && <span className="text-accent">{wordmarkDot}</span>}
           </a>
 
           {/* Zone 2: Navigation links */}
@@ -69,27 +86,32 @@ export const Navbar: React.FC<NavbarProps> = ({ onOpenInquiry }) => {
               <a
                 key={item.href}
                 href={item.href}
-                onClick={prepareSectionJump}
-                className="text-sm font-medium text-zinc-300 transition-colors duration-150 hover:text-white whitespace-nowrap shrink-0 focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-[#DC2626]"
+                onClick={() => {
+                  onNavigateSection?.(item.href);
+                  prepareSectionJump();
+                }}
+                className="text-sm font-medium text-zinc-300 transition-colors duration-150 hover:text-white whitespace-nowrap shrink-0 focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-accent"
               >
                 {item.label}
               </a>
             ))}
           </nav>
 
-          {/* Zone 3: Single primary action */}
-          <div className="flex items-center gap-3 shrink-0">
+          {/* Zone 3: Primary actions */}
+          <div className="flex items-center gap-2.5 shrink-0">
+            <PWAInstallButton compact className="hidden sm:inline-flex" />
+
             <button
               type="button"
               onClick={onOpenInquiry}
-              className="hidden sm:inline-flex items-center justify-center rounded-md bg-[#DC2626] px-4 py-2 text-xs font-semibold text-white transition-colors duration-150 hover:bg-[#B91C1C] whitespace-nowrap shrink-0 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white"
+              className="hidden sm:inline-flex items-center justify-center rounded-md bg-accent px-4 py-2 text-xs font-semibold text-white transition-colors duration-150 hover:bg-accent-dark whitespace-nowrap shrink-0 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white"
             >
               Hire Me
             </button>
 
             <button
               type="button"
-              onClick={() => setMobileOpen((prev) => !prev)}
+              onClick={() => setMobileOpen(!mobileOpen)}
               className="inline-flex h-10 w-10 items-center justify-center rounded-md border border-white/10 text-zinc-200 transition-colors hover:bg-white/5 md:hidden"
               aria-label={mobileOpen ? 'Close navigation menu' : 'Open navigation menu'}
               aria-expanded={mobileOpen}
@@ -109,6 +131,7 @@ export const Navbar: React.FC<NavbarProps> = ({ onOpenInquiry }) => {
                 key={item.href}
                 href={item.href}
                 onClick={() => {
+                  onNavigateSection?.(item.href);
                   setMobileOpen(false);
                   prepareSectionJump();
                 }}
@@ -123,10 +146,11 @@ export const Navbar: React.FC<NavbarProps> = ({ onOpenInquiry }) => {
                 setMobileOpen(false);
                 onOpenInquiry();
               }}
-              className="mt-2 inline-flex w-full items-center justify-center rounded-md bg-[#DC2626] px-4 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-[#B91C1C]"
+              className="mt-2 inline-flex w-full items-center justify-center rounded-md bg-accent px-4 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-accent-dark"
             >
               Hire Me
             </button>
+            <PWAInstallButton label="Install Portfolio App" className="w-full py-2.5 text-sm" />
           </nav>
         </div>
       )}

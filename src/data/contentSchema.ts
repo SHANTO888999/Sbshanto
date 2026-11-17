@@ -102,8 +102,61 @@ export interface ExperienceItem {
   published?: boolean;
 }
 
+export type CursorSpeed = 'slow' | 'normal' | 'fast';
+export type CvSourceMode = 'auto' | 'custom';
+
+export interface ViewerControlsConfig {
+  showTopScrollBar: boolean;
+  showBottomHud: boolean;
+  showHudProgress: boolean;
+  showHudCursors: boolean;
+  showHudAutoScroll: boolean;
+  showHudReplay: boolean;
+  showHudSound: boolean;
+  showMultiBackBar: boolean;
+  enableCursorsByDefault: boolean;
+  enableAutoScrollByDefault: boolean;
+  enableSoundByDefault: boolean;
+  cursorSpeed: CursorSpeed;
+  accentColor: string;
+  showCvDownloadOnViewer: boolean;
+}
+
+export interface CvSettingsConfig {
+  mode: CvSourceMode;
+  customUrl: string;
+  headline: string;
+}
+
+export const DEFAULT_ACCENT_COLOR = '#DC2626';
+
+export const DEFAULT_VIEWER_CONTROLS: ViewerControlsConfig = {
+  showTopScrollBar: true,
+  showBottomHud: true,
+  showHudProgress: true,
+  showHudCursors: true,
+  showHudAutoScroll: true,
+  showHudReplay: true,
+  showHudSound: true,
+  showMultiBackBar: true,
+  enableCursorsByDefault: true,
+  enableAutoScrollByDefault: true,
+  enableSoundByDefault: true,
+  cursorSpeed: 'normal',
+  accentColor: DEFAULT_ACCENT_COLOR,
+  showCvDownloadOnViewer: false,
+};
+
+export const DEFAULT_CV_SETTINGS: CvSettingsConfig = {
+  mode: 'auto',
+  customUrl: '',
+  headline: 'Full-Stack Web, Mobile App & Interactive Game Engineer',
+};
+
 export interface PortfolioContentBundle {
   profile: SiteProfile;
+  viewerControls: ViewerControlsConfig;
+  cvSettings: CvSettingsConfig;
   heroMetrics: HeroMetricItem[];
   projects: ProjectItem[];
   milestones: MilestoneItem[];
@@ -154,6 +207,11 @@ export function clampExact(value: unknown, maxLength: number, fallback: string):
 const SAFE_MEDIA_DATA_URL_RE =
   /^data:(image\/(png|jpeg|jpg|webp|gif)|video\/(mp4|webm|quicktime|ogg));base64,[A-Za-z0-9+/=]+$/i;
 
+export function isValidEmailAddress(value: string): boolean {
+  const trimmed = value.trim();
+  return trimmed.length >= 3 && trimmed.length <= 120 && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(trimmed);
+}
+
 export function isVideoMediaSource(
   url?: string,
   mediaType?: 'image' | 'video'
@@ -165,6 +223,31 @@ export function isVideoMediaSource(
   if (normalized.startsWith('data:video/')) return true;
   const withoutHashOrQuery = normalized.split(/[?#]/)[0] ?? '';
   return /\.(mp4|webm|mov|m4v|ogv|ogg)$/.test(withoutHashOrQuery);
+}
+
+const SAFE_PDF_DATA_URL_RE = /^data:application\/pdf;base64,[A-Za-z0-9+/=]+$/i;
+const VALID_HEX_COLOR_RE = /^#[0-9A-Fa-f]{6}$/;
+
+export function sanitizeHexColor(value: unknown, fallback = DEFAULT_ACCENT_COLOR): string {
+  if (typeof value !== 'string') return fallback;
+  const trimmed = value.trim();
+  if (VALID_HEX_COLOR_RE.test(trimmed)) {
+    return trimmed.toUpperCase();
+  }
+  return fallback;
+}
+
+export function sanitizeCvSourceUrl(value: unknown): string {
+  if (typeof value !== 'string') return '';
+  const trimmed = value.trim();
+  if (!trimmed) return '';
+  if (trimmed.startsWith('data:')) {
+    if (trimmed.length <= 540_000 && SAFE_PDF_DATA_URL_RE.test(trimmed)) {
+      return trimmed;
+    }
+    return '';
+  }
+  return sanitizePublicUrl(trimmed, '', false);
 }
 
 export function sanitizePublicUrl(
@@ -201,7 +284,7 @@ export function sanitizePublicUrl(
 
 function sanitizeId(value: unknown, prefix: string, idx: number): string {
   if (typeof value === 'string') {
-    const slug = value.trim().replace(/[^a-zA-Z0-9_-]/g, '-').slice(0, 48);
+    const slug = value.trim().replace(/[^a-zA-Z0-9_-]/g, '-').slice(0, 80);
     if (slug) return slug;
   }
   return `${prefix}-${idx + 1}`;
@@ -215,6 +298,13 @@ export function normalizePortfolioContent(
   const rawProfile = raw.profile ?? ({} as Partial<SiteProfile>);
   const dp = defaults.profile;
 
+  const candidatePortrait = sanitizePublicUrl(rawProfile.portraitUrl, dp.portraitUrl, true);
+  const safePortraitUrl =
+    candidatePortrait.startsWith('data:') &&
+    (!candidatePortrait.startsWith('data:image/') || candidatePortrait.length > 320_000)
+      ? dp.portraitUrl
+      : candidatePortrait;
+
   const profile: SiteProfile = {
     greeting: clampText(rawProfile.greeting, 32, dp.greeting),
     displayName: clampExact(rawProfile.displayName, 18, dp.displayName),
@@ -222,7 +312,7 @@ export function normalizePortfolioContent(
     wordmark: clampExact(rawProfile.wordmark, 16, dp.wordmark),
     role: clampText(rawProfile.role, 64, dp.role),
     bio: clampText(rawProfile.bio, 260, dp.bio),
-    portraitUrl: sanitizePublicUrl(rawProfile.portraitUrl, dp.portraitUrl),
+    portraitUrl: safePortraitUrl,
     email: clampExact(rawProfile.email, 80, dp.email),
     githubHandle: clampExact(rawProfile.githubHandle, 40, dp.githubHandle),
     githubUrl: sanitizePublicUrl(rawProfile.githubUrl, dp.githubUrl),
@@ -369,8 +459,50 @@ export function normalizePortfolioContent(
     .filter(Boolean)
     .slice(0, 8);
 
+  const rawVc = (raw.viewerControls ?? {}) as Partial<ViewerControlsConfig>;
+  const dv = defaults.viewerControls ?? DEFAULT_VIEWER_CONTROLS;
+  const pickBool = (val: unknown, fb: boolean): boolean =>
+    typeof val === 'boolean' ? val : fb;
+  const validSpeed: CursorSpeed =
+    rawVc.cursorSpeed === 'slow' || rawVc.cursorSpeed === 'normal' || rawVc.cursorSpeed === 'fast'
+      ? rawVc.cursorSpeed
+      : dv.cursorSpeed ?? 'normal';
+
+  const viewerControls: ViewerControlsConfig = {
+    showTopScrollBar: pickBool(rawVc.showTopScrollBar, dv.showTopScrollBar),
+    showBottomHud: pickBool(rawVc.showBottomHud, dv.showBottomHud),
+    showHudProgress: pickBool(rawVc.showHudProgress, dv.showHudProgress),
+    showHudCursors: pickBool(rawVc.showHudCursors, dv.showHudCursors),
+    showHudAutoScroll: pickBool(rawVc.showHudAutoScroll, dv.showHudAutoScroll),
+    showHudReplay: pickBool(rawVc.showHudReplay, dv.showHudReplay),
+    showHudSound: pickBool(rawVc.showHudSound, dv.showHudSound),
+    showMultiBackBar: pickBool(rawVc.showMultiBackBar, dv.showMultiBackBar),
+    enableCursorsByDefault: pickBool(rawVc.enableCursorsByDefault, dv.enableCursorsByDefault),
+    enableAutoScrollByDefault: pickBool(
+      rawVc.enableAutoScrollByDefault,
+      dv.enableAutoScrollByDefault
+    ),
+    enableSoundByDefault: pickBool(rawVc.enableSoundByDefault, dv.enableSoundByDefault),
+    cursorSpeed: validSpeed,
+    accentColor: sanitizeHexColor(rawVc.accentColor, dv.accentColor ?? DEFAULT_ACCENT_COLOR),
+    showCvDownloadOnViewer: pickBool(
+      rawVc.showCvDownloadOnViewer,
+      dv.showCvDownloadOnViewer ?? false
+    ),
+  };
+
+  const rawCv = (raw.cvSettings ?? {}) as Partial<CvSettingsConfig>;
+  const dCv = defaults.cvSettings ?? DEFAULT_CV_SETTINGS;
+  const cvSettings: CvSettingsConfig = {
+    mode: rawCv.mode === 'custom' || rawCv.mode === 'auto' ? rawCv.mode : dCv.mode,
+    customUrl: sanitizeCvSourceUrl(rawCv.customUrl),
+    headline: clampText(rawCv.headline, 96, dCv.headline),
+  };
+
   return {
     profile,
+    viewerControls,
+    cvSettings,
     heroMetrics,
     projects,
     milestones,

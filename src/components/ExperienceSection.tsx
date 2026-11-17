@@ -19,7 +19,7 @@ export const ExperienceSection: React.FC = () => {
                   text="KEEP BUILDING."
                   accentText="KEEP SHIPPING."
                   accentBreak
-                  accentClassName="text-[#DC2626]"
+                  accentClassName="text-accent"
                 />
               </h2>
             </DesignBlock>
@@ -38,7 +38,7 @@ export const ExperienceSection: React.FC = () => {
                   >
                     <div className="grid grid-cols-1 gap-3 sm:grid-cols-12 sm:gap-6">
                       <div className="sm:col-span-4">
-                        <span className="font-mono text-xs font-medium text-[#EF4444] tabular-nums">
+                        <span className="font-mono text-xs font-medium text-accent-light tabular-nums">
                           <TypedText
                             text={item.period}
                             cloneFrom={idx > 0 ? firstExp.period : undefined}
@@ -73,11 +73,17 @@ export const ExperienceSection: React.FC = () => {
             </div>
           </div>
 
-          {/* Right Column: Crimson Manifesto Card */}
+          {/* Right Column: Brand Manifesto Card */}
           <DesignBlock shape="panel" slotIndex={5} label="Manifesto Card" className="lg:col-span-4">
-            <div className="flex h-full flex-col justify-between rounded-2xl border border-[#DC2626]/40 bg-[#140709] p-8">
+            <div
+              className="flex h-full flex-col justify-between rounded-2xl border border-accent/40 bg-[#0D0E14] p-8"
+              style={{
+                backgroundImage:
+                  'linear-gradient(160deg, rgba(var(--accent-rgb), 0.14) 0%, rgba(13, 14, 20, 0.96) 75%)',
+              }}
+            >
               <div>
-                <p className="text-xs font-medium text-red-300">
+                <p className="text-xs font-medium text-accent-light">
                   <TypedText text="Creator Ethos" />
                 </p>
                 <h3 className="mt-3 font-display text-4xl font-bold leading-none tracking-tight text-white">
@@ -85,7 +91,7 @@ export const ExperienceSection: React.FC = () => {
                     text="START SMALL."
                     accentText="SHIP BIG."
                     accentBreak
-                    accentClassName="text-[#EF4444]"
+                    accentClassName="text-accent-light"
                   />
                 </h3>
               </div>

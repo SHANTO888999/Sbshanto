@@ -1,4 +1,13 @@
+export {
+  DEFAULT_ACCENT_COLOR,
+  DEFAULT_CV_SETTINGS,
+  DEFAULT_VIEWER_CONTROLS,
+} from './contentSchema';
+
 export type {
+  CursorSpeed,
+  CvSettingsConfig,
+  CvSourceMode,
   ExperienceItem,
   HeroMetricItem,
   MilestoneItem,
@@ -9,19 +18,22 @@ export type {
   ServiceItem,
   SiteProfile,
   TechStackItem,
+  ViewerControlsConfig,
   WireframeRealScene,
 } from './contentSchema';
 
-import type {
-  ExperienceItem,
-  HeroMetricItem,
-  MilestoneItem,
-  PortfolioContentBundle,
-  ProjectItem,
-  ServiceItem,
-  SiteProfile,
-  TechStackItem,
-  WireframeRealScene,
+import {
+  DEFAULT_CV_SETTINGS,
+  DEFAULT_VIEWER_CONTROLS,
+  type ExperienceItem,
+  type HeroMetricItem,
+  type MilestoneItem,
+  type PortfolioContentBundle,
+  type ProjectItem,
+  type ServiceItem,
+  type SiteProfile,
+  type TechStackItem,
+  type WireframeRealScene,
 } from './contentSchema';
 
 export const DEFAULT_SITE_PROFILE: SiteProfile = {
@@ -317,6 +329,8 @@ export const TECH_PARTNERS: string[] = [
 
 export const DEFAULT_PORTFOLIO_CONTENT: PortfolioContentBundle = {
   profile: DEFAULT_SITE_PROFILE,
+  viewerControls: DEFAULT_VIEWER_CONTROLS,
+  cvSettings: DEFAULT_CV_SETTINGS,
   heroMetrics: HERO_METRICS,
   projects: PROJECTS,
   milestones: MILESTONES,

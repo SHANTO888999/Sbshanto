@@ -1,6 +1,8 @@
 import React, { useState } from 'react';
-import { ArrowUpRight, Check, Copy, Mail, RotateCcw } from 'lucide-react';
+import { ArrowUpRight, Check, Copy, Download, Mail, RotateCcw } from 'lucide-react';
 import { usePortfolioContent } from '../context/PortfolioContentContext';
+import { trackCvDownload } from '../firebase';
+import { downloadPortfolioCv } from '../utils/cvPdfGenerator';
 import { DesignBlock, TypedText, useDesignCanvas } from './DesignCursorSystem';
 
 interface ContactSectionProps {
@@ -9,7 +11,8 @@ interface ContactSectionProps {
 
 export const ContactSection: React.FC<ContactSectionProps> = ({ onOpenInquiry }) => {
   const [copied, setCopied] = useState(false);
-  const { profile } = usePortfolioContent();
+  const portfolioContent = usePortfolioContent();
+  const { profile, viewerControls } = portfolioContent;
   const { triggerReplay } = useDesignCanvas();
   const email = profile.email;
 
@@ -43,7 +46,7 @@ export const ContactSection: React.FC<ContactSectionProps> = ({ onOpenInquiry })
                   text="LET'S BUILD"
                   accentText="TOGETHER."
                   accentBreak
-                  accentClassName="text-[#DC2626]"
+                  accentClassName="text-accent"
                 />
               </h2>
 
@@ -55,7 +58,7 @@ export const ContactSection: React.FC<ContactSectionProps> = ({ onOpenInquiry })
                 <button
                   type="button"
                   onClick={onOpenInquiry}
-                  className="inline-flex items-center gap-2 rounded-md bg-[#DC2626] px-6 py-3 text-sm font-semibold text-white transition-colors duration-150 hover:bg-[#B91C1C] whitespace-nowrap shrink-0 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white"
+                  className="inline-flex items-center gap-2 rounded-md bg-accent px-6 py-3 text-sm font-semibold text-white transition-colors duration-150 hover:bg-accent-dark whitespace-nowrap shrink-0 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white"
                 >
                   Start a Project Brief
                   <ArrowUpRight className="h-4 w-4" aria-hidden="true" />
@@ -78,6 +81,20 @@ export const ContactSection: React.FC<ContactSectionProps> = ({ onOpenInquiry })
                     </>
                   )}
                 </button>
+
+                {viewerControls.showCvDownloadOnViewer && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      downloadPortfolioCv(portfolioContent);
+                      void trackCvDownload();
+                    }}
+                    className="inline-flex items-center gap-2 rounded-md border border-accent/45 bg-accent/10 px-4 py-3 text-xs font-semibold text-white transition-colors hover:border-accent hover:bg-accent/20 whitespace-nowrap shrink-0"
+                  >
+                    <Download className="h-4 w-4 text-accent-light" aria-hidden="true" />
+                    <span>Download CV (PDF)</span>
+                  </button>
+                )}
               </div>
             </div>
 
@@ -89,7 +106,7 @@ export const ContactSection: React.FC<ContactSectionProps> = ({ onOpenInquiry })
                   href={`mailto:${email}`}
                   className="mt-1 inline-flex items-center gap-1 text-xs font-medium text-zinc-200 hover:text-white"
                 >
-                  <Mail className="h-3.5 w-3.5 text-[#EF4444]" aria-hidden="true" />
+                  <Mail className="h-3.5 w-3.5 text-accent-light" aria-hidden="true" />
                   <TypedText text="Direct Mail" />
                 </a>
               </div>
@@ -124,7 +141,7 @@ export const ContactSection: React.FC<ContactSectionProps> = ({ onOpenInquiry })
           <DesignBlock shape="panel" slotIndex={1} label="Closing Stage" delay={180} className="lg:col-span-6">
             <div className="design-grid-bg relative flex h-full min-h-[340px] flex-col justify-between overflow-hidden rounded-2xl border border-white/10 bg-[#0D0D11] p-8 sm:p-10">
               <div
-                className="pointer-events-none absolute -right-12 -bottom-12 h-80 w-80 rounded-full bg-[#DC2626]/30 blur-[100px]"
+                className="pointer-events-none absolute -right-12 -bottom-12 h-80 w-80 rounded-full bg-accent/30 blur-[100px]"
                 aria-hidden="true"
               />
 
@@ -143,7 +160,7 @@ export const ContactSection: React.FC<ContactSectionProps> = ({ onOpenInquiry })
                     text="MAKE IT"
                     accentText="PLAYABLE."
                     accentBreak
-                    accentClassName="text-[#DC2626]"
+                    accentClassName="text-accent"
                   />
                 </h3>
                 <p className="mt-4 max-w-sm text-sm text-zinc-300">
@@ -155,7 +172,7 @@ export const ContactSection: React.FC<ContactSectionProps> = ({ onOpenInquiry })
                 <button
                   type="button"
                   onClick={handleReplayFromTop}
-                  className="inline-flex items-center gap-2.5 rounded-md border border-white/20 bg-white/5 px-5 py-2.5 text-xs font-semibold text-white transition-colors hover:border-[#DC2626] hover:bg-[#DC2626] whitespace-nowrap shrink-0"
+                  className="inline-flex items-center gap-2.5 rounded-md border border-white/20 bg-white/5 px-5 py-2.5 text-xs font-semibold text-white transition-colors hover:border-accent hover:bg-accent whitespace-nowrap shrink-0"
                 >
                   <RotateCcw className="h-4 w-4" aria-hidden="true" />
                   Replay Cursor Build

@@ -3,12 +3,15 @@ import type { User } from 'firebase/auth';
 import {
   ArrowLeft,
   Award,
+  BarChart3,
   Briefcase,
   ChevronRight,
   CloudUpload,
+  Download,
   ExternalLink,
   Eye,
   EyeOff,
+  FileText,
   FolderKanban,
   Home,
   Inbox,
@@ -49,20 +52,25 @@ import {
   type AdminProjectRecord,
   type InquiryStatus,
 } from '../../firebase';
+import { downloadPortfolioCv } from '../../utils/cvPdfGenerator';
 import { handleFormEnterToNext } from '../../utils/formKeyboardNav';
+import { OfflineIndicator, PWAInstallButton } from '../PWAInstallButton';
+import { AdminAnalyticsPanel } from './AdminAnalyticsPanel';
 import { AdminCareerEditor } from './AdminCareerEditor';
 import { AdminInquiriesInbox } from './AdminInquiriesInbox';
 import { AdminProfileEditor, type ProfileSubTab } from './AdminProfileEditor';
 import { AdminProjectsEditor } from './AdminProjectsEditor';
 import { ConfirmDialog, StatusNotice } from './FieldControls';
 
-type AdminTab = 'overview' | 'profile' | 'projects' | 'career' | 'inquiries';
+type AdminTab = 'overview' | 'analytics' | 'profile' | 'projects' | 'career' | 'inquiries';
 
 const PROFILE_SUB_LABELS: Record<ProfileSubTab, string> = {
   identity: 'Hero & Portrait',
   contact: 'Contact & Quote',
   metrics: 'Metrics & Partners',
   process: 'Services & Stack',
+  viewer: 'Viewer Controls',
+  cv: 'Resume / CV',
 };
 
 const CAREER_SUB_LABELS: Record<'milestones' | 'experience', string> = {
@@ -72,6 +80,29 @@ const CAREER_SUB_LABELS: Record<'milestones' | 'experience', string> = {
 
 interface AdminDashboardProps {
   onOpenViewerPreview: () => void;
+}
+
+function formatDashboardError(err: unknown): string {
+  const raw = err instanceof Error ? err.message : String(err);
+  try {
+    const parsed = JSON.parse(raw) as { error?: string; operationType?: string; path?: string | null };
+    if (parsed && typeof parsed.error === 'string') {
+      const inner = parsed.error;
+      if (inner.includes('Missing or insufficient permissions')) {
+        return 'Permission denied by Firestore security rules. Confirm your admin email is verified and rules are deployed.';
+      }
+      if (inner.includes('Quota exceeded')) {
+        return 'Firestore daily quota exceeded. Please try again later or upgrade your Firebase plan.';
+      }
+      if (inner.includes('client is offline') || inner.includes('unavailable')) {
+        return 'Network or Firestore connection unavailable. Check your internet connection and retry.';
+      }
+      return parsed.path ? `${inner} (${parsed.path})` : inner;
+    }
+  } catch {
+    // plain non-JSON error message
+  }
+  return raw || 'Something went wrong. Please retry.';
 }
 
 function formatAuthError(err: unknown): string {
@@ -119,6 +150,8 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onOpenViewerPrev
 
   const [subViewLabel, setSubViewLabel] = useState<string | null>(null);
   const [exitSubViewNonce, setExitSubViewNonce] = useState(0);
+  const [childDialogOpen, setChildDialogOpen] = useState(false);
+  const [closeChildDialogNonce, setCloseChildDialogNonce] = useState(0);
   const [keyboardOffsetPx, setKeyboardOffsetPx] = useState(0);
 
   const [loadingData, setLoadingData] = useState(false);
@@ -127,9 +160,11 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onOpenViewerPrev
   const [seedConfirmOpen, setSeedConfirmOpen] = useState(false);
 
   const pushedStepsRef = useRef(0);
-  const suppressPopRef = useRef(false);
+  const suppressPopCountRef = useRef(0);
   const closingViaBackRef = useRef(false);
+  const closingDialogViaBackRef = useRef(false);
   const prevSubViewRef = useRef<string | null>(null);
+  const prevDialogOpenRef = useRef(false);
   const stepBackRef = useRef<() => boolean>(() => false);
 
   const [snapshot, setSnapshot] = useState<AdminDashboardSnapshot>({
@@ -139,6 +174,8 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onOpenViewerPrev
     milestones: [],
     experience: [],
     inquiries: [],
+    dailyAnalytics: [],
+    projectAnalytics: [],
   });
 
   const [profileDraft, setProfileDraft] = useState<PortfolioContentBundle>(DEFAULT_PORTFOLIO_CONTENT);
@@ -173,16 +210,27 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onOpenViewerPrev
     window.history.pushState({ adminStep: pushedStepsRef.current }, '');
   }, []);
 
-  const popHistoryStep = useCallback(() => {
-    if (pushedStepsRef.current > 0) {
-      pushedStepsRef.current -= 1;
-      suppressPopRef.current = true;
-      window.history.back();
-    }
+  const popHistorySteps = useCallback((count = 1) => {
+    const toPop = Math.min(Math.max(0, count), pushedStepsRef.current);
+    if (toPop <= 0) return;
+    pushedStepsRef.current -= toPop;
+    suppressPopCountRef.current += 1;
+    window.history.go(-toPop);
   }, []);
+
+  const popHistoryStep = useCallback(() => {
+    popHistorySteps(1);
+  }, [popHistorySteps]);
+
+  const clearHistorySteps = useCallback(() => {
+    if (pushedStepsRef.current > 0) {
+      popHistorySteps(pushedStepsRef.current);
+    }
+  }, [popHistorySteps]);
 
   const navigateToTab = useCallback(
     (nextTab: AdminTab) => {
+      setNotice(null);
       if (subViewLabel) {
         closingViaBackRef.current = true;
         setExitSubViewNonce((n) => n + 1);
@@ -190,6 +238,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onOpenViewerPrev
         prevSubViewRef.current = null;
       }
       if (nextTab === 'overview') {
+        clearHistorySteps();
         setTabHistory(['overview']);
         setProfileSubHistory(['identity']);
         setCareerSubHistory(['milestones']);
@@ -201,7 +250,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onOpenViewerPrev
         return [...prev.slice(-9), nextTab];
       });
     },
-    [pushHistoryStep, subViewLabel]
+    [clearHistorySteps, pushHistoryStep, subViewLabel]
   );
 
   const navigateProfileSubTab = useCallback(
@@ -249,9 +298,34 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onOpenViewerPrev
     [popHistoryStep, pushHistoryStep]
   );
 
+  const handleDialogOpenChange = useCallback(
+    (open: boolean) => {
+      setChildDialogOpen(open);
+      if (open && !prevDialogOpenRef.current) {
+        prevDialogOpenRef.current = true;
+        pushHistoryStep();
+      } else if (!open && prevDialogOpenRef.current) {
+        prevDialogOpenRef.current = false;
+        if (closingDialogViaBackRef.current) {
+          closingDialogViaBackRef.current = false;
+        } else {
+          popHistoryStep();
+        }
+      }
+    },
+    [popHistoryStep, pushHistoryStep]
+  );
+
   const performStepBack = useCallback((): boolean => {
     if (seedConfirmOpen) {
       setSeedConfirmOpen(false);
+      return true;
+    }
+    if (childDialogOpen) {
+      closingDialogViaBackRef.current = true;
+      prevDialogOpenRef.current = false;
+      setChildDialogOpen(false);
+      setCloseChildDialogNonce((n) => n + 1);
       return true;
     }
     if (subViewLabel) {
@@ -280,6 +354,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onOpenViewerPrev
     return false;
   }, [
     seedConfirmOpen,
+    childDialogOpen,
     subViewLabel,
     activeTab,
     profileSubHistory.length,
@@ -293,8 +368,8 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onOpenViewerPrev
 
   useEffect(() => {
     const onPopState = () => {
-      if (suppressPopRef.current) {
-        suppressPopRef.current = false;
+      if (suppressPopCountRef.current > 0) {
+        suppressPopCountRef.current -= 1;
         return;
       }
       if (pushedStepsRef.current > 0) {
@@ -330,14 +405,11 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onOpenViewerPrev
           setProfileDraft(retryData.settingsBundle);
           return;
         } catch (retryErr) {
-          const retryMsg =
-            retryErr instanceof Error ? retryErr.message : 'Unable to load cloud portfolio data.';
-          setNotice({ type: 'error', text: retryMsg });
+          setNotice({ type: 'error', text: formatDashboardError(retryErr) });
           return;
         }
       }
-      const msg = err instanceof Error ? err.message : 'Unable to load cloud portfolio data.';
-      setNotice({ type: 'error', text: msg });
+      setNotice({ type: 'error', text: formatDashboardError(err) });
     } finally {
       setLoadingData(false);
     }
@@ -350,6 +422,24 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onOpenViewerPrev
       if (!nextUser) {
         setAuthorized(false);
         setAuthReady(true);
+        setNotice(null);
+        setSubViewLabel(null);
+        prevSubViewRef.current = null;
+        setTabHistory(['overview']);
+        setProfileSubHistory(['identity']);
+        setCareerSubHistory(['milestones']);
+        setSnapshot({
+          hasRemoteSettings: false,
+          settingsBundle: DEFAULT_PORTFOLIO_CONTENT,
+          projects: [],
+          milestones: [],
+          experience: [],
+          inquiries: [],
+          dailyAnalytics: [],
+          projectAnalytics: [],
+        });
+        setProfileDraft(DEFAULT_PORTFOLIO_CONTENT);
+        clearHistorySteps();
         return;
       }
       const isOk = await verifyAdminAccess(nextUser);
@@ -360,7 +450,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onOpenViewerPrev
       }
     });
     return unsub;
-  }, [loadDashboard]);
+  }, [clearHistorySteps, loadDashboard]);
 
   const handleEmailLogin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -423,7 +513,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onOpenViewerPrev
     }
   };
 
-  const runMutation = async (fn: () => Promise<void>, successText: string) => {
+  const runMutation = async (fn: () => Promise<void>, successText: string): Promise<boolean> => {
     setSaving(true);
     setNotice(null);
     try {
@@ -431,9 +521,10 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onOpenViewerPrev
       await loadDashboard();
       await refreshPublicPortfolio();
       setNotice({ type: 'success', text: successText });
+      return true;
     } catch (err) {
-      const msg = err instanceof Error ? err.message : 'Save failed. Please retry.';
-      setNotice({ type: 'error', text: msg });
+      setNotice({ type: 'error', text: formatDashboardError(err) });
+      return false;
     } finally {
       setSaving(false);
     }
@@ -449,6 +540,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onOpenViewerPrev
     badge?: number;
   }> = [
     { id: 'overview', label: 'Overview', icon: LayoutDashboard },
+    { id: 'analytics', label: 'Analytics', icon: BarChart3 },
     { id: 'profile', label: 'Profile & Copy', icon: UserCog },
     { id: 'projects', label: 'Projects', icon: FolderKanban, badge: snapshot.projects.length },
     {
@@ -483,18 +575,21 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onOpenViewerPrev
         data-admin-workspace="true"
         className="design-grid-bg flex min-h-[100dvh] flex-col justify-between gap-6 bg-[#050507] px-6 py-8 pb-20 text-[#F4F4F5]"
       >
-        <header className="mx-auto flex w-full max-w-4xl items-center justify-between">
+        <header className="mx-auto flex w-full max-w-4xl items-center justify-between gap-2">
           <span className="font-display text-xl font-bold tracking-tight text-white">
-            SHANTO<span className="text-[#DC2626]">.</span> ADMIN
+            SHANTO<span className="text-accent">.</span> ADMIN
           </span>
-          <button
-            type="button"
-            onClick={onOpenViewerPreview}
-            className="inline-flex min-h-[40px] items-center gap-2 rounded-md border border-white/15 px-3.5 py-2 text-xs font-medium text-zinc-300 hover:bg-white/5 hover:text-white"
-          >
-            <ExternalLink className="h-3.5 w-3.5" aria-hidden="true" />
-            View Public Portfolio
-          </button>
+          <div className="flex items-center gap-2">
+            <PWAInstallButton label="Install App" />
+            <button
+              type="button"
+              onClick={onOpenViewerPreview}
+              className="inline-flex min-h-[40px] items-center gap-2 rounded-md border border-white/15 px-3.5 py-2 text-xs font-medium text-zinc-300 hover:bg-white/5 hover:text-white"
+            >
+              <ExternalLink className="h-3.5 w-3.5" aria-hidden="true" />
+              View Public Portfolio
+            </button>
+          </div>
         </header>
 
         <main className="mx-auto my-auto w-full max-w-md rounded-2xl border border-white/12 bg-[#0B0C10] p-7 shadow-2xl sm:p-8">
@@ -664,8 +759,16 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onOpenViewerPrev
     );
   }
 
-  const canGoBack =
-    Boolean(subViewLabel) || activeTab !== 'overview' || tabHistory.length > 1;
+  const adminBackStepCount =
+    (seedConfirmOpen ? 1 : 0) +
+    (childDialogOpen ? 1 : 0) +
+    (subViewLabel ? 1 : 0) +
+    (activeTab === 'profile' ? Math.max(0, profileSubHistory.length - 1) : 0) +
+    (activeTab === 'career' ? Math.max(0, careerSubHistory.length - 1) : 0) +
+    Math.max(0, tabHistory.length - 1) +
+    (tabHistory.length === 1 && activeTab !== 'overview' ? 1 : 0);
+
+  const canGoBack = adminBackStepCount > 0;
 
   const currentTabLabel = navItems.find((n) => n.id === activeTab)?.label ?? 'Overview';
 
@@ -679,7 +782,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onOpenViewerPrev
         <div>
           <div className="border-b border-white/10 pb-5">
             <span className="font-display text-xl font-bold tracking-tight text-white">
-              SHANTO<span className="text-[#DC2626]">.</span> ADMIN
+              SHANTO<span className="text-accent">.</span> ADMIN
             </span>
             <p className="mt-1 truncate font-mono text-[11px] text-zinc-400">{user.email}</p>
           </div>
@@ -695,7 +798,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onOpenViewerPrev
                   onClick={() => navigateToTab(item.id)}
                   className={`flex min-h-[44px] w-full items-center justify-between rounded-md px-3.5 py-2 text-left text-sm font-medium transition-colors ${
                     active
-                      ? 'bg-[#DC2626] text-white'
+                      ? 'bg-accent text-white'
                       : 'text-zinc-300 hover:bg-white/5 hover:text-white'
                   }`}
                 >
@@ -719,6 +822,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onOpenViewerPrev
         </div>
 
         <div className="space-y-2 border-t border-white/10 pt-4">
+          <PWAInstallButton label="Install Admin App" className="min-h-[40px] w-full" />
           <button
             type="button"
             onClick={onOpenViewerPreview}
@@ -753,6 +857,11 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onOpenViewerPrev
                 >
                   <ArrowLeft className="h-3.5 w-3.5 text-[#EF4444]" aria-hidden="true" />
                   <span>Back</span>
+                  {adminBackStepCount > 1 && (
+                    <span className="rounded bg-white/10 px-1.5 py-0.5 font-mono text-[10px] tabular-nums text-zinc-200">
+                      {adminBackStepCount}
+                    </span>
+                  )}
                 </button>
               )}
 
@@ -773,6 +882,8 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onOpenViewerPrev
             </div>
 
             <div className="flex items-center gap-2 shrink-0">
+              <PWAInstallButton compact className="min-h-[38px] lg:hidden" />
+
               <button
                 type="button"
                 disabled={loadingData || saving}
@@ -820,7 +931,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onOpenViewerPrev
                   onClick={() => navigateToTab(item.id)}
                   className={`min-h-[38px] rounded-md px-3 py-1.5 text-xs font-medium transition-colors whitespace-nowrap shrink-0 ${
                     active
-                      ? 'bg-[#DC2626] text-white'
+                      ? 'bg-accent text-white'
                       : 'border border-white/10 bg-[#0B0C10] text-zinc-300'
                   }`}
                 >
@@ -858,10 +969,14 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onOpenViewerPrev
                         setSubViewLabel(null);
                         setExitSubViewNonce((n) => n + 1);
                         popHistoryStep();
-                      } else if (activeTab === 'profile') {
+                      } else if (activeTab === 'profile' && profileSubHistory.length > 1) {
+                        const steps = profileSubHistory.length - 1;
                         setProfileSubHistory(['identity']);
-                      } else if (activeTab === 'career') {
+                        popHistorySteps(steps);
+                      } else if (activeTab === 'career' && careerSubHistory.length > 1) {
+                        const steps = careerSubHistory.length - 1;
                         setCareerSubHistory(['milestones']);
+                        popHistorySteps(steps);
                       }
                     }}
                     className={`inline-flex min-h-[30px] items-center gap-1 rounded px-2.5 py-1 ${
@@ -1014,53 +1129,89 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onOpenViewerPrev
                       onClick={() => navigateToTab('inquiries')}
                       className="flex min-h-[44px] items-center gap-2.5 rounded-md border border-white/10 bg-[#0E1016] px-3.5 py-2 text-left text-xs font-medium text-zinc-200 hover:border-white/25 hover:text-white"
                     >
-                      <Inbox className="h-4 w-4 text-[#EF4444]" aria-hidden="true" />
+                      <Inbox className="h-4 w-4 text-accent-light" aria-hidden="true" />
                       Open Inquiries ({snapshot.inquiries.length})
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => navigateToTab('analytics')}
+                      className="flex min-h-[44px] items-center gap-2.5 rounded-md border border-white/10 bg-[#0E1016] px-3.5 py-2 text-left text-xs font-medium text-zinc-200 hover:border-white/25 hover:text-white sm:col-span-2"
+                    >
+                      <BarChart3 className="h-4 w-4 text-accent-light" aria-hidden="true" />
+                      View Visitor &amp; Project Analytics
                     </button>
                   </div>
                 </div>
 
-                <div className="rounded-xl border border-white/10 bg-[#090A0F] p-5">
-                  <h2 className="text-sm font-semibold text-white">Domain &amp; Isolation Security</h2>
-                  <ul className="mt-3 space-y-2 text-xs leading-relaxed text-zinc-400">
-                    <li>
-                      Viewer Website:{' '}
-                      <span className="font-mono text-zinc-200">sbshanto.web.app</span> (Zero admin
-                      code in bundle)
-                    </li>
-                    <li>
-                      Admin Portal:{' '}
-                      <span className="font-mono text-zinc-200">sbadminshanto.web.app</span>
-                    </li>
-                    <li>
-                      Cloud Sync Status:{' '}
+                <div className="rounded-xl border border-white/10 bg-[#090A0F] p-5 flex flex-col justify-between gap-4">
+                  <div>
+                    <div className="flex flex-wrap items-center justify-between gap-2">
+                      <h2 className="flex items-center gap-2 text-sm font-semibold text-white">
+                        <FileText className="h-4 w-4 text-accent-light" aria-hidden="true" />
+                        Resume / CV &amp; Cloud Status
+                      </h2>
                       <span
-                        className={
-                          snapshot.hasRemoteSettings ? 'text-emerald-400' : 'text-zinc-300'
-                        }
+                        className={`rounded px-2 py-0.5 font-mono text-[10px] font-bold uppercase ${
+                          profileDraft.viewerControls.showCvDownloadOnViewer
+                            ? 'bg-emerald-500/20 text-emerald-300'
+                            : 'bg-zinc-800 text-zinc-300'
+                        }`}
                       >
-                        {snapshot.hasRemoteSettings ? 'Live Cloud Profile Active' : 'Using Built-in Defaults'}
+                        {profileDraft.viewerControls.showCvDownloadOnViewer
+                          ? 'Public CV: ON'
+                          : 'Public CV: OFF (Admin Only)'}
                       </span>
-                    </li>
-                    <li>
-                      Every text field, URL, and image slot is auto-validated so viewer cards and
-                      mobile animations never overflow.
-                    </li>
-                  </ul>
-                  {snapshot.hasRemoteSettings && (
+                    </div>
+                    <p className="mt-2 text-xs leading-relaxed text-zinc-400">
+                      Generate and download your latest portfolio PDF CV here anytime, or configure
+                      whether visitors can see the CV button on{' '}
+                      <span className="font-mono text-zinc-200">sbshanto.web.app</span>.
+                    </p>
+                  </div>
+
+                  <div className="flex flex-wrap items-center gap-2.5">
                     <button
                       type="button"
-                      disabled={saving}
-                      onClick={() => setSeedConfirmOpen(true)}
-                      className="mt-4 inline-flex min-h-[38px] items-center gap-2 rounded-md border border-white/15 px-3 py-1.5 text-xs font-medium text-zinc-300 hover:bg-white/5"
+                      onClick={() => downloadPortfolioCv(profileDraft)}
+                      className="inline-flex min-h-[38px] items-center gap-1.5 rounded-md bg-accent px-3.5 py-1.5 text-xs font-semibold text-white hover:bg-accent-dark"
                     >
-                      <CloudUpload className="h-3.5 w-3.5" aria-hidden="true" />
-                      Re-sync Default Items
+                      <Download className="h-3.5 w-3.5" aria-hidden="true" />
+                      Download My CV (PDF)
                     </button>
-                  )}
+                    <button
+                      type="button"
+                      onClick={() => {
+                        navigateToTab('profile');
+                        navigateProfileSubTab('cv');
+                      }}
+                      className="inline-flex min-h-[38px] items-center gap-1.5 rounded-md border border-white/15 bg-[#0E1016] px-3 py-1.5 text-xs font-medium text-zinc-200 hover:border-white/30 hover:text-white"
+                    >
+                      CV Toggle &amp; Settings
+                    </button>
+                    {snapshot.hasRemoteSettings && (
+                      <button
+                        type="button"
+                        disabled={saving}
+                        onClick={() => setSeedConfirmOpen(true)}
+                        className="inline-flex min-h-[38px] items-center gap-1.5 rounded-md border border-white/15 px-3 py-1.5 text-xs font-medium text-zinc-300 hover:bg-white/5"
+                      >
+                        <CloudUpload className="h-3.5 w-3.5" aria-hidden="true" />
+                        Re-sync Defaults
+                      </button>
+                    )}
+                  </div>
                 </div>
               </div>
             </div>
+          )}
+
+          {activeTab === 'analytics' && (
+            <AdminAnalyticsPanel
+              dailyAnalytics={snapshot.dailyAnalytics}
+              projectAnalytics={snapshot.projectAnalytics}
+              inquiries={snapshot.inquiries}
+              projects={snapshot.projects}
+            />
           )}
 
           {activeTab === 'profile' && (
@@ -1086,6 +1237,8 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onOpenViewerPrev
               saving={saving}
               onSubViewChange={handleSubViewChange}
               exitSubViewNonce={exitSubViewNonce}
+              closeDialogNonce={closeChildDialogNonce}
+              onDialogOpenChange={handleDialogOpenChange}
               onSaveProject={(proj: AdminProjectRecord) =>
                 runMutation(
                   () => saveAdminProject(proj).then(() => undefined),
@@ -1107,6 +1260,8 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onOpenViewerPrev
               onChangeSubTab={navigateCareerSubTab}
               onSubViewChange={handleSubViewChange}
               exitSubViewNonce={exitSubViewNonce}
+              closeDialogNonce={closeChildDialogNonce}
+              onDialogOpenChange={handleDialogOpenChange}
               onSaveMilestone={(item: AdminMilestoneRecord) =>
                 runMutation(
                   () => saveAdminMilestone(item).then(() => undefined),
@@ -1132,6 +1287,9 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onOpenViewerPrev
             <AdminInquiriesInbox
               inquiries={snapshot.inquiries}
               saving={saving}
+              onBack={handleUiBack}
+              closeDialogNonce={closeChildDialogNonce}
+              onDialogOpenChange={handleDialogOpenChange}
               onUpdateStatus={(id: string, status: InquiryStatus) =>
                 runMutation(
                   () => updateAdminInquiryStatus(id, status),
@@ -1161,6 +1319,8 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onOpenViewerPrev
           setSeedConfirmOpen(false);
         }}
       />
+
+      <OfflineIndicator />
     </div>
   );
 };

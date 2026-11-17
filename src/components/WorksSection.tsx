@@ -7,6 +7,8 @@ import { DesignBlock, TypedText, useBlockStage } from './DesignCursorSystem';
 
 interface WorksSectionProps {
   onSelectProject: (project: ProjectItem) => void;
+  activeCategory?: ProjectCategory;
+  onCategoryChange?: (category: ProjectCategory) => void;
 }
 
 const CATEGORIES: ProjectCategory[] = [
@@ -48,7 +50,7 @@ const ProjectCardContent: React.FC<{
         type="button"
         data-magnetic="card"
         onClick={onSelect}
-        className="w-full rounded-xl text-left focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-[#DC2626]"
+        className="w-full rounded-xl text-left focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-accent"
       >
         <div className="relative overflow-hidden rounded-xl border border-white/10 bg-[#111115] transition-transform duration-200 group-hover:-translate-y-1">
           <ProductPreviewCanvas
@@ -80,21 +82,21 @@ const ProjectCardContent: React.FC<{
             </span>
             <span className="inline-flex items-center gap-1 text-xs font-medium text-white">
               <TypedText text="Inspect Build" />
-              <ArrowUpRight className="h-3.5 w-3.5 text-[#EF4444]" aria-hidden="true" />
+              <ArrowUpRight className="h-3.5 w-3.5 text-accent-light" aria-hidden="true" />
             </span>
           </div>
         </div>
 
         {/* Clean Numbered Title & Unboxed Metadata */}
         <div className="mt-4 flex items-baseline gap-3">
-          <span className="font-display text-2xl font-bold text-[#DC2626] tabular-nums">
+          <span className="font-display text-2xl font-bold text-accent tabular-nums">
             <TypedText
               text={project.index}
               cloneFrom={isCloneCard ? firstProject.index : undefined}
             />
           </span>
           <div className="min-w-0">
-            <h3 className="truncate text-lg font-semibold text-white transition-colors group-hover:text-[#EF4444]">
+            <h3 className="truncate text-lg font-semibold text-white transition-colors group-hover:text-accent-light">
               <TypedText
                 text={project.title}
                 cloneFrom={isCloneCard ? firstProject.title : undefined}
@@ -117,9 +119,18 @@ const ProjectCardContent: React.FC<{
   );
 };
 
-export const WorksSection: React.FC<WorksSectionProps> = ({ onSelectProject }) => {
+export const WorksSection: React.FC<WorksSectionProps> = ({
+  onSelectProject,
+  activeCategory: controlledCategory,
+  onCategoryChange,
+}) => {
   const { projects } = usePortfolioContent();
-  const [activeCategory, setActiveCategory] = useState<ProjectCategory>('All');
+  const [internalCategory, setInternalCategory] = useState<ProjectCategory>('All');
+  const activeCategory = controlledCategory ?? internalCategory;
+  const setActiveCategory = (next: ProjectCategory) => {
+    setInternalCategory(next);
+    onCategoryChange?.(next);
+  };
   const [hoveredId, setHoveredId] = useState<string | null>(null);
 
   const filteredProjects =
@@ -139,7 +150,7 @@ export const WorksSection: React.FC<WorksSectionProps> = ({ onSelectProject }) =
                 <TypedText text="Websites · Applications · Interactive Games" />
               </p>
               <h2 className="mt-2 font-display text-4xl font-bold tracking-tight text-white sm:text-5xl [text-wrap:balance]">
-                <TypedText text="WORKS THAT " accentText="SHIP." accentClassName="text-[#DC2626]" />
+                <TypedText text="WORKS THAT " accentText="SHIP." accentClassName="text-accent" />
               </h2>
             </div>
 
@@ -158,9 +169,9 @@ export const WorksSection: React.FC<WorksSectionProps> = ({ onSelectProject }) =
                     role="tab"
                     aria-selected={isActive}
                     onClick={() => setActiveCategory(category)}
-                    className={`rounded-md px-3 py-1.5 text-xs font-medium transition-colors duration-150 whitespace-nowrap shrink-0 focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-[#DC2626] ${
+                    className={`rounded-md px-3 py-1.5 text-xs font-medium transition-colors duration-150 whitespace-nowrap shrink-0 focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-accent ${
                       isActive
-                        ? 'bg-[#DC2626] text-white'
+                        ? 'bg-accent text-white'
                         : 'text-zinc-400 hover:text-white'
                     }`}
                   >
@@ -248,7 +259,7 @@ export const WorksSection: React.FC<WorksSectionProps> = ({ onSelectProject }) =
                       title={`Inspect ${proj.title}`}
                       className={`h-7 min-w-[110px] flex-1 truncate rounded-sm border px-2 text-left text-[11px] font-medium transition-colors ${
                         idx % 2 === 0
-                          ? 'border-[#DC2626]/60 bg-[#DC2626]/25 text-white hover:bg-[#DC2626]/40'
+                          ? 'border-accent/60 bg-accent/25 text-white hover:bg-accent/40'
                           : 'border-white/15 bg-white/5 text-zinc-300 hover:bg-white/10'
                       }`}
                     >

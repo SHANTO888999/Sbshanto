@@ -64,3 +64,38 @@ export function handleFormEnterToNext(e: React.KeyboardEvent<HTMLFormElement>): 
     });
   }
 }
+
+export function handleViewerFormEnterToSubmit(e: React.KeyboardEvent<HTMLFormElement>): void {
+  if (e.key !== 'Enter') return;
+  if (e.shiftKey || e.ctrlKey || e.metaKey || e.altKey) return;
+  if (e.nativeEvent.isComposing) return;
+
+  const target = e.target;
+  if (!(target instanceof HTMLElement)) return;
+  if (!target.matches(FOCUSABLE_SELECTOR)) return;
+
+  if (target instanceof HTMLInputElement) {
+    if (target.type === 'submit' || target.type === 'button' || target.type === 'file') {
+      return;
+    }
+  }
+
+  const form = e.currentTarget;
+  const fields = Array.from(form.querySelectorAll<HTMLElement>(FOCUSABLE_SELECTOR)).filter(
+    isNavigableField
+  );
+  const currentIndex = fields.indexOf(target);
+  if (currentIndex === -1) return;
+
+  e.preventDefault();
+
+  const nextField = fields[currentIndex + 1];
+  if (nextField) {
+    nextField.focus({ preventScroll: true });
+    return;
+  }
+
+  // Last field on viewer modal: close soft keyboard immediately and submit the form
+  target.blur();
+  form.requestSubmit();
+}

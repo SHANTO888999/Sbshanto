@@ -16,7 +16,7 @@ export const StorytellingSection: React.FC = () => {
               text="NOT JUST CODE."
               accentText="COMPLETE EXPERIENCES."
               accentBreak
-              accentClassName="text-[#DC2626]"
+              accentClassName="text-accent"
             />
           </h2>
         </DesignBlock>
@@ -38,8 +38,8 @@ export const StorytellingSection: React.FC = () => {
                 <TypedText text="Core Stack" />
               </h3>
               <ul className="mt-4 divide-y divide-white/10 border-y border-white/10">
-                {techStack.map((tool) => (
-                  <li key={tool.name} className="flex items-baseline justify-between gap-4 py-2.5">
+                {techStack.map((tool, idx) => (
+                  <li key={`${tool.name}-${idx}`} className="flex items-baseline justify-between gap-4 py-2.5">
                     <span className="text-sm font-medium text-white">
                       <TypedText text={tool.name} />
                     </span>
@@ -64,7 +64,7 @@ export const StorytellingSection: React.FC = () => {
                 const firstService = services[0] ?? service;
                 return (
                   <DesignBlock
-                    key={service.index}
+                    key={`${service.index}-${idx}`}
                     shape="row"
                     slotIndex={idx + 3}
                     cloneGroup="services"
@@ -72,7 +72,7 @@ export const StorytellingSection: React.FC = () => {
                     className="py-4"
                   >
                     <div className="flex items-baseline gap-3">
-                      <span className="font-mono text-xs font-semibold text-[#EF4444] tabular-nums">
+                      <span className="font-mono text-xs font-semibold text-accent-light tabular-nums">
                         <TypedText
                           text={`${service.index}.`}
                           cloneFrom={idx > 0 ? `${firstService.index}.` : undefined}
@@ -97,11 +97,17 @@ export const StorytellingSection: React.FC = () => {
             </div>
           </div>
 
-          {/* Column 3: Crimson Signature Quote Card */}
+          {/* Column 3: Signature Brand Quote Card */}
           <DesignBlock shape="panel" slotIndex={7} label="Quote Frame" className="lg:col-span-4">
-            <div className="flex h-full flex-col justify-between rounded-2xl bg-[#991B1B] p-8 text-white">
+            <div
+              className="flex h-full flex-col justify-between rounded-2xl border border-accent/45 bg-[#0D0E14] p-8 text-white"
+              style={{
+                backgroundImage:
+                  'linear-gradient(155deg, rgba(var(--accent-rgb), 0.34) 0%, rgba(var(--accent-rgb), 0.14) 55%, rgba(13, 14, 20, 0.96) 100%)',
+              }}
+            >
               <div
-                className="font-display text-5xl font-bold leading-none text-white/35"
+                className="font-display text-5xl font-bold leading-none text-accent-light/70"
                 aria-hidden="true"
               >
                 &ldquo;
@@ -109,11 +115,11 @@ export const StorytellingSection: React.FC = () => {
               <blockquote className="my-6 break-words text-xl font-medium leading-snug tracking-tight sm:text-2xl">
                 <TypedText text={profile.quoteText} />
               </blockquote>
-              <div className="border-t border-white/20 pt-4">
+              <div className="border-t border-white/15 pt-4">
                 <p className="text-base font-semibold italic">
                   <TypedText text={profile.quoteAuthor} />
                 </p>
-                <p className="text-xs text-red-100/80">
+                <p className="text-xs text-zinc-300">
                   <TypedText text={profile.quoteRole} />
                 </p>
               </div>

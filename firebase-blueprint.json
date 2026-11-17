@@ -11,7 +11,7 @@
         "wordmark": { "type": "string", "maxLength": 20 },
         "role": { "type": "string", "maxLength": 80 },
         "bio": { "type": "string", "maxLength": 300 },
-        "portraitUrl": { "type": "string", "maxLength": 500 },
+        "portraitUrl": { "type": "string", "maxLength": 320000 },
         "email": { "type": "string", "maxLength": 100 },
         "githubHandle": { "type": "string", "maxLength": 48 },
         "githubUrl": { "type": "string", "maxLength": 300 },
@@ -32,6 +32,8 @@
         "techStack": { "type": "array" },
         "services": { "type": "array" },
         "techPartners": { "type": "array" },
+        "viewerControls": { "type": "object" },
+        "cvSettings": { "type": "object" },
         "updatedAt": { "type": "string", "format": "date-time" }
       },
       "required": ["greeting", "displayName", "backdropName", "wordmark", "role", "bio", "email", "updatedAt"]
@@ -121,6 +123,36 @@
         "role": { "type": "string", "enum": ["admin"] }
       },
       "required": ["email", "role"]
+    },
+    "DailyAnalytics": {
+      "title": "DailyAnalytics",
+      "description": "Anonymous daily portfolio traffic, project clicks, hire conversions, and CV download counters.",
+      "type": "object",
+      "properties": {
+        "date": { "type": "string", "maxLength": 10 },
+        "month": { "type": "string", "maxLength": 7 },
+        "visitors": { "type": "integer" },
+        "pageViews": { "type": "integer" },
+        "projectClicks": { "type": "integer" },
+        "hireOpens": { "type": "integer" },
+        "hireSubmits": { "type": "integer" },
+        "cvDownloads": { "type": "integer" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["date", "month", "visitors", "pageViews", "projectClicks", "hireOpens", "hireSubmits", "cvDownloads", "updatedAt"]
+    },
+    "ProjectAnalytics": {
+      "title": "ProjectAnalytics",
+      "description": "Anonymous click counters per portfolio project card.",
+      "type": "object",
+      "properties": {
+        "projectId": { "type": "string", "maxLength": 80 },
+        "title": { "type": "string", "maxLength": 80 },
+        "category": { "type": "string", "enum": ["Websites", "Apps", "Games", "UI/UX Design"] },
+        "clicks": { "type": "integer" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["projectId", "title", "category", "clicks", "updatedAt"]
     }
   },
   "firestore": {
@@ -147,6 +179,14 @@
     "/admins/{adminUid}": {
       "schema": { "$ref": "#/entities/AdminUser" },
       "description": "Admin UID allowlist for RBAC verification."
+    },
+    "/analytics_daily/{dateId}": {
+      "schema": { "$ref": "#/entities/DailyAnalytics" },
+      "description": "Daily visitor & engagement metrics readable only by verified admins."
+    },
+    "/analytics_projects/{projectId}": {
+      "schema": { "$ref": "#/entities/ProjectAnalytics" },
+      "description": "Per-project click counts readable only by verified admins."
     }
   }
 }

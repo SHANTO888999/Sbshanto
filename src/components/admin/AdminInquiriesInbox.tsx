@@ -1,13 +1,16 @@
-import React, { useMemo, useState } from 'react';
-import { Check, Copy, Mail, Trash2 } from 'lucide-react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
+import { ArrowLeft, Check, Copy, Mail, Trash2 } from 'lucide-react';
 import type { InquiryRecord, InquiryStatus } from '../../firebase';
 import { ConfirmDialog } from './FieldControls';
 
 interface AdminInquiriesInboxProps {
   inquiries: InquiryRecord[];
   saving: boolean;
-  onUpdateStatus: (id: string, status: InquiryStatus) => Promise<void>;
-  onDelete: (id: string) => Promise<void>;
+  onUpdateStatus: (id: string, status: InquiryStatus) => Promise<boolean>;
+  onDelete: (id: string) => Promise<boolean>;
+  onBack?: () => void;
+  closeDialogNonce?: number;
+  onDialogOpenChange?: (open: boolean) => void;
 }
 
 const STATUS_FILTERS: ReadonlyArray<'all' | InquiryStatus> = [
@@ -30,10 +33,25 @@ export const AdminInquiriesInbox: React.FC<AdminInquiriesInboxProps> = ({
   saving,
   onUpdateStatus,
   onDelete,
+  onBack,
+  closeDialogNonce = 0,
+  onDialogOpenChange,
 }) => {
   const [filter, setFilter] = useState<'all' | InquiryStatus>('all');
   const [copiedId, setCopiedId] = useState<string | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<InquiryRecord | null>(null);
+  const lastCloseDialogNonceRef = useRef(closeDialogNonce);
+
+  useEffect(() => {
+    onDialogOpenChange?.(Boolean(deleteTarget));
+  }, [deleteTarget, onDialogOpenChange]);
+
+  useEffect(() => {
+    if (closeDialogNonce !== lastCloseDialogNonceRef.current) {
+      lastCloseDialogNonceRef.current = closeDialogNonce;
+      setDeleteTarget(null);
+    }
+  }, [closeDialogNonce]);
 
   const visible = useMemo(() => {
     if (filter === 'all') return inquiries;
@@ -200,10 +218,25 @@ export const AdminInquiriesInbox: React.FC<AdminInquiriesInboxProps> = ({
         onCancel={() => setDeleteTarget(null)}
         onConfirm={async () => {
           if (!deleteTarget) return;
-          await onDelete(deleteTarget.id);
-          setDeleteTarget(null);
+          const ok = await onDelete(deleteTarget.id);
+          if (ok) {
+            setDeleteTarget(null);
+          }
         }}
       />
+
+      {onBack && (
+        <div className="border-t border-white/10 pt-5">
+          <button
+            type="button"
+            onClick={onBack}
+            className="inline-flex min-h-[42px] items-center gap-2 rounded-md border border-white/15 px-4 py-2 text-xs font-medium text-zinc-300 hover:bg-white/5 hover:text-white"
+          >
+            <ArrowLeft className="h-3.5 w-3.5" aria-hidden="true" />
+            Back
+          </button>
+        </div>
+      )}
     </div>
   );
 };

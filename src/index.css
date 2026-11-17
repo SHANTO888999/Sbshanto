@@ -1,5 +1,18 @@
 @import "tailwindcss";
 
+:root {
+  --accent-primary: #DC2626;
+  --accent-light: #EF4444;
+  --accent-dark: #B91C1C;
+  --accent-rgb: 220, 38, 38;
+}
+
+@theme inline {
+  --color-accent: var(--accent-primary);
+  --color-accent-light: var(--accent-light);
+  --color-accent-dark: var(--accent-dark);
+}
+
 @theme {
   --font-display: "Oswald", ui-sans-serif, system-ui, sans-serif;
   --font-sans: "Plus Jakarta Sans", ui-sans-serif, system-ui, sans-serif;
@@ -50,7 +63,7 @@
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: #dc2626;
+  background: var(--accent-primary);
 }
 
 @media (prefers-reduced-motion: reduce) {

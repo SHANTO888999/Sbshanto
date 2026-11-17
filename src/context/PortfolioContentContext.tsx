@@ -38,18 +38,24 @@ export const PortfolioContentProvider: React.FC<PortfolioContentProviderProps> =
 
   useEffect(() => {
     let active = true;
-    fetchLivePortfolioContent()
-      .then((remote) => {
-        if (active && remote) {
-          setRemoteContent(remote);
-        }
-      })
-      .catch((err) => {
-        console.warn('Using default portfolio content:', err);
-      });
+    const syncLiveContent = () => {
+      fetchLivePortfolioContent()
+        .then((remote) => {
+          if (active && remote) {
+            setRemoteContent(remote);
+          }
+        })
+        .catch((err) => {
+          console.warn('Using default portfolio content:', err);
+        });
+    };
+
+    syncLiveContent();
+    window.addEventListener('online', syncLiveContent);
 
     return () => {
       active = false;
+      window.removeEventListener('online', syncLiveContent);
     };
   }, []);
 

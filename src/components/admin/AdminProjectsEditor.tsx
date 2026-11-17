@@ -14,7 +14,7 @@ import {
   X,
 } from 'lucide-react';
 import type { PreviewTheme, ProjectCategory } from '../../data/contentSchema';
-import { isVideoMediaSource } from '../../data/contentSchema';
+import { isVideoMediaSource, sanitizePublicUrl } from '../../data/contentSchema';
 import type { AdminProjectRecord } from '../../firebase';
 import { handleFormEnterToNext } from '../../utils/formKeyboardNav';
 import { processProjectPhotoFile, processProjectVideoFile } from '../../utils/mediaCompressor';
@@ -24,10 +24,12 @@ import { ConfirmDialog, LimitedInput, LimitedTextarea, SafeUrlInput } from './Fi
 interface AdminProjectsEditorProps {
   projects: AdminProjectRecord[];
   saving: boolean;
-  onSaveProject: (project: AdminProjectRecord) => Promise<void>;
-  onDeleteProject: (projectId: string) => Promise<void>;
+  onSaveProject: (project: AdminProjectRecord) => Promise<boolean>;
+  onDeleteProject: (projectId: string) => Promise<boolean>;
   onSubViewChange?: (label: string | null) => void;
   exitSubViewNonce?: number;
+  closeDialogNonce?: number;
+  onDialogOpenChange?: (open: boolean) => void;
 }
 
 const CATEGORIES: ReadonlyArray<Exclude<ProjectCategory, 'All'>> = [
@@ -46,8 +48,14 @@ const THEMES: ReadonlyArray<{ id: PreviewTheme; label: string }> = [
   { id: 'ui-system', label: 'UI Component Library Canvas' },
 ];
 
-function createBlankProject(nextOrder: number): AdminProjectRecord {
-  const padded = String(nextOrder + 1).padStart(2, '0');
+function createBlankProject(projects: AdminProjectRecord[]): AdminProjectRecord {
+  const maxOrder = projects.reduce((max, item) => Math.max(max, item.sortOrder), -1);
+  const maxNum = projects.reduce(
+    (max, item) => Math.max(max, Number.parseInt(item.index, 10) || 0),
+    0
+  );
+  const nextOrder = Math.min(1000, maxOrder + 1);
+  const padded = String(maxNum + 1).padStart(2, '0');
   return {
     id: `proj-${Date.now().toString(36)}`,
     index: padded,
@@ -78,6 +86,8 @@ export const AdminProjectsEditor: React.FC<AdminProjectsEditorProps> = ({
   onDeleteProject,
   onSubViewChange,
   exitSubViewNonce = 0,
+  closeDialogNonce = 0,
+  onDialogOpenChange,
 }) => {
   const [filterCategory, setFilterCategory] = useState<ProjectCategory>('All');
   const [searchQuery, setSearchQuery] = useState('');
@@ -88,10 +98,23 @@ export const AdminProjectsEditor: React.FC<AdminProjectsEditorProps> = ({
   const [mediaBusyLabel, setMediaBusyLabel] = useState<string | null>(null);
   const [mediaError, setMediaError] = useState<string | null>(null);
   const [mediaStatusNote, setMediaStatusNote] = useState<string | null>(null);
+  const [formError, setFormError] = useState<string | null>(null);
 
   const photoInputRef = useRef<HTMLInputElement | null>(null);
   const videoInputRef = useRef<HTMLInputElement | null>(null);
   const lastExitNonceRef = useRef(exitSubViewNonce);
+  const lastCloseDialogNonceRef = useRef(closeDialogNonce);
+
+  useEffect(() => {
+    onDialogOpenChange?.(Boolean(deleteTarget));
+  }, [deleteTarget, onDialogOpenChange]);
+
+  useEffect(() => {
+    if (closeDialogNonce !== lastCloseDialogNonceRef.current) {
+      lastCloseDialogNonceRef.current = closeDialogNonce;
+      setDeleteTarget(null);
+    }
+  }, [closeDialogNonce]);
 
   useEffect(() => {
     if (exitSubViewNonce !== lastExitNonceRef.current) {
@@ -99,6 +122,7 @@ export const AdminProjectsEditor: React.FC<AdminProjectsEditorProps> = ({
       setEditing(null);
       setMediaError(null);
       setMediaStatusNote(null);
+      setFormError(null);
     }
   }, [exitSubViewNonce]);
 
@@ -130,13 +154,15 @@ export const AdminProjectsEditor: React.FC<AdminProjectsEditorProps> = ({
     setStackInput('');
     setMediaError(null);
     setMediaStatusNote(null);
+    setFormError(null);
   };
 
   const startNew = () => {
-    setEditing(createBlankProject(projects.length));
+    setEditing(createBlankProject(projects));
     setStackInput('');
     setMediaError(null);
     setMediaStatusNote(null);
+    setFormError(null);
   };
 
   const addStackTag = () => {
@@ -207,10 +233,43 @@ export const AdminProjectsEditor: React.FC<AdminProjectsEditorProps> = ({
 
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!editing || mediaBusyLabel) return;
+    if (!editing || mediaBusyLabel || saving) return;
+
+    if (
+      !editing.index.trim() ||
+      !editing.title.trim() ||
+      !editing.year.trim() ||
+      !editing.platform.trim() ||
+      !editing.client.trim() ||
+      !editing.role.trim() ||
+      !editing.dimensions.trim() ||
+      !editing.summary.trim() ||
+      !editing.architectureNotes.trim()
+    ) {
+      setFormError('Fill in all required project details before saving.');
+      return;
+    }
+
+    const coverTrimmed = (editing.coverImageUrl ?? '').trim();
+    if (coverTrimmed && !coverTrimmed.startsWith('data:') && !sanitizePublicUrl(coverTrimmed, '')) {
+      setFormError('Cover media URL must be a valid https:// link or /assets/... path.');
+      return;
+    }
+    if ((editing.liveUrl ?? '').trim() && !sanitizePublicUrl(editing.liveUrl, '')) {
+      setFormError('Live Demo URL must start with https:// or http://.');
+      return;
+    }
+    if ((editing.repoUrl ?? '').trim() && !sanitizePublicUrl(editing.repoUrl, '')) {
+      setFormError('Source Code URL must start with https:// or http://.');
+      return;
+    }
+
+    setFormError(null);
     const ensuredStack = editing.stack.length > 0 ? editing.stack : ['React', 'TypeScript'];
-    await onSaveProject({ ...editing, stack: ensuredStack });
-    setEditing(null);
+    const ok = await onSaveProject({ ...editing, stack: ensuredStack });
+    if (ok) {
+      setEditing(null);
+    }
   };
 
   if (editing) {
@@ -221,7 +280,12 @@ export const AdminProjectsEditor: React.FC<AdminProjectsEditorProps> = ({
     );
 
     return (
-      <form onSubmit={handleSave} onKeyDown={handleFormEnterToNext} className="space-y-6 pb-8">
+      <form
+        noValidate
+        onSubmit={handleSave}
+        onKeyDown={handleFormEnterToNext}
+        className="space-y-6 pb-8"
+      >
         <div className="flex flex-col gap-4 border-b border-white/10 pb-5 sm:flex-row sm:items-center sm:justify-between">
           <div className="flex items-center gap-3">
             <button
@@ -275,6 +339,23 @@ export const AdminProjectsEditor: React.FC<AdminProjectsEditorProps> = ({
             </button>
           </div>
         </div>
+
+        {formError && (
+          <div
+            role="alert"
+            className="flex items-center justify-between gap-3 rounded-lg border border-[#DC2626]/40 bg-[#DC2626]/10 px-4 py-3 text-xs text-red-200"
+          >
+            <span>{formError}</span>
+            <button
+              type="button"
+              onClick={() => setFormError(null)}
+              aria-label="Dismiss validation error"
+              className="text-zinc-400 hover:text-white"
+            >
+              <X className="h-4 w-4" />
+            </button>
+          </div>
+        )}
 
         <div className="grid grid-cols-1 gap-8 lg:grid-cols-12">
           <div className="space-y-4 lg:col-span-7">
@@ -849,8 +930,10 @@ export const AdminProjectsEditor: React.FC<AdminProjectsEditorProps> = ({
         onConfirm={async () => {
           if (!deleteTarget) return;
           const targetId = deleteTarget.id;
-          await onDeleteProject(targetId);
-          setDeleteTarget(null);
+          const ok = await onDeleteProject(targetId);
+          if (ok) {
+            setDeleteTarget(null);
+          }
         }}
       />
     </div>

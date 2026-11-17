@@ -1,12 +1,15 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { ArrowUpRight, MousePointer2, Pause, Play, RotateCcw, Volume2, VolumeX } from 'lucide-react';
+import { ArrowUpRight, Download } from 'lucide-react';
 import { motion } from 'motion/react';
 import { usePortfolioContent } from '../context/PortfolioContentContext';
+import { trackCvDownload } from '../firebase';
+import { downloadPortfolioCv } from '../utils/cvPdfGenerator';
 import { ResizeDimensionBadge, useDesignCanvas } from './DesignCursorSystem';
 import { cursorAudio } from '../utils/cursorAudio';
 
 interface HeroSectionProps {
   onOpenInquiry: () => void;
+  onExploreProjects?: () => void;
 }
 
 const KPI_SCATTER = [
@@ -16,8 +19,12 @@ const KPI_SCATTER = [
   { x: 0, y: -10 },
 ];
 
-export const HeroSection: React.FC<HeroSectionProps> = ({ onOpenInquiry }) => {
-  const { profile, heroMetrics } = usePortfolioContent();
+export const HeroSection: React.FC<HeroSectionProps> = ({
+  onOpenInquiry,
+  onExploreProjects,
+}) => {
+  const portfolioContent = usePortfolioContent();
+  const { profile, heroMetrics, viewerControls } = portfolioContent;
   const FULL_GREETING = profile.greeting;
   const FULL_NAME = profile.displayName;
   const FULL_ROLE = profile.role;
@@ -28,16 +35,7 @@ export const HeroSection: React.FC<HeroSectionProps> = ({ onOpenInquiry }) => {
     [heroMetrics]
   );
 
-  const {
-    cursorsEnabled,
-    toggleCursors,
-    soundEnabled,
-    toggleSound,
-    isAutoScrolling,
-    toggleAutoScroll,
-    triggerReplay,
-    heroStep,
-  } = useDesignCanvas();
+  const { cursorsEnabled, heroStep, prepareSectionJump, speedMultiplier } = useDesignCanvas();
 
   const [typedChars, setTypedChars] = useState(0);
   const [backdropChars, setBackdropChars] = useState(FULL_BACKDROP_NAME.length);
@@ -105,6 +103,9 @@ export const HeroSection: React.FC<HeroSectionProps> = ({ onOpenInquiry }) => {
     let stepTick = 0;
     let intervalId: number | null = null;
 
+    const typeIntervalMs = Math.max(14, Math.round(28 * speedMultiplier));
+    const leadDelayMs = Math.round(140 * speedMultiplier);
+
     const leadTimer = window.setTimeout(() => {
       intervalId = window.setInterval(() => {
         stepTick += 1;
@@ -118,14 +119,14 @@ export const HeroSection: React.FC<HeroSectionProps> = ({ onOpenInquiry }) => {
           setBackdropChars((prev) => Math.min(FULL_BACKDROP_NAME.length, prev + 1));
         }
         setKpiTypedChars((prev) => Math.min(firstKpiLen, prev + 1));
-      }, 28);
-    }, 140);
+      }, typeIntervalMs);
+    }, leadDelayMs);
 
     return () => {
       window.clearTimeout(leadTimer);
       if (intervalId !== null) window.clearInterval(intervalId);
     };
-  }, [heroStep, cursorsEnabled, totalLength, FULL_BACKDROP_NAME.length, firstKpiLen]);
+  }, [heroStep, cursorsEnabled, totalLength, FULL_BACKDROP_NAME.length, firstKpiLen, speedMultiplier]);
 
   const CLONED_KPI_TOTAL_CHARS = useMemo(
     () =>
@@ -178,8 +179,8 @@ export const HeroSection: React.FC<HeroSectionProps> = ({ onOpenInquiry }) => {
 
         tPull = window.setTimeout(() => {
           setKpiDragStep('pulling');
-        }, 120);
-      }, 340);
+        }, Math.round(120 * speedMultiplier));
+      }, Math.round(340 * speedMultiplier));
       return () => {
         window.clearTimeout(tPaste);
         if (tPull !== null) window.clearTimeout(tPull);
@@ -193,6 +194,7 @@ export const HeroSection: React.FC<HeroSectionProps> = ({ onOpenInquiry }) => {
     setKpiEditChars(0);
 
     let editInterval: number | null = null;
+    const editIntervalMs = Math.max(14, Math.round(28 * speedMultiplier));
     const tEdit = window.setTimeout(() => {
       setKpiPhase('editing');
       const step = Math.max(1, Math.ceil(CLONED_KPI_TOTAL_CHARS / 46));
@@ -206,14 +208,14 @@ export const HeroSection: React.FC<HeroSectionProps> = ({ onOpenInquiry }) => {
           cursorAudio.playTypeTick(next);
           return next;
         });
-      }, 28);
-    }, 440);
+      }, editIntervalMs);
+    }, Math.round(440 * speedMultiplier));
 
     return () => {
       window.clearTimeout(tEdit);
       if (editInterval !== null) window.clearInterval(editInterval);
     };
-  }, [heroStep, cursorsEnabled, CLONED_KPI_TOTAL_CHARS]);
+  }, [heroStep, cursorsEnabled, CLONED_KPI_TOTAL_CHARS, speedMultiplier]);
 
   const gText = FULL_GREETING.slice(0, Math.min(typedChars, FULL_GREETING.length));
   const remAfterG = Math.max(0, typedChars - FULL_GREETING.length);
@@ -261,19 +263,19 @@ export const HeroSection: React.FC<HeroSectionProps> = ({ onOpenInquiry }) => {
           <motion.span
             initial={{ opacity: 0, scale: 0.85 }}
             animate={{ opacity: 1, scale: 1 }}
-            transition={{ duration: 0.35 }}
+            transition={{ duration: 0.35 * speedMultiplier }}
             className="font-display text-6xl font-bold tracking-tight text-white"
           >
-            S<span className="text-[#DC2626]">.</span>
+            S<span className="text-accent">.</span>
           </motion.span>
         </div>
       )}
 
-      {/* Crimson Ambient Glow appears during Color / Drop */}
+      {/* Brand Accent Ambient Glow appears during Color / Drop */}
       <motion.div
         animate={{ opacity: isColoring || isDropping || isDone ? 1 : 0 }}
-        transition={{ duration: 0.9 }}
-        className="pointer-events-none absolute top-6 right-[8%] h-[480px] w-[480px] rounded-full bg-[#DC2626]/20 blur-[140px]"
+        transition={{ duration: 0.9 * speedMultiplier }}
+        className="pointer-events-none absolute top-6 right-[8%] h-[480px] w-[480px] rounded-full bg-accent/20 blur-[140px]"
         aria-hidden="true"
       />
 
@@ -289,10 +291,10 @@ export const HeroSection: React.FC<HeroSectionProps> = ({ onOpenInquiry }) => {
                 aria-hidden="true"
                 initial={{ width: '16%', height: '18%' }}
                 animate={{ width: '100%', height: '100%' }}
-                transition={{ duration: 0.95, ease: [0.22, 1, 0.36, 1] }}
+                transition={{ duration: 0.95 * speedMultiplier, ease: [0.22, 1, 0.36, 1] }}
                 className={`pointer-events-none absolute -top-3 -left-3 rounded-xl border transition-colors duration-400 ${
                   isResizing
-                    ? 'border-[#EF4444]/85 bg-[#DC2626]/5'
+                    ? 'border-accent-light/85 bg-accent/5'
                     : isColoring
                       ? 'border-[#A855F7]/75 bg-transparent'
                       : 'border-[#38BDF8]/85 bg-[#0A101C]/35'
@@ -335,8 +337,8 @@ export const HeroSection: React.FC<HeroSectionProps> = ({ onOpenInquiry }) => {
                   rotate: 0,
                 }}
                 transition={{
-                  duration: isResizing ? 0.72 : 0.65,
-                  delay: isResizing ? 0.16 : isDropping ? 0.12 : 0,
+                  duration: (isResizing ? 0.72 : 0.65) * speedMultiplier,
+                  delay: (isResizing ? 0.16 : isDropping ? 0.12 : 0) * speedMultiplier,
                   ease: [0.22, 1, 0.36, 1],
                 }}
                 style={{ transformOrigin: 'left center' }}
@@ -380,7 +382,7 @@ export const HeroSection: React.FC<HeroSectionProps> = ({ onOpenInquiry }) => {
                       {nameSuffix && (
                         <span
                           className={`transition-colors duration-600 ${
-                            isResizing ? 'text-zinc-400' : 'text-[#DC2626]'
+                            isResizing ? 'text-zinc-400' : 'text-accent'
                           }`}
                         >
                           {nameSuffix}
@@ -393,12 +395,12 @@ export const HeroSection: React.FC<HeroSectionProps> = ({ onOpenInquiry }) => {
                 {isResizing && (
                   <div
                     aria-hidden="true"
-                    className="pointer-events-none absolute -inset-1 border border-[#EF4444]"
+                    className="pointer-events-none absolute -inset-1 border border-accent-light"
                   >
-                    <span className="absolute -top-1 -left-1 h-2 w-2 border border-[#EF4444] bg-white" />
-                    <span className="absolute -top-1 -right-1 h-2 w-2 border border-[#EF4444] bg-white" />
-                    <span className="absolute -bottom-1 -left-1 h-2 w-2 border border-[#EF4444] bg-white" />
-                    <span className="absolute -bottom-1 -right-1 h-2 w-2 border border-[#EF4444] bg-white" />
+                    <span className="absolute -top-1 -left-1 h-2 w-2 border border-accent-light bg-white" />
+                    <span className="absolute -top-1 -right-1 h-2 w-2 border border-accent-light bg-white" />
+                    <span className="absolute -bottom-1 -left-1 h-2 w-2 border border-accent-light bg-white" />
+                    <span className="absolute -bottom-1 -right-1 h-2 w-2 border border-accent-light bg-white" />
                     <ResizeDimensionBadge
                       targetRef={titleBoxRef}
                       active={isResizing}
@@ -406,8 +408,8 @@ export const HeroSection: React.FC<HeroSectionProps> = ({ onOpenInquiry }) => {
                       toScaleX={1}
                       fromScaleY={0.78}
                       toScaleY={1}
-                      durationMs={720}
-                      delayMs={160}
+                      durationMs={Math.round(720 * speedMultiplier)}
+                      delayMs={Math.round(160 * speedMultiplier)}
                     />
                   </div>
                 )}
@@ -419,7 +421,7 @@ export const HeroSection: React.FC<HeroSectionProps> = ({ onOpenInquiry }) => {
                     ? 'font-mono text-xs text-zinc-400'
                     : isResizing
                       ? 'font-display text-xl font-semibold tracking-wide text-zinc-300 sm:text-2xl'
-                      : 'font-display text-xl font-semibold tracking-wide text-[#EF4444] sm:text-2xl'
+                      : 'font-display text-xl font-semibold tracking-wide text-accent-light sm:text-2xl'
                 }`}
               >
                 {isTyping ? rText : FULL_ROLE}
@@ -457,13 +459,17 @@ export const HeroSection: React.FC<HeroSectionProps> = ({ onOpenInquiry }) => {
                   y: isResizing ? 8 : isColoring ? 4 : 0,
                   filter: isResizing ? 'grayscale(1)' : 'grayscale(0)',
                 }}
-                transition={{ duration: 0.72, ease: [0.22, 1, 0.36, 1] }}
+                transition={{ duration: 0.72 * speedMultiplier, ease: [0.22, 1, 0.36, 1] }}
                 style={{ transformOrigin: 'left center' }}
                 className="mt-8 flex flex-wrap items-center gap-4"
               >
                 <a
                   href="#works"
-                  className="inline-flex items-center gap-2 rounded-md bg-[#DC2626] px-6 py-3 text-sm font-semibold text-white transition-colors duration-150 hover:bg-[#B91C1C] whitespace-nowrap shrink-0 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white"
+                  onClick={() => {
+                    onExploreProjects?.();
+                    prepareSectionJump();
+                  }}
+                  className="inline-flex items-center gap-2 rounded-md bg-accent px-6 py-3 text-sm font-semibold text-white transition-colors duration-150 hover:bg-accent-dark whitespace-nowrap shrink-0 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white"
                 >
                   Explore Projects
                   <ArrowUpRight className="h-4 w-4" aria-hidden="true" />
@@ -476,81 +482,25 @@ export const HeroSection: React.FC<HeroSectionProps> = ({ onOpenInquiry }) => {
                 >
                   Start a Project
                 </button>
-              </motion.div>
 
-              {/* Cursor & Auto-Scroll Controls */}
-              <motion.div
-                initial={false}
-                animate={{ opacity: isDone ? 1 : 0 }}
-                transition={{ duration: 0.45 }}
-                className="mt-7 flex flex-wrap items-center gap-2.5 text-xs"
-                data-autoscroll-control
-              >
-                <button
-                  type="button"
-                  onClick={toggleCursors}
-                  className={`inline-flex items-center gap-2 rounded-md border px-3 py-1.5 font-medium transition-colors ${
-                    cursorsEnabled
-                      ? 'border-[#38BDF8]/60 bg-[#38BDF8]/15 text-blue-200 hover:bg-[#38BDF8]/25'
-                      : 'border-white/10 bg-[#111115] text-zinc-400 hover:text-white'
-                  }`}
-                >
-                  <MousePointer2 className="h-3.5 w-3.5" aria-hidden="true" />
-                  Live Design Cursors: {cursorsEnabled ? 'On' : 'Off'}
-                </button>
-
-                {cursorsEnabled && (
-                  <>
-                    <button
-                      type="button"
-                      onClick={toggleAutoScroll}
-                      className={`inline-flex items-center gap-1.5 rounded-md border px-3 py-1.5 font-medium transition-colors ${
-                        isAutoScrolling
-                          ? 'border-[#DC2626]/60 bg-[#DC2626]/15 text-red-200 hover:bg-[#DC2626]/25'
-                          : 'border-white/10 bg-[#111115] text-zinc-300 hover:border-white/25 hover:text-white'
-                      }`}
-                    >
-                      {isAutoScrolling ? (
-                        <Pause className="h-3.5 w-3.5" aria-hidden="true" />
-                      ) : (
-                        <Play className="h-3.5 w-3.5" aria-hidden="true" />
-                      )}
-                      Auto-Scroll: {isAutoScrolling ? 'On' : 'Off'}
-                    </button>
-
-                    <button
-                      type="button"
-                      onClick={triggerReplay}
-                      className="inline-flex items-center gap-1.5 rounded-md border border-white/10 bg-[#111115] px-3 py-1.5 font-medium text-zinc-300 transition-colors hover:border-white/25 hover:text-white"
-                    >
-                      <RotateCcw className="h-3.5 w-3.5" aria-hidden="true" />
-                      Replay Build
-                    </button>
-
-                    <button
-                      type="button"
-                      onClick={toggleSound}
-                      aria-pressed={soundEnabled}
-                      className={`inline-flex items-center gap-1.5 rounded-md border px-3 py-1.5 font-medium transition-colors ${
-                        soundEnabled
-                          ? 'border-white/15 bg-[#111115] text-zinc-200 hover:border-white/30 hover:text-white'
-                          : 'border-white/10 bg-[#111115] text-zinc-500 hover:text-zinc-300'
-                      }`}
-                    >
-                      {soundEnabled ? (
-                        <Volume2 className="h-3.5 w-3.5 text-[#38BDF8]" aria-hidden="true" />
-                      ) : (
-                        <VolumeX className="h-3.5 w-3.5" aria-hidden="true" />
-                      )}
-                      Sound: {soundEnabled ? 'On' : 'Off'}
-                    </button>
-                  </>
+                {viewerControls.showCvDownloadOnViewer && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      downloadPortfolioCv(portfolioContent);
+                      void trackCvDownload();
+                    }}
+                    className="inline-flex items-center gap-2 rounded-md border border-accent/45 bg-accent/10 px-4 py-3 text-sm font-medium text-white transition-colors hover:border-accent hover:bg-accent/20 whitespace-nowrap shrink-0"
+                  >
+                    <Download className="h-4 w-4 text-accent-light" aria-hidden="true" />
+                    Download CV
+                  </button>
                 )}
               </motion.div>
             </div>
           </div>
 
-          {/* RIGHT COLUMN: Stretched Tall & Wide Crimson "SHANTO" + Transparent Cutout Over It */}
+          {/* RIGHT COLUMN: Stretched Tall & Wide Accent "SHANTO" + Transparent Cutout Over It */}
           <div
             data-cursor-target="hero-right"
             className="relative flex min-h-[440px] items-end justify-center pt-16 sm:pt-20 lg:col-span-7 lg:min-h-[540px] lg:pt-24"
@@ -560,7 +510,7 @@ export const HeroSection: React.FC<HeroSectionProps> = ({ onOpenInquiry }) => {
                 aria-hidden="true"
                 initial={{ width: '24%', height: '24%' }}
                 animate={{ width: '100%', height: '100%' }}
-                transition={{ duration: 0.72, ease: [0.22, 1, 0.36, 1] }}
+                transition={{ duration: 0.72 * speedMultiplier, ease: [0.22, 1, 0.36, 1] }}
                 className={`pointer-events-none absolute top-0 left-0 z-20 overflow-hidden rounded-2xl border transition-colors duration-400 ${
                   isColoring ? 'border-[#A855F7]/65' : 'border-[#38BDF8]/75 bg-[#08101E]/25'
                 }`}
@@ -596,8 +546,8 @@ export const HeroSection: React.FC<HeroSectionProps> = ({ onOpenInquiry }) => {
                 y: isBlack || isDragBox || isTyping ? -6 : 0,
               }}
               transition={{
-                duration: isResizing ? 0.72 : 0.68,
-                delay: isResizing ? 0.16 : isDropping ? 0.12 : 0,
+                duration: (isResizing ? 0.72 : 0.68) * speedMultiplier,
+                delay: (isResizing ? 0.16 : isDropping ? 0.12 : 0) * speedMultiplier,
                 ease: [0.22, 1, 0.36, 1],
               }}
               style={{ transformOrigin: 'center top' }}
@@ -607,7 +557,7 @@ export const HeroSection: React.FC<HeroSectionProps> = ({ onOpenInquiry }) => {
               <div className="relative inline-block">
                 <span
                   className={`block font-display text-[5.75rem] font-bold leading-[0.84] tracking-[-0.015em] transition-colors duration-700 sm:text-[8.5rem] lg:text-[10.75rem] xl:text-[11.75rem] ${
-                    isTyping || isResizing ? 'text-zinc-500' : 'text-[#DC2626]'
+                    isTyping || isResizing ? 'text-zinc-500' : 'text-accent'
                   }`}
                 >
                   {isTyping ? (
@@ -627,11 +577,11 @@ export const HeroSection: React.FC<HeroSectionProps> = ({ onOpenInquiry }) => {
                 </span>
 
                 {isResizing && (
-                  <div className="absolute -inset-1.5 border border-[#EF4444]">
-                    <span className="absolute -top-1 -left-1 h-2 w-2 border border-[#EF4444] bg-white" />
-                    <span className="absolute -top-1 -right-1 h-2 w-2 border border-[#EF4444] bg-white" />
-                    <span className="absolute -bottom-1 -left-1 h-2 w-2 border border-[#EF4444] bg-white" />
-                    <span className="absolute -bottom-1 -right-1 h-2 w-2 border border-[#EF4444] bg-white" />
+                  <div className="absolute -inset-1.5 border border-accent-light">
+                    <span className="absolute -top-1 -left-1 h-2 w-2 border border-accent-light bg-white" />
+                    <span className="absolute -top-1 -right-1 h-2 w-2 border border-accent-light bg-white" />
+                    <span className="absolute -bottom-1 -left-1 h-2 w-2 border border-accent-light bg-white" />
+                    <span className="absolute -bottom-1 -right-1 h-2 w-2 border border-accent-light bg-white" />
                     <ResizeDimensionBadge
                       targetRef={shantoBackdropRef}
                       active={isResizing}
@@ -639,15 +589,15 @@ export const HeroSection: React.FC<HeroSectionProps> = ({ onOpenInquiry }) => {
                       toScaleX={1}
                       fromScaleY={0.32}
                       toScaleY={1.38}
-                      durationMs={880}
-                      delayMs={260}
+                      durationMs={Math.round(880 * speedMultiplier)}
+                      delayMs={Math.round(260 * speedMultiplier)}
                     />
                   </div>
                 )}
               </div>
             </motion.div>
 
-            {/* Transparent Portrait Cutout: Amber Drop places it centered in front of stretched crimson SHANTO */}
+            {/* Transparent Portrait Cutout: Amber Drop places it centered in front of stretched SHANTO */}
             <motion.div
               data-cursor-target="hero-cutout"
               initial={false}
@@ -657,7 +607,7 @@ export const HeroSection: React.FC<HeroSectionProps> = ({ onOpenInquiry }) => {
                 y: isDropping || isDone ? 0 : -40,
                 scale: isDropping || isDone ? 1 : 0.78,
               }}
-              transition={{ duration: 1.0, ease: [0.22, 1, 0.36, 1] }}
+              transition={{ duration: 1.0 * speedMultiplier, ease: [0.22, 1, 0.36, 1] }}
               className="relative z-10 flex w-full max-w-[340px] items-end justify-center sm:max-w-[360px]"
             >
               <img
@@ -781,21 +731,32 @@ export const HeroSection: React.FC<HeroSectionProps> = ({ onOpenInquiry }) => {
                           }
                         : isKpiPulling
                           ? {
-                              x: { duration: 0.56, delay: (idx - 1) * 0.08, ease: [0.22, 1, 0.36, 1] },
-                              y: { duration: 0.56, delay: (idx - 1) * 0.08, ease: [0.22, 1, 0.36, 1] },
-                              opacity: { duration: 0.18 },
-                              scale: { duration: 0.45, delay: (idx - 1) * 0.08 },
+                              x: {
+                                duration: 0.56 * speedMultiplier,
+                                delay: (idx - 1) * 0.08 * speedMultiplier,
+                                ease: [0.22, 1, 0.36, 1],
+                              },
+                              y: {
+                                duration: 0.56 * speedMultiplier,
+                                delay: (idx - 1) * 0.08 * speedMultiplier,
+                                ease: [0.22, 1, 0.36, 1],
+                              },
+                              opacity: { duration: 0.18 * speedMultiplier },
+                              scale: {
+                                duration: 0.45 * speedMultiplier,
+                                delay: (idx - 1) * 0.08 * speedMultiplier,
+                              },
                             }
                           : {
-                              duration: isResizing ? 0.68 : 0.44,
-                              delay: isTemplateCard && isResizing ? 0.16 : 0,
+                              duration: (isResizing ? 0.68 : 0.44) * speedMultiplier,
+                              delay: isTemplateCard && isResizing ? 0.16 * speedMultiplier : 0,
                               ease: [0.22, 1, 0.36, 1],
                             }
                     }
                     style={{ transformOrigin: 'top left' }}
                     className={`relative space-y-1 rounded-lg p-2 transition-colors ${
                       isTemplateCard && isResizing
-                        ? 'border border-[#EF4444]/75 bg-[#0A101C]/35'
+                        ? 'border border-accent-light/75 bg-[#0A101C]/35'
                         : isDuplicateHoldingClone
                           ? 'border border-[#38BDF8] bg-[#0A1526]/85 shadow-[0_10px_24px_rgba(56,189,248,0.18)]'
                           : isDuplicateEditing

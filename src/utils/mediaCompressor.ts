@@ -37,17 +37,21 @@ function loadImageFromFile(file: File): Promise<{ img: HTMLImageElement; cleanup
 }
 
 export async function processProjectPhotoFile(
-  file: File
+  file: File,
+  options?: { maxDataUrlLength?: number; hardCapLength?: number }
 ): Promise<{ dataUrl: string; sizeKB: number }> {
   if (!file.type.startsWith('image/')) {
     throw new Error('Please choose a valid image file (JPG, PNG, or WebP).');
   }
 
+  const maxTargetLength = options?.maxDataUrlLength ?? MAX_IMAGE_DATA_URL_LENGTH;
+  const hardCapLength = options?.hardCapLength ?? MAX_VIDEO_DATA_URL_LENGTH;
+
   const { img, cleanup } = await loadImageFromFile(file);
   try {
     const srcW = img.naturalWidth || 1280;
     const srcH = img.naturalHeight || 720;
-    const widths = [1200, 960, 720];
+    const widths = [1200, 960, 720, 540];
     const qualities = [0.84, 0.72, 0.58, 0.45];
 
     const canvas = document.createElement('canvas');
@@ -74,7 +78,7 @@ export async function processProjectPhotoFile(
             break;
           }
           bestResult = dataUrl;
-          if (dataUrl.length <= MAX_IMAGE_DATA_URL_LENGTH) {
+          if (dataUrl.length <= maxTargetLength) {
             return {
               dataUrl,
               sizeKB: Math.max(1, Math.round((dataUrl.length * 0.75) / 1024)),
@@ -84,7 +88,7 @@ export async function processProjectPhotoFile(
       }
     }
 
-    if (bestResult && bestResult.length <= MAX_VIDEO_DATA_URL_LENGTH) {
+    if (bestResult && bestResult.length <= hardCapLength) {
       return {
         dataUrl: bestResult,
         sizeKB: Math.max(1, Math.round((bestResult.length * 0.75) / 1024)),

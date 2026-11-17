@@ -1,6 +1,8 @@
 import React, { useEffect, useRef, useState } from 'react';
+import { usePortfolioContent } from '../context/PortfolioContentContext';
 import { isVideoMediaSource } from '../data/contentSchema';
 import { ProjectItem } from '../data/portfolioData';
+import { computeAccentPalette } from '../utils/themeAccent';
 
 interface ProductPreviewCanvasProps {
   theme: ProjectItem['previewTheme'];
@@ -21,6 +23,7 @@ export const ProductPreviewCanvas: React.FC<ProductPreviewCanvasProps> = ({
   controlPlayback = false,
   className = '',
 }) => {
+  const { viewerControls } = usePortfolioContent();
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const [imageFailed, setImageFailed] = useState(false);
@@ -58,6 +61,8 @@ export const ProductPreviewCanvas: React.FC<ProductPreviewCanvasProps> = ({
     let animId = 0;
     let tick = 0;
     const prefersReduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    const accent = computeAccentPalette(viewerControls.accentColor);
+    const accentRgba = (alpha: number) => `rgba(${accent.r}, ${accent.g}, ${accent.b}, ${alpha})`;
 
     const draw = (t: number) => {
       ctx.clearRect(0, 0, width, height);
@@ -74,7 +79,7 @@ export const ProductPreviewCanvas: React.FC<ProductPreviewCanvasProps> = ({
         ctx.strokeRect(0, 0, 130, height);
 
         for (let i = 0; i < 5; i++) {
-          ctx.fillStyle = i === 1 ? '#DC2626' : '#27272A';
+          ctx.fillStyle = i === 1 ? accent.primary : '#27272A';
           ctx.fillRect(20, 48 + i * 32, 86, 12);
         }
 
@@ -90,7 +95,7 @@ export const ProductPreviewCanvas: React.FC<ProductPreviewCanvasProps> = ({
             const shift = ci === 1 && r === 0 ? Math.sin(t * 0.05) * 6 : 0;
             ctx.fillStyle = '#1C1C24';
             ctx.fillRect(cx + 12, 74 + r * 72 + shift, 116, 54);
-            ctx.fillStyle = r === 0 ? '#DC2626' : '#3F3F46';
+            ctx.fillStyle = r === 0 ? accent.primary : '#3F3F46';
             ctx.fillRect(cx + 20, 86 + r * 72 + shift, 44, 6);
             ctx.fillStyle = '#71717A';
             ctx.fillRect(cx + 20, 102 + r * 72 + shift, 88, 5);
@@ -111,14 +116,14 @@ export const ProductPreviewCanvas: React.FC<ProductPreviewCanvasProps> = ({
       } else if (theme === 'game-rift') {
         // 2.5D Action Roguelite Game Scene
         const bg = ctx.createRadialGradient(width / 2, height / 2, 20, width / 2, height / 2, 360);
-        bg.addColorStop(0, '#3B0A10');
+        bg.addColorStop(0, accentRgba(0.28));
         bg.addColorStop(0.6, '#12080D');
         bg.addColorStop(1, '#07070A');
         ctx.fillStyle = bg;
         ctx.fillRect(0, 0, width, height);
 
         // Isometric arena floor grid
-        ctx.strokeStyle = 'rgba(220, 38, 38, 0.25)';
+        ctx.strokeStyle = accentRgba(0.25);
         ctx.lineWidth = 1;
         for (let i = -6; i <= 6; i++) {
           ctx.beginPath();
@@ -139,7 +144,7 @@ export const ProductPreviewCanvas: React.FC<ProductPreviewCanvasProps> = ({
         const py = 215;
         ctx.fillStyle = '#FFFFFF';
         ctx.fillRect(px - 10, py - 24, 20, 34);
-        ctx.strokeStyle = '#EF4444';
+        ctx.strokeStyle = accent.light;
         ctx.lineWidth = 3;
         ctx.beginPath();
         ctx.arc(px + 12, py - 8, 36, -0.8 + Math.sin(t * 0.1) * 0.4, 0.8 + Math.sin(t * 0.1) * 0.4);
@@ -148,7 +153,7 @@ export const ProductPreviewCanvas: React.FC<ProductPreviewCanvasProps> = ({
         // Game HUD health & energy bar
         ctx.fillStyle = 'rgba(0,0,0,0.65)';
         ctx.fillRect(24, 22, 160, 18);
-        ctx.fillStyle = '#DC2626';
+        ctx.fillStyle = accent.primary;
         ctx.fillRect(27, 25, 118, 12);
       } else if (theme === 'web-commerce') {
         // Modern Dark Editorial Website Preview
@@ -164,17 +169,17 @@ export const ProductPreviewCanvas: React.FC<ProductPreviewCanvasProps> = ({
         // Split Hero inside browser preview
         ctx.fillStyle = '#FFFFFF';
         ctx.fillRect(58, 92, 175, 22);
-        ctx.fillStyle = '#DC2626';
+        ctx.fillStyle = accent.primary;
         ctx.fillRect(58, 124, 130, 16);
         ctx.fillStyle = '#52525B';
         ctx.fillRect(58, 158, 195, 8);
         ctx.fillRect(58, 174, 165, 8);
-        ctx.fillStyle = '#DC2626';
+        ctx.fillStyle = accent.primary;
         ctx.fillRect(58, 206, 95, 26);
 
         // Right product stage
         const glow = ctx.createRadialGradient(445, 185, 10, 445, 185, 120);
-        glow.addColorStop(0, 'rgba(220, 38, 38, 0.45)');
+        glow.addColorStop(0, accentRgba(0.45));
         glow.addColorStop(1, 'rgba(0,0,0,0)');
         ctx.fillStyle = glow;
         ctx.fillRect(300, 65, 280, 240);
@@ -196,7 +201,7 @@ export const ProductPreviewCanvas: React.FC<ProductPreviewCanvasProps> = ({
         // Chat bubbles animating
         for (let i = 0; i < 4; i++) {
           const isMe = i % 2 === 1;
-          ctx.fillStyle = isMe ? '#DC2626' : '#27272A';
+          ctx.fillStyle = isMe ? accent.primary : '#27272A';
           ctx.fillRect(isMe ? 210 : 80, 82 + i * 50, 175, 32);
         }
 
@@ -206,7 +211,7 @@ export const ProductPreviewCanvas: React.FC<ProductPreviewCanvasProps> = ({
         ctx.strokeStyle = '#3B82F6';
         ctx.lineWidth = 1.5;
         ctx.strokeRect(438, 38, 146, 284);
-        ctx.fillStyle = '#DC2626';
+        ctx.fillStyle = accent.primary;
         ctx.fillRect(456, 74, 110, 48);
         ctx.fillStyle = '#27272A';
         ctx.fillRect(456, 136, 110, 38);
@@ -223,7 +228,7 @@ export const ProductPreviewCanvas: React.FC<ProductPreviewCanvasProps> = ({
         ctx.ellipse(width / 2, height / 2, 210, 105, 0, 0, Math.PI * 2);
         ctx.stroke();
 
-        ctx.strokeStyle = 'rgba(220, 38, 38, 0.65)';
+        ctx.strokeStyle = accentRgba(0.65);
         ctx.lineWidth = 2;
         ctx.setLineDash([14, 10]);
         ctx.beginPath();
@@ -239,7 +244,7 @@ export const ProductPreviewCanvas: React.FC<ProductPreviewCanvasProps> = ({
         ctx.save();
         ctx.translate(cx, cy);
         ctx.rotate(angle + Math.PI / 2 + 0.28);
-        ctx.fillStyle = '#EF4444';
+        ctx.fillStyle = accent.light;
         ctx.fillRect(-10, -18, 20, 36);
         ctx.fillStyle = '#FFFFFF';
         ctx.fillRect(-7, -10, 14, 12);
@@ -257,12 +262,12 @@ export const ProductPreviewCanvas: React.FC<ProductPreviewCanvasProps> = ({
         ctx.strokeRect(42, 190, 250, 127);
 
         // Component buttons & swatches
-        ctx.fillStyle = '#DC2626';
+        ctx.fillStyle = accent.primary;
         ctx.fillRect(62, 74, 110, 34);
         ctx.fillStyle = '#27272A';
         ctx.fillRect(184, 74, 88, 34);
 
-        const swatches = ['#08080A', '#18181B', '#DC2626', '#38BDF8', '#F4F4F5'];
+        const swatches = ['#08080A', '#18181B', accent.primary, '#38BDF8', '#F4F4F5'];
         swatches.forEach((col, i) => {
           ctx.fillStyle = col;
           ctx.fillRect(62 + i * 44, 224, 34, 34);
@@ -295,7 +300,7 @@ export const ProductPreviewCanvas: React.FC<ProductPreviewCanvasProps> = ({
     return () => {
       if (animId) cancelAnimationFrame(animId);
     };
-  }, [theme, isAnimating, showCustomCover]);
+  }, [theme, isAnimating, showCustomCover, viewerControls.accentColor]);
 
   return (
     <div className={`relative aspect-video overflow-hidden bg-[#0B0B0F] ${className}`}>

@@ -17,9 +17,9 @@ export const ClientsStrip: React.FC = () => {
             </p>
 
             <div className="grid w-full grid-cols-2 gap-6 sm:grid-cols-3 lg:flex lg:w-auto lg:flex-wrap lg:items-center lg:gap-10">
-              {techPartners.map((tech) => (
+              {techPartners.map((tech, idx) => (
                 <span
-                  key={tech}
+                  key={`${tech}-${idx}`}
                   className="font-display text-lg font-semibold tracking-wider text-zinc-500 transition-colors duration-150 hover:text-white"
                 >
                   <TypedText text={tech} />

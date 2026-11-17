@@ -1,11 +1,27 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { SlidersHorizontal } from 'lucide-react';
 import { usePortfolioContent } from '../context/PortfolioContentContext';
+import { computeAccentPalette } from '../utils/themeAccent';
 import { DesignBlock, TypedText } from './DesignCursorSystem';
 
-export const RawToRealSection: React.FC = () => {
-  const { wireframeScenes } = usePortfolioContent();
-  const [selectedId, setSelectedId] = useState<string>(() => wireframeScenes[0]?.id ?? '');
+interface RawToRealSectionProps {
+  selectedSceneId?: string;
+  onSelectedSceneChange?: (id: string) => void;
+}
+
+export const RawToRealSection: React.FC<RawToRealSectionProps> = ({
+  selectedSceneId: controlledSelectedId,
+  onSelectedSceneChange,
+}) => {
+  const { wireframeScenes, viewerControls } = usePortfolioContent();
+  const [internalSelectedId, setInternalSelectedId] = useState<string>(
+    () => wireframeScenes[0]?.id ?? ''
+  );
+  const selectedId = controlledSelectedId ?? internalSelectedId;
+  const setSelectedId = (next: string) => {
+    setInternalSelectedId(next);
+    onSelectedSceneChange?.(next);
+  };
   const selectedScene =
     wireframeScenes.find((s) => s.id === selectedId) ?? wireframeScenes[0];
   const [splitPercent, setSplitPercent] = useState<number>(50);
@@ -34,6 +50,8 @@ export const RawToRealSection: React.FC = () => {
     let animId = 0;
     let tick = 0;
     const prefersReduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    const accent = computeAccentPalette(viewerControls.accentColor);
+    const accentGlowRgba = (alpha: number) => `rgba(${accent.r}, ${accent.g}, ${accent.b}, ${alpha})`;
 
     const renderFrames = (t: number) => {
       // 1. LEFT LAYER: FIGMA WIREFRAME / GREYBOX BLUEPRINT
@@ -127,10 +145,10 @@ export const RawToRealSection: React.FC = () => {
       lCtx.fillRect(0, 0, width, height);
 
       if (selectedScene.theme === 'web-build') {
-        // Rendered Crimson & Obsidian Website UI
+        // Rendered Brand Accent & Obsidian Website UI
         lCtx.fillStyle = '#111116';
         lCtx.fillRect(72, 62, 816, 48);
-        lCtx.fillStyle = '#DC2626';
+        lCtx.fillStyle = accent.primary;
         lCtx.fillRect(804, 72, 68, 28);
         lCtx.fillStyle = '#FFFFFF';
         lCtx.fillRect(92, 78, 92, 14);
@@ -138,16 +156,16 @@ export const RawToRealSection: React.FC = () => {
         // Hero Copy + Live Portrait Stage
         lCtx.fillStyle = '#FFFFFF';
         lCtx.fillRect(72, 164, 290, 34);
-        lCtx.fillStyle = '#DC2626';
+        lCtx.fillStyle = accent.primary;
         lCtx.fillRect(72, 212, 210, 22);
         lCtx.fillStyle = '#71717A';
         lCtx.fillRect(72, 254, 340, 12);
         lCtx.fillRect(72, 276, 290, 12);
-        lCtx.fillStyle = '#DC2626';
+        lCtx.fillStyle = accent.primary;
         lCtx.fillRect(72, 318, 138, 38);
 
         const glow = lCtx.createRadialGradient(700, 260, 10, 700, 260, 200);
-        glow.addColorStop(0, 'rgba(220, 38, 38, 0.48)');
+        glow.addColorStop(0, accentGlowRgba(0.48));
         glow.addColorStop(1, 'rgba(0,0,0,0)');
         lCtx.fillStyle = glow;
         lCtx.fillRect(520, 138, 368, 260);
@@ -158,7 +176,7 @@ export const RawToRealSection: React.FC = () => {
         [72, 352, 632].forEach((bx) => {
           lCtx.fillStyle = '#121218';
           lCtx.fillRect(bx, 426, 256, 62);
-          lCtx.fillStyle = '#DC2626';
+          lCtx.fillStyle = accent.primary;
           lCtx.fillRect(bx + 16, 444, 48, 8);
           lCtx.fillStyle = '#E4E4E7';
           lCtx.fillRect(bx + 16, 462, 140, 8);
@@ -168,7 +186,7 @@ export const RawToRealSection: React.FC = () => {
         lCtx.fillStyle = '#111116';
         lCtx.fillRect(64, 56, 180, 428);
         for (let i = 0; i < 6; i++) {
-          lCtx.fillStyle = i === 0 ? '#DC2626' : '#27272A';
+          lCtx.fillStyle = i === 0 ? accent.primary : '#27272A';
           lCtx.fillRect(84, 88 + i * 44, 140, 24);
         }
 
@@ -184,7 +202,7 @@ export const RawToRealSection: React.FC = () => {
         lCtx.fillRect(272, 176, 300, 308);
         for (let b = 0; b < 7; b++) {
           const bh = 60 + Math.abs(Math.sin(t * 0.04 + b)) * 140;
-          lCtx.fillStyle = b === 5 ? '#DC2626' : '#3F3F46';
+          lCtx.fillStyle = b === 5 ? accent.primary : '#3F3F46';
           lCtx.fillRect(300 + b * 36, 446 - bh, 22, bh);
         }
 
@@ -194,7 +212,7 @@ export const RawToRealSection: React.FC = () => {
         for (let r = 0; r < 4; r++) {
           lCtx.fillStyle = '#1B1B24';
           lCtx.fillRect(618, 204 + r * 64, 256, 48);
-          lCtx.fillStyle = '#DC2626';
+          lCtx.fillStyle = accent.primary;
           lCtx.fillRect(632, 222 + r * 64, 14, 14);
           lCtx.fillStyle = '#E4E4E7';
           lCtx.fillRect(660, 224 + r * 64, 160, 10);
@@ -202,14 +220,14 @@ export const RawToRealSection: React.FC = () => {
       } else {
         // Rendered Playable Shaded Game World
         const bg = lCtx.createRadialGradient(width / 2, height / 2, 20, width / 2, height / 2, 460);
-        bg.addColorStop(0, '#4C0D14');
-        bg.addColorStop(0.55, '#14080D');
+        bg.addColorStop(0, accentGlowRgba(0.32));
+        bg.addColorStop(0.55, '#0F0B12');
         bg.addColorStop(1, '#060609');
         lCtx.fillStyle = bg;
         lCtx.fillRect(0, 0, width, height);
 
         // Perspective Lit Arena Floor
-        lCtx.strokeStyle = 'rgba(239, 68, 68, 0.35)';
+        lCtx.strokeStyle = accentGlowRgba(0.38);
         lCtx.lineWidth = 1.5;
         for (let i = -5; i <= 5; i++) {
           lCtx.beginPath();
@@ -220,14 +238,14 @@ export const RawToRealSection: React.FC = () => {
 
         // Glowing Player Character & Energy Slash
         const glow = lCtx.createRadialGradient(480, 325, 8, 480, 325, 120);
-        glow.addColorStop(0, 'rgba(239, 68, 68, 0.85)');
+        glow.addColorStop(0, accentGlowRgba(0.85));
         glow.addColorStop(1, 'rgba(0,0,0,0)');
         lCtx.fillStyle = glow;
         lCtx.fillRect(340, 190, 280, 260);
 
         lCtx.fillStyle = '#FFFFFF';
         lCtx.fillRect(464, 276, 32, 86);
-        lCtx.strokeStyle = '#EF4444';
+        lCtx.strokeStyle = accent.light;
         lCtx.lineWidth = 4;
         lCtx.beginPath();
         lCtx.arc(480, 318, 64, -0.7 + Math.sin(t * 0.08) * 0.4, 0.9 + Math.sin(t * 0.08) * 0.4);
@@ -237,7 +255,7 @@ export const RawToRealSection: React.FC = () => {
         for (let p = 0; p < 36; p++) {
           const px = (Math.sin(p * 11.2 + t * 0.018) * 0.46 + 0.5) * width;
           const py = ((height - ((p * 37 + t * 2.2) % height)) + height) % height;
-          lCtx.fillStyle = p % 2 === 0 ? 'rgba(251, 146, 60, 0.8)' : 'rgba(239, 68, 68, 0.8)';
+          lCtx.fillStyle = p % 2 === 0 ? 'rgba(251, 146, 60, 0.8)' : accentGlowRgba(0.82);
           lCtx.fillRect(px, py, 3, 3);
         }
       }
@@ -257,7 +275,7 @@ export const RawToRealSection: React.FC = () => {
     return () => {
       if (animId) cancelAnimationFrame(animId);
     };
-  }, [selectedScene]);
+  }, [selectedScene, viewerControls.accentColor]);
 
   const updatePositionFromClientX = (clientX: number) => {
     const rect = containerRef.current?.getBoundingClientRect();
@@ -293,13 +311,13 @@ export const RawToRealSection: React.FC = () => {
                 text="FROM WIREFRAME."
                 accentText="TO LIVE PRODUCT."
                 accentBreak
-                accentClassName="text-[#DC2626]"
+                accentClassName="text-accent"
               />
             </h2>
 
             <p className="mt-5 text-sm leading-relaxed text-zinc-300 sm:text-base">
               <TypedText
-                text="Drag the crimson handle across the viewport to inspect how raw layout wireframes and greybox game prototypes transform into finished, high-performance builds."
+                text="Drag the accent handle across the viewport to inspect how raw layout wireframes and greybox game prototypes transform into finished, high-performance builds."
               />
             </p>
 
@@ -312,9 +330,9 @@ export const RawToRealSection: React.FC = () => {
                     key={scene.id}
                     type="button"
                     onClick={() => setSelectedId(scene.id)}
-                    className={`w-full rounded-lg border px-4 py-3 text-left transition-colors duration-150 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#DC2626] ${
+                    className={`w-full rounded-lg border px-4 py-3 text-left transition-colors duration-150 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent ${
                       active
-                        ? 'border-[#DC2626] bg-[#DC2626]/12 text-white'
+                        ? 'border-accent bg-accent/12 text-white'
                         : 'border-white/10 bg-[#111115] text-zinc-300 hover:border-white/25 hover:text-white'
                     }`}
                   >
@@ -367,11 +385,11 @@ export const RawToRealSection: React.FC = () => {
               <span className="pointer-events-none absolute top-4 left-4 rounded bg-[#3B82F6]/90 px-2.5 py-1 font-mono text-[11px] font-medium text-white">
                 WIREFRAME / GREYBOX
               </span>
-              <span className="pointer-events-none absolute top-4 right-4 rounded bg-[#DC2626]/90 px-2.5 py-1 font-mono text-[11px] font-medium text-white">
+              <span className="pointer-events-none absolute top-4 right-4 rounded bg-accent/90 px-2.5 py-1 font-mono text-[11px] font-medium text-white">
                 SHIPPED BUILD
               </span>
 
-              {/* Draggable Red Divider */}
+              {/* Draggable Accent Divider */}
               <div
                 role="slider"
                 tabIndex={0}
@@ -386,8 +404,11 @@ export const RawToRealSection: React.FC = () => {
                 style={{ left: `${splitPercent}%` }}
                 className="absolute inset-y-0 -translate-x-1/2 flex items-center justify-center focus-visible:outline-none"
               >
-                <div className="h-full w-0.5 bg-[#EF4444] shadow-[0_0_12px_rgba(239,68,68,0.8)]" />
-                <div className="absolute flex h-10 w-10 items-center justify-center rounded-full border border-white/30 bg-[#DC2626] text-white shadow-lg">
+                <div
+                  className="h-full w-0.5 bg-accent-light"
+                  style={{ boxShadow: '0 0 12px rgba(var(--accent-rgb), 0.8)' }}
+                />
+                <div className="absolute flex h-10 w-10 items-center justify-center rounded-full border border-white/30 bg-accent text-white shadow-lg">
                   <SlidersHorizontal className="h-4 w-4" aria-hidden="true" />
                 </div>
               </div>

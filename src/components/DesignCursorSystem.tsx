@@ -10,7 +10,9 @@ import React, {
   useState,
 } from 'react';
 import { motion } from 'motion/react';
+import { usePortfolioContent } from '../context/PortfolioContentContext';
 import { cursorAudio } from '../utils/cursorAudio';
+import { computeAccentPalette } from '../utils/themeAccent';
 
 export type WireframeShape = 'navbar' | 'hero-copy' | 'image' | 'card' | 'row' | 'panel' | 'metrics';
 
@@ -80,8 +82,9 @@ interface DesignCanvasContextValue {
   prepareSectionJump: () => void;
   replayBuildKey: number;
   triggerReplay: () => void;
-  heroStep: number; // 0: black+orbit, 1: burst+layout drag, 2: type, 3: resize, 4: color crimson, 5: drop into place, 6: complete
+  heroStep: number; // 0: black+orbit, 1: burst+layout drag, 2: type, 3: resize, 4: color accent, 5: drop into place, 6: complete
   skipHeroBuild: () => void;
+  speedMultiplier: number;
   buildProgress: BuildProgressState;
   registerBlock: (
     id: string,
@@ -107,6 +110,7 @@ const DesignCanvasContext = createContext<DesignCanvasContextValue>({
   triggerReplay: () => {},
   heroStep: 6,
   skipHeroBuild: () => {},
+  speedMultiplier: 1,
   buildProgress: { completed: 0, total: 0 },
   registerBlock: () => {},
   unregisterBlock: () => {},
@@ -232,7 +236,7 @@ export const ResizeDimensionBadge: React.FC<{
   return (
     <span
       aria-hidden="true"
-      className="pointer-events-none absolute -bottom-6 right-0 z-30 rounded-[3px] bg-[#EF4444] px-1.5 py-0.5 font-mono text-[10px] font-semibold leading-none text-white shadow-[0_2px_8px_rgba(0,0,0,0.65)] tabular-nums whitespace-nowrap"
+      className="pointer-events-none absolute -bottom-6 right-0 z-30 rounded-[3px] bg-accent-light px-1.5 py-0.5 font-mono text-[10px] font-semibold leading-none text-white shadow-[0_2px_8px_rgba(0,0,0,0.65)] tabular-nums whitespace-nowrap"
     >
       {dims.w} × {dims.h}
     </span>
@@ -258,7 +262,7 @@ export const TypedText: React.FC<{
   cloneFrom,
   accentText = '',
   accentBreak = false,
-  accentClassName = 'text-[#DC2626]',
+  accentClassName = 'text-accent',
   className = '',
   showCursor = true,
 }) => {
@@ -483,12 +487,16 @@ function findVisibleCloneSourceRect(
 const CollaborativeCursorRosterOverlay: React.FC<{
   active: boolean;
   heroStep: number;
+  speedMultiplier: number;
+  accentLightHex: string;
   heroStepStartedAtRef: React.MutableRefObject<number>;
   blocksRef: React.MutableRefObject<Map<string, RegisteredBlock>>;
-}> = ({ active, heroStep, heroStepStartedAtRef, blocksRef }) => {
+}> = ({ active, heroStep, speedMultiplier, accentLightHex, heroStepStartedAtRef, blocksRef }) => {
   const cursorRefs = useRef<Array<HTMLDivElement | null>>([]);
   const heroStepRef = useRef(heroStep);
   heroStepRef.current = heroStep;
+  const speedMultRef = useRef(speedMultiplier);
+  speedMultRef.current = speedMultiplier;
 
   useEffect(() => {
     if (typeof window === 'undefined' || !active) return;
@@ -510,6 +518,7 @@ const CollaborativeCursorRosterOverlay: React.FC<{
       const vw = window.innerWidth;
       const vh = window.innerHeight;
       const step = heroStepRef.current;
+      const sMult = speedMultRef.current;
       const elapsedSec = (now - bootTime) * 0.001;
       const isNarrow = vw < 640;
 
@@ -530,7 +539,7 @@ const CollaborativeCursorRosterOverlay: React.FC<{
         ROSTER_18.map((_, idx) => {
           const ringDir = idx % 2 === 0 ? 1 : -0.78;
           const baseAngle = (idx / ROSTER_18.length) * Math.PI * 2;
-          const angle = baseAngle + elapsedSec * 1.05 * ringDir;
+          const angle = baseAngle + elapsedSec * (1.05 / sMult) * ringDir;
           const radius =
             step === 0
               ? idx % 2 === 0
@@ -580,7 +589,7 @@ const CollaborativeCursorRosterOverlay: React.FC<{
 
       // PHASE A: HERO ORCHESTRATION (steps 1..5)
       if (step === 1) {
-        const p = easeOutCubic(stepElapsed / 1000);
+        const p = easeOutCubic(stepElapsed / (1000 * sMult));
         const navRect = queryRect('[data-cursor-target="navbar"]');
         const leftRect = queryRect('[data-cursor-target="hero-left"]');
         const rightRect = queryRect('[data-cursor-target="hero-right"]');
@@ -615,7 +624,7 @@ const CollaborativeCursorRosterOverlay: React.FC<{
           assignTarget(6, kpiCaretRect.right + 2, kpiCaretRect.bottom - 1, true);
         }
       } else if (step === 3) {
-        const p = easeOutCubic((stepElapsed - 220) / 820);
+        const p = easeOutCubic((stepElapsed - 220 * sMult) / (820 * sMult));
         const titleRect = queryRect('[data-cursor-target="hero-title-box"]');
         const leftRect = queryRect('[data-cursor-target="hero-left"]');
         const shantoRect = queryRect('[data-cursor-target="hero-shanto"]');
@@ -634,7 +643,7 @@ const CollaborativeCursorRosterOverlay: React.FC<{
           assignTarget(8, kpi0Rect.right - 2, kpi0Rect.bottom - 2, true);
         }
       } else if (step === 4) {
-        const p = easeOutCubic(stepElapsed / 1150);
+        const p = easeOutCubic(stepElapsed / (1150 * sMult));
         const titleRect = queryRect('[data-cursor-target="hero-title-box"]');
         const leftRect = queryRect('[data-cursor-target="hero-left"]');
         const shantoRect = queryRect('[data-cursor-target="hero-shanto"]');
@@ -648,9 +657,8 @@ const CollaborativeCursorRosterOverlay: React.FC<{
         if (leftRect) {
           assignTarget(13, leftRect.left + p * (leftRect.width * 0.72), leftRect.bottom - 10);
         }
-        // Cursors 14, 15, 16 first land ONTOP of Card #0 (40+) to grab copies, then pull them to Slots 1, 2, 3!
         const kpi0Rect = queryRect('[data-cursor-target="hero-kpi-0"]');
-        if (stepElapsed < 360) {
+        if (stepElapsed < 360 * sMult) {
           [0, 1, 2].forEach((slotOffset) => {
             if (kpi0Rect) {
               assignTarget(
@@ -721,7 +729,7 @@ const CollaborativeCursorRosterOverlay: React.FC<{
             let dragX = rect.left + Math.min(28, rect.width * 0.24);
             let dragY = rect.top + 14;
 
-            if (elapsedStageMs < 220 && block.cloneGroup) {
+            if (elapsedStageMs < 220 * sMult && block.cloneGroup) {
               const srcRect = findVisibleCloneSourceRect(block.cloneGroup, rect);
               if (srcRect) {
                 dragX = srcRect.left + Math.min(40, srcRect.width * 0.35);
@@ -776,13 +784,15 @@ const CollaborativeCursorRosterOverlay: React.FC<{
       ROSTER_18.forEach((_, idx) => {
         const target = targets[idx];
         const dist = Math.hypot(target.x - positions[idx].x, target.y - positions[idx].y);
-        const lerpAmt = !target.working
+        const speedBoost = sMult < 1 ? 1.25 : sMult > 1 ? 0.8 : 1;
+        const baseLerp = !target.working
           ? 0.085
           : target.lockTight
             ? dist < 44
               ? 0.88
               : 0.46
             : 0.34;
+        const lerpAmt = Math.min(0.95, baseLerp * speedBoost);
         positions[idx].x += (target.x - positions[idx].x) * lerpAmt;
         positions[idx].y += (target.y - positions[idx].y) * lerpAmt;
 
@@ -820,7 +830,7 @@ const CollaborativeCursorRosterOverlay: React.FC<{
           }}
           className="fixed top-0 left-0 origin-top-left will-change-transform"
         >
-          <ActiveCursor color={agent.color} />
+          <ActiveCursor color={agent.role === 'resize' ? accentLightHex : agent.color} />
         </div>
       ))}
     </div>
@@ -842,7 +852,14 @@ interface CursorHoverState {
   magneticTarget: HTMLElement | null;
 }
 
-const MagneticCursorOverlay: React.FC<{ active: boolean }> = ({ active }) => {
+const MagneticCursorOverlay: React.FC<{ active: boolean; accentHex?: string }> = ({
+  active,
+  accentHex,
+}) => {
+  const palette = computeAccentPalette(accentHex);
+  const paletteRef = useRef(palette);
+  paletteRef.current = palette;
+
   const cursorLayerRef = useRef<HTMLDivElement | null>(null);
   const arrowRef = useRef<HTMLDivElement | null>(null);
   const ringRef = useRef<HTMLDivElement | null>(null);
@@ -1021,8 +1038,9 @@ const MagneticCursorOverlay: React.FC<{ active: boolean }> = ({ active }) => {
       });
 
       if (mode === 'pointer' || mode === 'plus') {
-        ring.style.borderColor = 'rgba(239, 68, 68, 0.9)';
-        ring.style.backgroundColor = 'rgba(220, 38, 38, 0.14)';
+        const pal = paletteRef.current;
+        ring.style.borderColor = `rgba(${pal.rgb}, 0.9)`;
+        ring.style.backgroundColor = `rgba(${pal.rgb}, 0.14)`;
       } else if (mode === 'eye') {
         ring.style.borderColor = 'rgba(56, 189, 248, 0.85)';
         ring.style.backgroundColor = 'rgba(56, 189, 248, 0.12)';
@@ -1172,13 +1190,13 @@ const MagneticCursorOverlay: React.FC<{ active: boolean }> = ({ active }) => {
     >
       <div
         ref={frameRef}
-        className="fixed top-0 left-0 rounded-xl border border-[#EF4444]/85 bg-[#DC2626]/[0.04] shadow-[0_0_24px_rgba(220,38,38,0.16)] will-change-transform"
+        className="fixed top-0 left-0 rounded-xl border border-accent-light/85 bg-accent/[0.04] shadow-[0_0_24px_rgba(var(--accent-rgb),0.16)] will-change-transform"
         style={{ opacity: 0, width: 32, height: 32 }}
       >
-        <span className="absolute -top-1 -left-1 h-1.5 w-1.5 border border-[#EF4444] bg-white" />
-        <span className="absolute -top-1 -right-1 h-1.5 w-1.5 border border-[#EF4444] bg-white" />
-        <span className="absolute -bottom-1 -left-1 h-1.5 w-1.5 border border-[#EF4444] bg-white" />
-        <span className="absolute -bottom-1 -right-1 h-1.5 w-1.5 border border-[#EF4444] bg-white" />
+        <span className="absolute -top-1 -left-1 h-1.5 w-1.5 border border-accent-light bg-white" />
+        <span className="absolute -top-1 -right-1 h-1.5 w-1.5 border border-accent-light bg-white" />
+        <span className="absolute -bottom-1 -left-1 h-1.5 w-1.5 border border-accent-light bg-white" />
+        <span className="absolute -bottom-1 -right-1 h-1.5 w-1.5 border border-accent-light bg-white" />
       </div>
 
       <div
@@ -1215,7 +1233,7 @@ const MagneticCursorOverlay: React.FC<{ active: boolean }> = ({ active }) => {
         >
           <path
             d="M2.5 2L17.5 9.5L10.5 12L7.5 19.5L2.5 2Z"
-            fill="#EF4444"
+            fill={palette.light}
             stroke="#FFFFFF"
             strokeWidth="1.6"
             strokeLinejoin="round"
@@ -1275,7 +1293,7 @@ const MagneticCursorOverlay: React.FC<{ active: boolean }> = ({ active }) => {
           style={{ opacity: 0 }}
           className="absolute top-0 left-0 -translate-x-[13px] -translate-y-[13px] drop-shadow-[0_2px_10px_rgba(0,0,0,0.95)] transition-[opacity,transform] duration-150"
         >
-          <circle cx="12" cy="12" r="10" fill="#DC2626" stroke="#FFFFFF" strokeWidth="1.5" />
+          <circle cx="12" cy="12" r="10" fill={palette.primary} stroke="#FFFFFF" strokeWidth="1.5" />
           <path
             d="M12 7.5V16.5M7.5 12H16.5"
             stroke="#FFFFFF"
@@ -1323,22 +1341,74 @@ function computeTypeDurationMs(blockEl: HTMLElement): number {
 }
 
 export const DesignCanvasProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const [cursorsEnabled, setCursorsEnabled] = useState(true);
-  const [soundEnabled, setSoundEnabled] = useState(true);
+  const { viewerControls } = usePortfolioContent();
+  const accentPalette = computeAccentPalette(viewerControls.accentColor);
+  const speedMultiplier =
+    viewerControls.cursorSpeed === 'slow'
+      ? 1.55
+      : viewerControls.cursorSpeed === 'fast'
+        ? 0.58
+        : 1;
+  const speedMultRef = useRef(speedMultiplier);
+  speedMultRef.current = speedMultiplier;
+
+  const [cursorsEnabled, setCursorsEnabled] = useState(
+    () => viewerControls.enableCursorsByDefault
+  );
+  const [soundEnabled, setSoundEnabled] = useState(() => viewerControls.enableSoundByDefault);
   const [autoScrollEnabled, setAutoScrollEnabled] = useState(() => {
     if (typeof window === 'undefined') return false;
-    return !window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    return (
+      !window.matchMedia('(prefers-reduced-motion: reduce)').matches &&
+      viewerControls.enableCursorsByDefault &&
+      viewerControls.enableAutoScrollByDefault
+    );
   });
   const [replayBuildKey, setReplayBuildKey] = useState(0);
   const [heroStep, setHeroStep] = useState<number>(() => {
     if (typeof window === 'undefined') return 6;
-    return window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 6 : 0;
+    if (!viewerControls.enableCursorsByDefault) return 6;
+    if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return 6;
+    return window.scrollY > 110 ? 6 : 0;
   });
+
+  const userTouchedCursorsRef = useRef(false);
+  const userTouchedSoundRef = useRef(false);
+  const userTouchedAutoScrollRef = useRef(false);
+
+  const heroStepRef = useRef<number>(heroStep);
+  heroStepRef.current = heroStep;
+  const heroTimersRef = useRef<number[]>([]);
+  const replayRequestedRef = useRef<boolean>(false);
 
   const heroStepStartedAtRef = useRef<number>(typeof performance !== 'undefined' ? performance.now() : 0);
   const blocksRef = useRef<Map<string, RegisteredBlock>>(new Map());
   const blockTimersRef = useRef<Map<string, number[]>>(new Map());
   const lastDispatchAtRef = useRef<number>(0);
+
+  useEffect(() => {
+    if (!userTouchedCursorsRef.current) {
+      setCursorsEnabled(viewerControls.enableCursorsByDefault);
+    }
+    if (!userTouchedSoundRef.current) {
+      setSoundEnabled(viewerControls.enableSoundByDefault);
+      cursorAudio.setMuted(!viewerControls.enableSoundByDefault);
+    }
+    if (!userTouchedAutoScrollRef.current) {
+      const prefersReduced =
+        typeof window !== 'undefined' &&
+        window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+      setAutoScrollEnabled(
+        !prefersReduced &&
+          viewerControls.enableCursorsByDefault &&
+          viewerControls.enableAutoScrollByDefault
+      );
+    }
+  }, [
+    viewerControls.enableCursorsByDefault,
+    viewerControls.enableSoundByDefault,
+    viewerControls.enableAutoScrollByDefault,
+  ]);
 
   const [buildProgress, setBuildProgress] = useState<BuildProgressState>({
     completed: 0,
@@ -1369,6 +1439,22 @@ export const DesignCanvasProvider: React.FC<{ children: React.ReactNode }> = ({ 
     };
   }, []);
 
+  const clearHeroTimers = useCallback(() => {
+    if (heroTimersRef.current.length > 0) {
+      heroTimersRef.current.forEach((tid) => window.clearTimeout(tid));
+      heroTimersRef.current = [];
+    }
+  }, []);
+
+  const completeHeroImmediately = useCallback(() => {
+    clearHeroTimers();
+    if (heroStepRef.current < 6) {
+      heroStepRef.current = 6;
+      heroStepStartedAtRef.current = performance.now();
+      setHeroStep(6);
+    }
+  }, [clearHeroTimers]);
+
   const clearBlockTimers = useCallback((id: string) => {
     const timers = blockTimersRef.current.get(id);
     if (timers) {
@@ -1378,60 +1464,62 @@ export const DesignCanvasProvider: React.FC<{ children: React.ReactNode }> = ({ 
   }, []);
 
   useEffect(() => {
+    clearHeroTimers();
+
     if (!cursorsEnabled || typeof window === 'undefined') {
+      heroStepRef.current = 6;
       heroStepStartedAtRef.current = performance.now();
       setHeroStep(6);
       return;
     }
 
     const prefersReduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-    if (prefersReduced) {
+    const isReplay = replayRequestedRef.current;
+    replayRequestedRef.current = false;
+
+    if (prefersReduced || (!isReplay && window.scrollY > 110)) {
+      heroStepRef.current = 6;
       heroStepStartedAtRef.current = performance.now();
       setHeroStep(6);
       return;
     }
 
     const advanceHero = (nextStep: number) => {
+      heroStepRef.current = nextStep;
       heroStepStartedAtRef.current = performance.now();
       setHeroStep(nextStep);
     };
 
     advanceHero(0);
 
-    const t1 = window.setTimeout(() => advanceHero(1), 900);
-    const t2 = window.setTimeout(() => advanceHero(2), 2000);
-    const t3 = window.setTimeout(() => advanceHero(3), 4250);
-    const t4 = window.setTimeout(() => advanceHero(4), 5600);
-    const t5 = window.setTimeout(() => advanceHero(5), 7000);
-    const t6 = window.setTimeout(() => advanceHero(6), 9400);
+    const m = speedMultRef.current;
+    const t1 = window.setTimeout(() => advanceHero(1), Math.round(900 * m));
+    const t2 = window.setTimeout(() => advanceHero(2), Math.round(2000 * m));
+    const t3 = window.setTimeout(() => advanceHero(3), Math.round(4250 * m));
+    const t4 = window.setTimeout(() => advanceHero(4), Math.round(5600 * m));
+    const t5 = window.setTimeout(() => advanceHero(5), Math.round(7000 * m));
+    const t6 = window.setTimeout(() => advanceHero(6), Math.round(9400 * m));
+
+    heroTimersRef.current = [t1, t2, t3, t4, t5, t6];
 
     return () => {
-      window.clearTimeout(t1);
-      window.clearTimeout(t2);
-      window.clearTimeout(t3);
-      window.clearTimeout(t4);
-      window.clearTimeout(t5);
-      window.clearTimeout(t6);
+      clearHeroTimers();
     };
-  }, [replayBuildKey, cursorsEnabled]);
+  }, [replayBuildKey, cursorsEnabled, clearHeroTimers]);
 
   useEffect(() => {
     if (typeof window === 'undefined' || !cursorsEnabled) return;
 
     const onManualScrollPastHero = () => {
-      if (heroStep < 6 && window.scrollY > 110) {
-        heroStepStartedAtRef.current = performance.now();
-        setHeroStep(6);
+      if (heroStepRef.current < 6 && window.scrollY > 110) {
+        completeHeroImmediately();
       }
     };
 
     const onHashJump = () => {
       setAutoScrollEnabled(false);
       lastDispatchAtRef.current = 0;
-      if (heroStep < 6) {
-        heroStepStartedAtRef.current = performance.now();
-        setHeroStep(6);
-      }
+      completeHeroImmediately();
     };
 
     window.addEventListener('scroll', onManualScrollPastHero, { passive: true });
@@ -1440,7 +1528,7 @@ export const DesignCanvasProvider: React.FC<{ children: React.ReactNode }> = ({ 
       window.removeEventListener('scroll', onManualScrollPastHero);
       window.removeEventListener('hashchange', onHashJump);
     };
-  }, [cursorsEnabled, heroStep]);
+  }, [cursorsEnabled, completeHeroImmediately]);
 
   const registerBlock = useCallback(
     (
@@ -1515,12 +1603,13 @@ export const DesignCanvasProvider: React.FC<{ children: React.ReactNode }> = ({ 
     const dispatchBlock = (block: RegisteredBlock, lane: number) => {
       clearBlockTimers(block.id);
       const timers: number[] = [];
+      const m = speedMultRef.current;
 
-      const dLayout = block.isCloneItem ? 880 : BASE_STAGE_DURATIONS['layout-drag'];
-      const typeDur = computeTypeDurationMs(block.el);
-      const dResize = BASE_STAGE_DURATIONS['resize-scale'];
-      const dColor = BASE_STAGE_DURATIONS['style-color'];
-      const dDrop = block.isCloneItem ? 440 : BASE_STAGE_DURATIONS['place-drop'];
+      const dLayout = Math.round((block.isCloneItem ? 880 : BASE_STAGE_DURATIONS['layout-drag']) * m);
+      const typeDur = Math.round(computeTypeDurationMs(block.el) * m);
+      const dResize = Math.round(BASE_STAGE_DURATIONS['resize-scale'] * m);
+      const dColor = Math.round(BASE_STAGE_DURATIONS['style-color'] * m);
+      const dDrop = Math.round((block.isCloneItem ? 440 : BASE_STAGE_DURATIONS['place-drop']) * m);
 
       const setBlockStage = (
         nextStage: BlockStage,
@@ -1549,10 +1638,6 @@ export const DesignCanvasProvider: React.FC<{ children: React.ReactNode }> = ({ 
       setBlockStage('layout-drag', dLayout);
 
       if (block.isCloneItem) {
-        // Forward-only Copy-Paste pipeline for duplicate cards:
-        // 1. layout-drag (880ms): Cursor goes to Card #1, grabs copy, and drags it into destination slot
-        // 2. type-draft: Select-All blue highlight (460ms) -> live edit text into real item
-        // 3. place-drop (440ms): Align & snap straight to done (skips wireframe & backwards resize/recolor)
         const d1 = dLayout;
         const d2 = d1 + typeDur;
         const d3 = d2 + dDrop;
@@ -1578,19 +1663,62 @@ export const DesignCanvasProvider: React.FC<{ children: React.ReactNode }> = ({ 
     };
 
     const scheduler = window.setInterval(() => {
-      if (heroStep < 6) return;
+      if (heroStepRef.current < 6) return;
 
       const now = performance.now();
+      const m = speedMultRef.current;
       const vh = window.innerHeight;
       const maxConcurrent = window.innerWidth < 640 ? 3 : MAX_CONCURRENT_BLOCKS;
-      const baseStagger = window.innerWidth < 640 ? 340 : STAGGER_DISPATCH_MS;
+      const baseStagger = (window.innerWidth < 640 ? 340 : STAGGER_DISPATCH_MS) * m;
       const blocks = Array.from(blocksRef.current.values());
+
+      // Watchdog & fast-scroll recovery:
+      // 1) Force-finish any active block that exceeded its max duration or unmounted.
+      // 2) If user flick-scrolled completely past an active block (>140px offscreen), release its lane immediately
+      //    so new visible blocks at the destination never stall waiting on offscreen slots.
+      let progressChanged = false;
+      for (const b of blocks) {
+        if (b.stage === 'hidden' || b.stage === 'done') continue;
+        if (!b.el.isConnected) {
+          clearBlockTimers(b.id);
+          b.stage = 'done';
+          b.slotLane = null;
+          b.setStage('done');
+          progressChanged = true;
+          continue;
+        }
+        const elapsedStage = now - b.stageStartedAt;
+        const maxAllowed = Math.max(4500, b.stageDurationMs + 2500);
+        if (elapsedStage > maxAllowed) {
+          clearBlockTimers(b.id);
+          b.stage = 'done';
+          b.slotLane = null;
+          b.setStage('done');
+          progressChanged = true;
+          continue;
+        }
+        const rect = b.el.getBoundingClientRect();
+        if (rect.bottom < -140 || rect.top > vh + 220) {
+          clearBlockTimers(b.id);
+          const resetToHidden = b.stage === 'layout-drag' && elapsedStage < 450;
+          b.stage = resetToHidden ? 'hidden' : 'done';
+          b.slotLane = null;
+          b.stageStartedAt = 0;
+          b.setStage(b.stage);
+          if (!resetToHidden) {
+            progressChanged = true;
+          }
+        }
+      }
+      if (progressChanged) {
+        syncBuildProgress();
+      }
 
       const activeBlocks = blocks.filter(
         (b) => b.stage !== 'hidden' && b.stage !== 'done'
       );
 
-      const effectiveStagger = activeBlocks.some((b) => b.isCloneItem) ? 200 : baseStagger;
+      const effectiveStagger = activeBlocks.some((b) => b.isCloneItem) ? 200 * m : baseStagger;
 
       if (activeBlocks.length >= maxConcurrent) return;
       if (activeBlocks.length > 0 && now - lastDispatchAtRef.current < effectiveStagger) {
@@ -1602,7 +1730,7 @@ export const DesignCanvasProvider: React.FC<{ children: React.ReactNode }> = ({ 
       const topSafe = 68;
       const bottomSafe = vh - (vh < 700 ? 84 : 108);
       const atPageBottom =
-        window.innerHeight + window.scrollY >= document.documentElement.scrollHeight - 24;
+        window.innerHeight + window.scrollY >= document.documentElement.scrollHeight - 80;
 
       const candidates = blocks
         .filter((b) => {
@@ -1623,7 +1751,7 @@ export const DesignCanvasProvider: React.FC<{ children: React.ReactNode }> = ({ 
           const r = b.el.getBoundingClientRect();
           if (r.width <= 0 || r.height <= 0) return false;
           if (atPageBottom) {
-            return r.top < vh - 16 && r.bottom > topSafe;
+            return r.top < vh - 12 && r.bottom > topSafe;
           }
           const visiblePx = Math.min(bottomSafe, r.bottom) - Math.max(topSafe, r.top);
           const minVisibleRequired = Math.min(110, Math.max(36, r.height * 0.45));
@@ -1654,7 +1782,7 @@ export const DesignCanvasProvider: React.FC<{ children: React.ReactNode }> = ({ 
       blockTimersRef.current.forEach((timers) => timers.forEach((tid) => window.clearTimeout(tid)));
       blockTimersRef.current.clear();
     };
-  }, [cursorsEnabled, heroStep, replayBuildKey, clearBlockTimers]);
+  }, [cursorsEnabled, replayBuildKey, clearBlockTimers, syncBuildProgress]);
 
   const isAutoScrolling = cursorsEnabled && autoScrollEnabled && heroStep >= 6;
 
@@ -1716,7 +1844,8 @@ export const DesignCanvasProvider: React.FC<{ children: React.ReactNode }> = ({ 
       });
 
       // Pause scrolling completely while visible sections finish building cleanly in view!
-      const speedPxPerSec = hasWaitingVisible || activeCount > 0 ? 0 : 120;
+      const speedPxPerSec =
+        hasWaitingVisible || activeCount > 0 ? 0 : Math.round(120 / speedMultRef.current);
 
       if (speedPxPerSec > 0) {
         exactY = Math.min(maxScroll, exactY + speedPxPerSec * dt);
@@ -1740,6 +1869,7 @@ export const DesignCanvasProvider: React.FC<{ children: React.ReactNode }> = ({ 
   }, [isAutoScrolling]);
 
   const toggleCursors = useCallback(() => {
+    userTouchedCursorsRef.current = true;
     setCursorsEnabled((prev) => {
       const next = !prev;
       if (!next) setAutoScrollEnabled(false);
@@ -1748,6 +1878,7 @@ export const DesignCanvasProvider: React.FC<{ children: React.ReactNode }> = ({ 
   }, []);
 
   const toggleSound = useCallback(() => {
+    userTouchedSoundRef.current = true;
     setSoundEnabled((prev) => {
       const next = !prev;
       cursorAudio.setMuted(!next);
@@ -1760,41 +1891,42 @@ export const DesignCanvasProvider: React.FC<{ children: React.ReactNode }> = ({ 
   }, []);
 
   const toggleAutoScroll = useCallback(() => {
+    userTouchedAutoScrollRef.current = true;
     setAutoScrollEnabled((prev) => {
       const next = !prev;
-      if (next && heroStep < 6) {
-        heroStepStartedAtRef.current = performance.now();
-        setHeroStep(6);
+      if (next) {
+        completeHeroImmediately();
       }
       return next;
     });
-  }, [heroStep]);
+  }, [completeHeroImmediately]);
 
   const stopAutoScroll = useCallback(() => {
+    userTouchedAutoScrollRef.current = true;
     setAutoScrollEnabled(false);
   }, []);
 
   const prepareSectionJump = useCallback(() => {
     setAutoScrollEnabled(false);
     lastDispatchAtRef.current = 0;
-    if (heroStep < 6) {
-      heroStepStartedAtRef.current = performance.now();
-      setHeroStep(6);
-    }
-  }, [heroStep]);
+    completeHeroImmediately();
+  }, [completeHeroImmediately]);
 
   const triggerReplay = useCallback(() => {
+    clearHeroTimers();
+    userTouchedCursorsRef.current = true;
+    userTouchedAutoScrollRef.current = true;
+    replayRequestedRef.current = true;
     window.scrollTo({ top: 0, behavior: 'instant' as ScrollBehavior });
     heroStepStartedAtRef.current = performance.now();
     setCursorsEnabled(true);
     setAutoScrollEnabled(!window.matchMedia('(prefers-reduced-motion: reduce)').matches);
     setReplayBuildKey((k) => k + 1);
-  }, []);
+  }, [clearHeroTimers]);
 
   const skipHeroBuild = useCallback(() => {
-    heroStepStartedAtRef.current = performance.now();
-    setHeroStep(6);
-  }, []);
+    completeHeroImmediately();
+  }, [completeHeroImmediately]);
 
   return (
     <DesignCanvasContext.Provider
@@ -1812,6 +1944,7 @@ export const DesignCanvasProvider: React.FC<{ children: React.ReactNode }> = ({ 
         triggerReplay,
         heroStep,
         skipHeroBuild,
+        speedMultiplier,
         buildProgress,
         registerBlock,
         unregisterBlock,
@@ -1822,10 +1955,15 @@ export const DesignCanvasProvider: React.FC<{ children: React.ReactNode }> = ({ 
       <CollaborativeCursorRosterOverlay
         active={cursorsEnabled}
         heroStep={heroStep}
+        speedMultiplier={speedMultiplier}
+        accentLightHex={accentPalette.light}
         heroStepStartedAtRef={heroStepStartedAtRef}
         blocksRef={blocksRef}
       />
-      <MagneticCursorOverlay active={cursorsEnabled && heroStep >= 5} />
+      <MagneticCursorOverlay
+        active={cursorsEnabled && heroStep >= 5}
+        accentHex={viewerControls.accentColor}
+      />
     </DesignCanvasContext.Provider>
   );
 };
@@ -1852,6 +1990,7 @@ export const DesignBlock: React.FC<DesignBlockProps> = ({
   const reactId = useId();
   const {
     cursorsEnabled,
+    speedMultiplier,
     registerBlock,
     unregisterBlock,
     updateBlockInView,
@@ -1909,10 +2048,10 @@ export const DesignBlock: React.FC<DesignBlockProps> = ({
 
     const startDragTimer = window.setTimeout(() => {
       setCloneDragStep('dragging');
-    }, 220);
+    }, Math.round(220 * speedMultiplier));
 
     return () => window.clearTimeout(startDragTimer);
-  }, [cursorsEnabled, isCloneItem, stage, cloneGroup]);
+  }, [cursorsEnabled, isCloneItem, stage, cloneGroup, speedMultiplier]);
 
   // Sequential line-by-line typing registry & character progress inside this block
   const linesMapRef = useRef<Map<string, TypedLineRecord>>(new Map());
@@ -2007,12 +2146,12 @@ export const DesignBlock: React.FC<DesignBlockProps> = ({
 
     rebuildLineOrder();
     const totalChars = Math.max(1, totalCharsRef.current);
-    const arrivalLeadMs = 160;
+    const arrivalLeadMs = Math.round(160 * speedMultiplier);
     const totalWindowMs =
-      Math.max(980, Math.min(2200, 480 + totalChars * 13)) * 0.85;
+      Math.max(980, Math.min(2200, 480 + totalChars * 13)) * 0.85 * speedMultiplier;
     const step = totalChars > 105 ? Math.ceil(totalChars / 78) : 1;
     const ticksNeeded = Math.ceil(totalChars / step);
-    const intervalMs = Math.max(14, Math.floor(totalWindowMs / Math.max(1, ticksNeeded)));
+    const intervalMs = Math.max(10, Math.floor(totalWindowMs / Math.max(1, ticksNeeded)));
 
     let intervalId: number | null = null;
     let cloneTimerId: number | null = null;
@@ -2035,11 +2174,10 @@ export const DesignBlock: React.FC<DesignBlockProps> = ({
     };
 
     if (isCloneItem) {
-      // Immediately switch pasted text into bright blue Select-All highlight, then clear & live-type real item
       setIsCloneHighlight(true);
       setClonePhase('selected');
       setCharProgress(-1);
-      cloneTimerId = window.setTimeout(startTyping, 460);
+      cloneTimerId = window.setTimeout(startTyping, Math.round(460 * speedMultiplier));
     } else {
       setIsCloneHighlight(false);
       setClonePhase('none');
@@ -2051,7 +2189,7 @@ export const DesignBlock: React.FC<DesignBlockProps> = ({
       if (cloneTimerId !== null) window.clearTimeout(cloneTimerId);
       if (intervalId !== null) window.clearInterval(intervalId);
     };
-  }, [stage, cursorsEnabled, isCloneItem, rebuildLineOrder]);
+  }, [stage, cursorsEnabled, isCloneItem, speedMultiplier, rebuildLineOrder]);
 
   const scatter = useMemo(() => {
     let hash = slotIndex;
@@ -2149,7 +2287,7 @@ export const DesignBlock: React.FC<DesignBlockProps> = ({
       >
         {(isResizeScale || isPlaceDrop) && (
           <div aria-hidden="true" className="pointer-events-none absolute inset-0 z-10">
-            <div className="absolute top-0 -left-5 -right-5 h-px bg-[#EF4444]/40" />
+            <div className="absolute top-0 -left-5 -right-5 h-px bg-accent-light/40" />
             <div className="absolute -top-5 -bottom-5 left-0 w-px bg-[#38BDF8]/40" />
             {isPlaceDrop && (
               <>
@@ -2176,19 +2314,20 @@ export const DesignBlock: React.FC<DesignBlockProps> = ({
               ? {
                   x: { duration: 0 },
                   y: { duration: 0 },
-                  opacity: { duration: 0.14 },
-                  scale: { duration: 0.14 },
+                  opacity: { duration: 0.14 * speedMultiplier },
+                  scale: { duration: 0.14 * speedMultiplier },
                 }
               : isCloneDragging
                 ? {
-                    x: { duration: 0.58, ease: [0.22, 1, 0.36, 1] },
-                    y: { duration: 0.58, ease: [0.22, 1, 0.36, 1] },
-                    opacity: { duration: 0.2 },
-                    scale: { duration: 0.48, ease: [0.22, 1, 0.36, 1] },
+                    x: { duration: 0.58 * speedMultiplier, ease: [0.22, 1, 0.36, 1] },
+                    y: { duration: 0.58 * speedMultiplier, ease: [0.22, 1, 0.36, 1] },
+                    opacity: { duration: 0.2 * speedMultiplier },
+                    scale: { duration: 0.48 * speedMultiplier, ease: [0.22, 1, 0.36, 1] },
                   }
                 : {
-                    duration: isResizeScale ? 0.62 : isPlaceDrop ? 0.56 : 0.42,
-                    delay: isResizeScale ? 0.14 : isPlaceDrop ? 0.1 : 0,
+                    duration:
+                      (isResizeScale ? 0.62 : isPlaceDrop ? 0.56 : 0.42) * speedMultiplier,
+                    delay: (isResizeScale ? 0.14 : isPlaceDrop ? 0.1 : 0) * speedMultiplier,
                     ease: isResizeScale ? [0.22, 1, 0.36, 1] : [0.16, 1, 0.3, 1],
                   }
           }
@@ -2200,7 +2339,7 @@ export const DesignBlock: React.FC<DesignBlockProps> = ({
               aria-hidden="true"
               className={`pointer-events-none absolute inset-0 z-20 rounded-xl border transition-colors duration-300 ${
                 isResizeScale
-                  ? 'border-[#EF4444]/90 bg-transparent'
+                  ? 'border-accent-light/90 bg-transparent'
                   : isStyleColor
                     ? 'border-[#A855F7]/85 bg-transparent'
                     : isPlaceDrop
@@ -2231,8 +2370,8 @@ export const DesignBlock: React.FC<DesignBlockProps> = ({
                   toScaleX={1}
                   fromScaleY={0.92}
                   toScaleY={1}
-                  durationMs={620}
-                  delayMs={140}
+                  durationMs={Math.round(620 * speedMultiplier)}
+                  delayMs={Math.round(140 * speedMultiplier)}
                 />
               )}
 
@@ -2307,8 +2446,8 @@ export const DesignBlock: React.FC<DesignBlockProps> = ({
                 aria-hidden="true"
                 initial={{ left: '0%', opacity: 0.9 }}
                 animate={{ left: '100%', opacity: 0 }}
-                transition={{ duration: 0.62, ease: [0.22, 1, 0.36, 1] }}
-                className="pointer-events-none absolute inset-y-0 z-20 w-10 bg-gradient-to-r from-[#A855F7]/30 via-[#DC2626]/35 to-transparent blur-[2px]"
+                transition={{ duration: 0.62 * speedMultiplier, ease: [0.22, 1, 0.36, 1] }}
+                className="pointer-events-none absolute inset-y-0 z-20 w-10 bg-gradient-to-r from-[#A855F7]/30 via-accent/35 to-transparent blur-[2px]"
               />
             )}
           </div>

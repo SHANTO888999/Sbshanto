@@ -14,7 +14,7 @@ const CraftMetricCounter: React.FC = () => {
         <TypedText text={profile.craftMetricValue} />
         <span
           className={`transition-colors duration-600 ${
-            isMonochrome ? 'text-zinc-400' : 'text-[#DC2626]'
+            isMonochrome ? 'text-zinc-400' : 'text-accent'
           }`}
         >
           <TypedText text={profile.craftMetricSuffix} />
@@ -23,7 +23,7 @@ const CraftMetricCounter: React.FC = () => {
       <div className="pb-2">
         <Trophy
           className={`h-7 w-7 transition-colors duration-500 ${
-            isMonochrome ? 'text-zinc-500' : 'text-[#DC2626]'
+            isMonochrome ? 'text-zinc-500' : 'text-accent'
           }`}
           aria-hidden="true"
         />
@@ -35,15 +35,33 @@ const CraftMetricCounter: React.FC = () => {
   );
 };
 
-export const AwardsSection: React.FC = () => {
+interface AwardsSectionProps {
+  expandedId?: string;
+  onExpandedChange?: (id: string) => void;
+}
+
+export const AwardsSection: React.FC<AwardsSectionProps> = ({
+  expandedId: controlledExpandedId,
+  onExpandedChange,
+}) => {
   const { profile, milestones } = usePortfolioContent();
-  const [expandedId, setExpandedId] = useState<string>(() => milestones[0]?.id ?? '');
+  const [internalExpandedId, setInternalExpandedId] = useState<string>(() => milestones[0]?.id ?? '');
+  const expandedId = controlledExpandedId ?? internalExpandedId;
+  const setExpandedId = (next: string) => {
+    setInternalExpandedId(next);
+    onExpandedChange?.(next);
+  };
 
   useEffect(() => {
-    if (milestones.length > 0 && expandedId !== '' && !milestones.some((m) => m.id === expandedId)) {
-      setExpandedId(milestones[0].id);
+    if (
+      controlledExpandedId === undefined &&
+      milestones.length > 0 &&
+      expandedId !== '' &&
+      !milestones.some((m) => m.id === expandedId)
+    ) {
+      setInternalExpandedId(milestones[0].id);
     }
-  }, [milestones, expandedId]);
+  }, [controlledExpandedId, milestones, expandedId]);
 
   return (
     <section
@@ -62,7 +80,7 @@ export const AwardsSection: React.FC = () => {
                 text="THE CRAFT."
                 accentText="THE IMPACT."
                 accentBreak
-                accentClassName="text-[#DC2626]"
+                accentClassName="text-accent"
               />
             </h2>
 
@@ -92,7 +110,7 @@ export const AwardsSection: React.FC = () => {
                     type="button"
                     onClick={() => setExpandedId(isOpen ? '' : item.id)}
                     aria-expanded={isOpen}
-                    className="flex w-full items-center justify-between gap-4 text-left focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#DC2626]"
+                    className="flex w-full items-center justify-between gap-4 text-left focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
                   >
                     <div className="min-w-0">
                       <h3 className="break-words text-base font-semibold text-white sm:text-lg">
@@ -112,7 +130,7 @@ export const AwardsSection: React.FC = () => {
                     </div>
 
                     <div className="flex shrink-0 items-center gap-4">
-                      <span className="font-mono text-sm font-medium text-[#EF4444] tabular-nums">
+                      <span className="font-mono text-sm font-medium text-accent-light tabular-nums">
                         <TypedText
                           text={item.year}
                           cloneFrom={idx > 0 ? firstMilestone.year : undefined}

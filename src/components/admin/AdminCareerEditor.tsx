@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { ArrowLeft, Eye, EyeOff, Pencil, Plus, Save, Trash2 } from 'lucide-react';
+import { ArrowLeft, Eye, EyeOff, Pencil, Plus, Save, Trash2, X } from 'lucide-react';
 import type { AdminExperienceRecord, AdminMilestoneRecord } from '../../firebase';
 import { handleFormEnterToNext } from '../../utils/formKeyboardNav';
 import { ConfirmDialog, LimitedInput, LimitedTextarea } from './FieldControls';
@@ -12,10 +12,12 @@ interface AdminCareerEditorProps {
   onChangeSubTab?: (tab: 'milestones' | 'experience') => void;
   onSubViewChange?: (label: string | null) => void;
   exitSubViewNonce?: number;
-  onSaveMilestone: (item: AdminMilestoneRecord) => Promise<void>;
-  onDeleteMilestone: (id: string) => Promise<void>;
-  onSaveExperience: (item: AdminExperienceRecord) => Promise<void>;
-  onDeleteExperience: (id: string) => Promise<void>;
+  closeDialogNonce?: number;
+  onDialogOpenChange?: (open: boolean) => void;
+  onSaveMilestone: (item: AdminMilestoneRecord) => Promise<boolean>;
+  onDeleteMilestone: (id: string) => Promise<boolean>;
+  onSaveExperience: (item: AdminExperienceRecord) => Promise<boolean>;
+  onDeleteExperience: (id: string) => Promise<boolean>;
 }
 
 export const AdminCareerEditor: React.FC<AdminCareerEditorProps> = ({
@@ -26,6 +28,8 @@ export const AdminCareerEditor: React.FC<AdminCareerEditorProps> = ({
   onChangeSubTab,
   onSubViewChange,
   exitSubViewNonce = 0,
+  closeDialogNonce = 0,
+  onDialogOpenChange,
   onSaveMilestone,
   onDeleteMilestone,
   onSaveExperience,
@@ -40,6 +44,7 @@ export const AdminCareerEditor: React.FC<AdminCareerEditorProps> = ({
 
   const [editingMilestone, setEditingMilestone] = useState<AdminMilestoneRecord | null>(null);
   const [editingExp, setEditingExp] = useState<AdminExperienceRecord | null>(null);
+  const [formError, setFormError] = useState<string | null>(null);
   const [deleteConfirm, setDeleteConfirm] = useState<
     | { kind: 'milestone'; id: string; label: string }
     | { kind: 'experience'; id: string; label: string }
@@ -47,12 +52,25 @@ export const AdminCareerEditor: React.FC<AdminCareerEditorProps> = ({
   >(null);
 
   const lastExitNonceRef = useRef(exitSubViewNonce);
+  const lastCloseDialogNonceRef = useRef(closeDialogNonce);
+
+  useEffect(() => {
+    onDialogOpenChange?.(Boolean(deleteConfirm));
+  }, [deleteConfirm, onDialogOpenChange]);
+
+  useEffect(() => {
+    if (closeDialogNonce !== lastCloseDialogNonceRef.current) {
+      lastCloseDialogNonceRef.current = closeDialogNonce;
+      setDeleteConfirm(null);
+    }
+  }, [closeDialogNonce]);
 
   useEffect(() => {
     if (exitSubViewNonce !== lastExitNonceRef.current) {
       lastExitNonceRef.current = exitSubViewNonce;
       setEditingMilestone(null);
       setEditingExp(null);
+      setFormError(null);
     }
   }, [exitSubViewNonce]);
 
@@ -74,10 +92,25 @@ export const AdminCareerEditor: React.FC<AdminCareerEditorProps> = ({
   if (editingMilestone) {
     return (
       <form
+        noValidate
         onSubmit={async (e) => {
           e.preventDefault();
-          await onSaveMilestone(editingMilestone);
-          setEditingMilestone(null);
+          if (saving) return;
+          if (
+            !editingMilestone.title.trim() ||
+            !editingMilestone.context.trim() ||
+            !editingMilestone.project.trim() ||
+            !editingMilestone.year.trim() ||
+            !editingMilestone.outcome.trim()
+          ) {
+            setFormError('Fill in all required milestone fields before saving.');
+            return;
+          }
+          setFormError(null);
+          const ok = await onSaveMilestone(editingMilestone);
+          if (ok) {
+            setEditingMilestone(null);
+          }
         }}
         onKeyDown={handleFormEnterToNext}
         className="space-y-6 pb-8"
@@ -126,6 +159,23 @@ export const AdminCareerEditor: React.FC<AdminCareerEditorProps> = ({
             </button>
           </div>
         </div>
+
+        {formError && (
+          <div
+            role="alert"
+            className="flex items-center justify-between gap-3 rounded-lg border border-[#DC2626]/40 bg-[#DC2626]/10 px-4 py-3 text-xs text-red-200"
+          >
+            <span>{formError}</span>
+            <button
+              type="button"
+              onClick={() => setFormError(null)}
+              aria-label="Dismiss validation error"
+              className="text-zinc-400 hover:text-white"
+            >
+              <X className="h-4 w-4" />
+            </button>
+          </div>
+        )}
 
         <div className="grid max-w-2xl grid-cols-1 gap-4">
           <LimitedInput
@@ -218,10 +268,24 @@ export const AdminCareerEditor: React.FC<AdminCareerEditorProps> = ({
   if (editingExp) {
     return (
       <form
+        noValidate
         onSubmit={async (e) => {
           e.preventDefault();
-          await onSaveExperience(editingExp);
-          setEditingExp(null);
+          if (saving) return;
+          if (
+            !editingExp.period.trim() ||
+            !editingExp.role.trim() ||
+            !editingExp.org.trim() ||
+            !editingExp.description.trim()
+          ) {
+            setFormError('Fill in all required career timeline fields before saving.');
+            return;
+          }
+          setFormError(null);
+          const ok = await onSaveExperience(editingExp);
+          if (ok) {
+            setEditingExp(null);
+          }
         }}
         onKeyDown={handleFormEnterToNext}
         className="space-y-6 pb-8"
@@ -265,6 +329,23 @@ export const AdminCareerEditor: React.FC<AdminCareerEditorProps> = ({
             </button>
           </div>
         </div>
+
+        {formError && (
+          <div
+            role="alert"
+            className="flex items-center justify-between gap-3 rounded-lg border border-[#DC2626]/40 bg-[#DC2626]/10 px-4 py-3 text-xs text-red-200"
+          >
+            <span>{formError}</span>
+            <button
+              type="button"
+              onClick={() => setFormError(null)}
+              aria-label="Dismiss validation error"
+              className="text-zinc-400 hover:text-white"
+            >
+              <X className="h-4 w-4" />
+            </button>
+          </div>
+        )}
 
         <div className="grid max-w-2xl grid-cols-1 gap-4">
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
@@ -367,7 +448,9 @@ export const AdminCareerEditor: React.FC<AdminCareerEditorProps> = ({
         <button
           type="button"
           onClick={() => {
+            setFormError(null);
             if (activeSubTab === 'milestones') {
+              const maxOrder = milestones.reduce((max, item) => Math.max(max, item.sortOrder), -1);
               setEditingMilestone({
                 id: `ms-${Date.now().toString(36)}`,
                 title: '',
@@ -376,9 +459,10 @@ export const AdminCareerEditor: React.FC<AdminCareerEditorProps> = ({
                 year: String(new Date().getFullYear()),
                 outcome: '',
                 published: true,
-                sortOrder: milestones.length,
+                sortOrder: Math.min(1000, maxOrder + 1),
               });
             } else {
+              const maxOrder = experience.reduce((max, item) => Math.max(max, item.sortOrder), -1);
               setEditingExp({
                 id: `exp-${Date.now().toString(36)}`,
                 period: `${new Date().getFullYear()} — Present`,
@@ -386,7 +470,7 @@ export const AdminCareerEditor: React.FC<AdminCareerEditorProps> = ({
                 org: '',
                 description: '',
                 published: true,
-                sortOrder: experience.length,
+                sortOrder: Math.min(1000, maxOrder + 1),
               });
             }
           }}
@@ -560,12 +644,13 @@ export const AdminCareerEditor: React.FC<AdminCareerEditorProps> = ({
         onCancel={() => setDeleteConfirm(null)}
         onConfirm={async () => {
           if (!deleteConfirm) return;
-          if (deleteConfirm.kind === 'milestone') {
-            await onDeleteMilestone(deleteConfirm.id);
-          } else {
-            await onDeleteExperience(deleteConfirm.id);
+          const ok =
+            deleteConfirm.kind === 'milestone'
+              ? await onDeleteMilestone(deleteConfirm.id)
+              : await onDeleteExperience(deleteConfirm.id);
+          if (ok) {
+            setDeleteConfirm(null);
           }
-          setDeleteConfirm(null);
         }}
       />
     </div>

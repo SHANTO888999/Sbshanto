@@ -15,6 +15,8 @@ import {
   getDocFromServer,
   getDocs,
   getFirestore,
+  increment,
+  initializeFirestore,
   orderBy,
   query,
   serverTimestamp,
@@ -22,21 +24,29 @@ import {
   updateDoc,
   where,
   writeBatch,
+  type Firestore,
   type Timestamp,
 } from 'firebase/firestore';
 import firebaseConfig from '../firebase-applet-config.json';
 import type {
+  CvSettingsConfig,
   ExperienceItem,
   MilestoneItem,
   PortfolioContentBundle,
   ProjectItem,
   SiteProfile,
+  ViewerControlsConfig,
 } from './data/contentSchema';
 import {
   clampExact,
   clampText,
+  DEFAULT_ACCENT_COLOR,
+  DEFAULT_CV_SETTINGS,
+  isValidEmailAddress,
   isVideoMediaSource,
   normalizePortfolioContent,
+  sanitizeCvSourceUrl,
+  sanitizeHexColor,
   sanitizePublicUrl,
 } from './data/contentSchema';
 import { DEFAULT_PORTFOLIO_CONTENT } from './data/portfolioData';
@@ -45,7 +55,24 @@ export const OWNER_ADMIN_EMAIL = 'sbgang01recovery@gmail.com';
 export const OWNER_ADMIN_UID = '7uGlVyZQVLSofZlGXTVceJnfCg23';
 
 const app = initializeApp(firebaseConfig);
-export const db = getFirestore(app, firebaseConfig.firestoreDatabaseId);
+export const db: Firestore = (() => {
+  if (typeof window === 'undefined') {
+    return getFirestore(app, firebaseConfig.firestoreDatabaseId);
+  }
+  try {
+    return initializeFirestore(
+      app,
+      {
+        experimentalForceLongPolling: true,
+        experimentalLongPollingOptions: { timeoutSeconds: 15 },
+        ignoreUndefinedProperties: true,
+      },
+      firebaseConfig.firestoreDatabaseId
+    );
+  } catch {
+    return getFirestore(app, firebaseConfig.firestoreDatabaseId);
+  }
+})();
 export const auth = getAuth(app);
 
 export enum OperationType {
@@ -100,7 +127,26 @@ export function handleFirestoreError(
   throw new Error(JSON.stringify(errInfo));
 }
 
+function isTransientOfflineError(error: unknown): boolean {
+  if (!error) return false;
+  const code =
+    typeof error === 'object' && 'code' in error ? String((error as { code?: unknown }).code) : '';
+  const msg = error instanceof Error ? error.message.toLowerCase() : String(error).toLowerCase();
+  return (
+    code === 'unavailable' ||
+    msg.includes('the client is offline') ||
+    msg.includes('could not reach cloud firestore backend')
+  );
+}
+
+async function waitMs(ms: number): Promise<void> {
+  await new Promise((resolve) => setTimeout(resolve, ms));
+}
+
 async function testConnection() {
+  if (typeof navigator !== 'undefined' && navigator.onLine === false) {
+    return;
+  }
   try {
     await getDocFromServer(doc(db, 'test', 'connection'));
   } catch (error) {
@@ -139,6 +185,24 @@ export interface AdminExperienceRecord extends ExperienceItem {
   published: boolean;
 }
 
+export interface DailyAnalyticsRecord {
+  date: string;
+  month: string;
+  visitors: number;
+  pageViews: number;
+  projectClicks: number;
+  hireOpens: number;
+  hireSubmits: number;
+  cvDownloads: number;
+}
+
+export interface ProjectAnalyticsRecord {
+  projectId: string;
+  title: string;
+  category: string;
+  clicks: number;
+}
+
 export interface AdminDashboardSnapshot {
   hasRemoteSettings: boolean;
   settingsBundle: PortfolioContentBundle;
@@ -146,6 +210,8 @@ export interface AdminDashboardSnapshot {
   milestones: AdminMilestoneRecord[];
   experience: AdminExperienceRecord[];
   inquiries: InquiryRecord[];
+  dailyAnalytics: DailyAnalyticsRecord[];
+  projectAnalytics: ProjectAnalyticsRecord[];
 }
 
 export function sanitizeFirestoreId(raw: string, fallbackPrefix: string): string {
@@ -224,9 +290,20 @@ export async function fetchLivePortfolioContent(): Promise<Partial<PortfolioCont
   const override: Partial<PortfolioContentBundle> = {};
   let hasRemoteData = false;
 
+  if (typeof navigator !== 'undefined' && navigator.onLine === false) {
+    return null;
+  }
+
   const settingsPath = 'site_settings/main';
   try {
-    const settingsSnap = await getDoc(doc(db, 'site_settings', 'main'));
+    let settingsSnap;
+    try {
+      settingsSnap = await getDoc(doc(db, 'site_settings', 'main'));
+    } catch (firstErr) {
+      if (!isTransientOfflineError(firstErr)) throw firstErr;
+      await waitMs(1000);
+      settingsSnap = await getDoc(doc(db, 'site_settings', 'main'));
+    }
     if (settingsSnap.exists()) {
       const data = settingsSnap.data();
       hasRemoteData = true;
@@ -259,6 +336,12 @@ export async function fetchLivePortfolioContent(): Promise<Partial<PortfolioCont
       if (Array.isArray(data.techStack)) override.techStack = data.techStack;
       if (Array.isArray(data.services)) override.services = data.services;
       if (Array.isArray(data.techPartners)) override.techPartners = data.techPartners;
+      if (data.viewerControls && typeof data.viewerControls === 'object') {
+        override.viewerControls = data.viewerControls as ViewerControlsConfig;
+      }
+      if (data.cvSettings && typeof data.cvSettings === 'object') {
+        override.cvSettings = data.cvSettings as CvSettingsConfig;
+      }
     }
   } catch (error) {
     handleFirestoreError(error, OperationType.GET, settingsPath);
@@ -380,6 +463,12 @@ export async function fetchAdminDashboardSnapshot(): Promise<AdminDashboardSnaps
       if (Array.isArray(data.techStack)) partial.techStack = data.techStack;
       if (Array.isArray(data.services)) partial.services = data.services;
       if (Array.isArray(data.techPartners)) partial.techPartners = data.techPartners;
+      if (data.viewerControls && typeof data.viewerControls === 'object') {
+        partial.viewerControls = data.viewerControls as ViewerControlsConfig;
+      }
+      if (data.cvSettings && typeof data.cvSettings === 'object') {
+        partial.cvSettings = data.cvSettings as CvSettingsConfig;
+      }
     }
   } catch (error) {
     handleFirestoreError(error, OperationType.GET, settingsPath);
@@ -491,6 +580,47 @@ export async function fetchAdminDashboardSnapshot(): Promise<AdminDashboardSnaps
     handleFirestoreError(error, OperationType.LIST, 'inquiries');
   }
 
+  let dailyAnalytics: DailyAnalyticsRecord[] = [];
+  try {
+    const snap = await getDocs(collection(db, 'analytics_daily'));
+    dailyAnalytics = snap.docs
+      .map((d) => {
+        const data = d.data() as Record<string, unknown>;
+        const dateStr = String(data.date ?? d.id);
+        return {
+          date: dateStr,
+          month: String(data.month ?? dateStr.slice(0, 7)),
+          visitors: Number(data.visitors ?? 0) || 0,
+          pageViews: Number(data.pageViews ?? 0) || 0,
+          projectClicks: Number(data.projectClicks ?? 0) || 0,
+          hireOpens: Number(data.hireOpens ?? 0) || 0,
+          hireSubmits: Number(data.hireSubmits ?? 0) || 0,
+          cvDownloads: Number(data.cvDownloads ?? 0) || 0,
+        };
+      })
+      .sort((a, b) => a.date.localeCompare(b.date));
+  } catch {
+    // Non-fatal if analytics collection isn't populated yet
+  }
+
+  let projectAnalytics: ProjectAnalyticsRecord[] = [];
+  try {
+    const snap = await getDocs(collection(db, 'analytics_projects'));
+    projectAnalytics = snap.docs
+      .map((d) => {
+        const data = d.data() as Record<string, unknown>;
+        return {
+          projectId: String(data.projectId ?? d.id),
+          title: String(data.title ?? d.id),
+          category: String(data.category ?? 'Websites'),
+          clicks: Number(data.clicks ?? 0) || 0,
+        };
+      })
+      .sort((a, b) => b.clicks - a.clicks);
+  } catch {
+    // Non-fatal if project analytics collection isn't populated yet
+  }
+
   return {
     hasRemoteSettings,
     settingsBundle,
@@ -498,6 +628,8 @@ export async function fetchAdminDashboardSnapshot(): Promise<AdminDashboardSnaps
     milestones,
     experience,
     inquiries,
+    dailyAnalytics,
+    projectAnalytics,
   };
 }
 
@@ -506,6 +638,12 @@ function buildSettingsPayload(bundle: PortfolioContentBundle) {
   const p = safe.profile;
   const dp = DEFAULT_PORTFOLIO_CONTENT.profile;
 
+  const sanitizedPortrait = sanitizePublicUrl(p.portraitUrl, dp.portraitUrl, true);
+  const portraitPayload =
+    sanitizedPortrait.startsWith('data:image/') && sanitizedPortrait.length <= 320_000
+      ? sanitizedPortrait
+      : clampExact(sanitizePublicUrl(p.portraitUrl, dp.portraitUrl), 500, dp.portraitUrl);
+
   return {
     greeting: clampText(p.greeting, 40, dp.greeting),
     displayName: clampExact(p.displayName, 24, dp.displayName),
@@ -513,8 +651,8 @@ function buildSettingsPayload(bundle: PortfolioContentBundle) {
     wordmark: clampExact(p.wordmark, 20, dp.wordmark),
     role: clampText(p.role, 80, dp.role),
     bio: clampText(p.bio, 300, dp.bio),
-    portraitUrl: clampExact(sanitizePublicUrl(p.portraitUrl, dp.portraitUrl), 500, dp.portraitUrl),
-    email: clampExact(p.email.length >= 3 ? p.email : dp.email, 100, dp.email),
+    portraitUrl: portraitPayload,
+    email: clampExact(isValidEmailAddress(p.email) ? p.email : dp.email, 100, dp.email),
     githubHandle: clampExact(p.githubHandle, 48, dp.githubHandle),
     githubUrl: clampExact(sanitizePublicUrl(p.githubUrl, dp.githubUrl), 300, dp.githubUrl),
     availability: clampText(p.availability, 48, dp.availability),
@@ -553,6 +691,27 @@ function buildSettingsPayload(bundle: PortfolioContentBundle) {
       .slice(0, 8)
       .map((partner) => clampExact(partner, 24, '').toUpperCase())
       .filter(Boolean),
+    viewerControls: {
+      showTopScrollBar: Boolean(safe.viewerControls.showTopScrollBar),
+      showBottomHud: Boolean(safe.viewerControls.showBottomHud),
+      showHudProgress: Boolean(safe.viewerControls.showHudProgress),
+      showHudCursors: Boolean(safe.viewerControls.showHudCursors),
+      showHudAutoScroll: Boolean(safe.viewerControls.showHudAutoScroll),
+      showHudReplay: Boolean(safe.viewerControls.showHudReplay),
+      showHudSound: Boolean(safe.viewerControls.showHudSound),
+      showMultiBackBar: Boolean(safe.viewerControls.showMultiBackBar),
+      enableCursorsByDefault: Boolean(safe.viewerControls.enableCursorsByDefault),
+      enableAutoScrollByDefault: Boolean(safe.viewerControls.enableAutoScrollByDefault),
+      enableSoundByDefault: Boolean(safe.viewerControls.enableSoundByDefault),
+      cursorSpeed: safe.viewerControls.cursorSpeed,
+      accentColor: sanitizeHexColor(safe.viewerControls.accentColor, DEFAULT_ACCENT_COLOR),
+      showCvDownloadOnViewer: Boolean(safe.viewerControls.showCvDownloadOnViewer),
+    },
+    cvSettings: {
+      mode: safe.cvSettings.mode === 'custom' ? 'custom' : 'auto',
+      customUrl: sanitizeCvSourceUrl(safe.cvSettings.customUrl),
+      headline: clampText(safe.cvSettings.headline, 96, DEFAULT_CV_SETTINGS.headline),
+    },
     updatedAt: serverTimestamp(),
   };
 }
@@ -792,4 +951,148 @@ export async function submitProjectInquiry(payload: {
   } catch (error) {
     handleFirestoreError(error, OperationType.CREATE, path);
   }
+}
+
+function getLocalDateKey(): { date: string; month: string } {
+  const now = new Date();
+  const y = now.getFullYear();
+  const m = String(now.getMonth() + 1).padStart(2, '0');
+  const d = String(now.getDate()).padStart(2, '0');
+  const date = `${y}-${m}-${d}`;
+  return { date, month: `${y}-${m}` };
+}
+
+type DailyAnalyticsCounter =
+  | 'visitors'
+  | 'pageViews'
+  | 'projectClicks'
+  | 'hireOpens'
+  | 'hireSubmits'
+  | 'cvDownloads';
+
+async function incrementDailyMetric(deltas: Partial<Record<DailyAnalyticsCounter, 1>>): Promise<void> {
+  if (typeof navigator !== 'undefined' && navigator.onLine === false) return;
+  const { date, month } = getLocalDateKey();
+  const ref = doc(db, 'analytics_daily', date);
+
+  const updatePayload: Record<string, unknown> = { updatedAt: serverTimestamp() };
+  const counters: DailyAnalyticsCounter[] = [
+    'visitors',
+    'pageViews',
+    'projectClicks',
+    'hireOpens',
+    'hireSubmits',
+    'cvDownloads',
+  ];
+
+  let hasDelta = false;
+  counters.forEach((key) => {
+    if (deltas[key] === 1) {
+      updatePayload[key] = increment(1);
+      hasDelta = true;
+    }
+  });
+  if (!hasDelta) return;
+
+  try {
+    await updateDoc(ref, updatePayload);
+  } catch (err) {
+    const code = typeof err === 'object' && err && 'code' in err ? String((err as { code?: unknown }).code) : '';
+    const msg = err instanceof Error ? err.message.toLowerCase() : '';
+    if (code === 'not-found' || msg.includes('no document to update')) {
+      try {
+        await setDoc(ref, {
+          date,
+          month,
+          visitors: deltas.visitors ?? 0,
+          pageViews: deltas.pageViews ?? 0,
+          projectClicks: deltas.projectClicks ?? 0,
+          hireOpens: deltas.hireOpens ?? 0,
+          hireSubmits: deltas.hireSubmits ?? 0,
+          cvDownloads: deltas.cvDownloads ?? 0,
+          updatedAt: serverTimestamp(),
+        });
+      } catch {
+        // Retry update cleanly if another visitor created today's document simultaneously
+        try {
+          await updateDoc(ref, updatePayload);
+        } catch {
+          // Silent fallback: analytics must never disrupt browsing
+        }
+      }
+    }
+  }
+}
+
+export async function trackVisitorSession(): Promise<void> {
+  if (typeof window === 'undefined') return;
+  const { date } = getLocalDateKey();
+  const visitKey = `shanto_uv_${date}`;
+  const sessionKey = `shanto_pv_${date}`;
+
+  try {
+    if (window.sessionStorage.getItem(sessionKey) === '1') return;
+    window.sessionStorage.setItem(sessionKey, '1');
+    const isNewDailyVisitor = window.localStorage.getItem(visitKey) !== '1';
+    if (isNewDailyVisitor) {
+      window.localStorage.setItem(visitKey, '1');
+    }
+    await incrementDailyMetric({
+      visitors: isNewDailyVisitor ? 1 : undefined,
+      pageViews: 1,
+    });
+  } catch {
+    // Ignore storage/privacy restrictions
+  }
+}
+
+export async function trackProjectCardClick(project: {
+  id: string;
+  title: string;
+  category: string;
+}): Promise<void> {
+  void incrementDailyMetric({ projectClicks: 1 });
+  const safeId = sanitizeFirestoreId(project.id, 'proj');
+  const safeCategory = ['Websites', 'Apps', 'Games', 'UI/UX Design'].includes(project.category)
+    ? project.category
+    : 'Websites';
+  const safeTitle = clampText(project.title, 80, 'Portfolio Project');
+  const ref = doc(db, 'analytics_projects', safeId);
+
+  try {
+    await updateDoc(ref, {
+      title: safeTitle,
+      category: safeCategory,
+      clicks: increment(1),
+      updatedAt: serverTimestamp(),
+    });
+  } catch (err) {
+    const code = typeof err === 'object' && err && 'code' in err ? String((err as { code?: unknown }).code) : '';
+    const msg = err instanceof Error ? err.message.toLowerCase() : '';
+    if (code === 'not-found' || msg.includes('no document to update')) {
+      try {
+        await setDoc(ref, {
+          projectId: safeId,
+          title: safeTitle,
+          category: safeCategory,
+          clicks: 1,
+          updatedAt: serverTimestamp(),
+        });
+      } catch {
+        // Silent race/network fallback
+      }
+    }
+  }
+}
+
+export async function trackHireModalOpen(): Promise<void> {
+  await incrementDailyMetric({ hireOpens: 1 });
+}
+
+export async function trackHireInquirySubmit(): Promise<void> {
+  await incrementDailyMetric({ hireSubmits: 1 });
+}
+
+export async function trackCvDownload(): Promise<void> {
+  await incrementDailyMetric({ cvDownloads: 1 });
 }

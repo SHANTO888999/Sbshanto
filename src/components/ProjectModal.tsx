@@ -1,27 +1,51 @@
 import React, { useEffect, useState } from 'react';
-import { ArrowUpRight, Code2, Pause, Play, X } from 'lucide-react';
+import { ArrowLeft, ArrowUpRight, Code2, Pause, Play, X } from 'lucide-react';
 import { ProjectItem } from '../data/portfolioData';
 import { ProductPreviewCanvas } from './ProductPreviewCanvas';
 
 interface ProjectModalProps {
   project: ProjectItem | null;
   onClose: () => void;
+  onBack?: () => void;
+  showArchitecture?: boolean;
+  onShowArchitectureChange?: (show: boolean) => void;
 }
 
-export const ProjectModal: React.FC<ProjectModalProps> = ({ project, onClose }) => {
+export const ProjectModal: React.FC<ProjectModalProps> = ({
+  project,
+  onClose,
+  onBack,
+  showArchitecture: controlledShowArchitecture,
+  onShowArchitectureChange,
+}) => {
   const [isAnimating, setIsAnimating] = useState(true);
-  const [showArchitecture, setShowArchitecture] = useState(false);
+  const [internalShowArchitecture, setInternalShowArchitecture] = useState(false);
+
+  const showArchitecture = controlledShowArchitecture ?? internalShowArchitecture;
+  const setShowArchitecture = (next: boolean) => {
+    setInternalShowArchitecture(next);
+    onShowArchitectureChange?.(next);
+  };
 
   useEffect(() => {
     if (!project) return;
     setIsAnimating(true);
-    setShowArchitecture(false);
+    setInternalShowArchitecture(false);
+
+    const prevBodyOverflow = document.body.style.overflow;
+    const prevHtmlOverflow = document.documentElement.style.overflow;
+    document.body.style.overflow = 'hidden';
+    document.documentElement.style.overflow = 'hidden';
 
     const onKeyDown = (e: KeyboardEvent) => {
       if (e.key === 'Escape') onClose();
     };
     window.addEventListener('keydown', onKeyDown);
-    return () => window.removeEventListener('keydown', onKeyDown);
+    return () => {
+      document.body.style.overflow = prevBodyOverflow;
+      document.documentElement.style.overflow = prevHtmlOverflow;
+      window.removeEventListener('keydown', onKeyDown);
+    };
   }, [project, onClose]);
 
   if (!project) return null;
@@ -35,26 +59,45 @@ export const ProjectModal: React.FC<ProjectModalProps> = ({ project, onClose }) 
       onClick={onClose}
     >
       <div
-        className="relative w-full max-w-4xl overflow-hidden rounded-2xl border border-white/15 bg-[#0D0D11] shadow-2xl"
+        className="relative max-h-[92dvh] w-full max-w-4xl overflow-y-auto rounded-2xl border border-white/15 bg-[#0D0D11] shadow-2xl"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header */}
-        <div className="flex items-center justify-between gap-4 border-b border-white/10 px-6 py-4">
-          <div className="min-w-0">
-            <h3 className="truncate font-display text-2xl font-bold text-white">
-              {project.index}. {project.title}
-            </h3>
-            <p className="mt-0.5 text-xs text-zinc-400">
-              {project.category} · {project.platform} · {project.year}
-            </p>
+        <div className="flex items-center justify-between gap-3 border-b border-white/10 px-4 py-4 sm:px-6">
+          <div className="flex min-w-0 items-center gap-3">
+            <button
+              type="button"
+              onClick={() => {
+                if (onBack) {
+                  onBack();
+                } else if (showArchitecture) {
+                  setShowArchitecture(false);
+                } else {
+                  onClose();
+                }
+              }}
+              aria-label="Go back"
+              className="inline-flex h-9 shrink-0 items-center gap-1.5 rounded-md border border-white/15 bg-[#121319] px-2.5 text-xs font-semibold text-zinc-200 transition-colors hover:border-accent/60 hover:text-white"
+            >
+              <ArrowLeft className="h-3.5 w-3.5 text-accent-light" aria-hidden="true" />
+              <span>Back</span>
+            </button>
+            <div className="min-w-0">
+              <h3 className="truncate font-display text-xl font-bold text-white sm:text-2xl">
+                {project.index}. {project.title}
+              </h3>
+              <p className="mt-0.5 truncate text-xs text-zinc-400">
+                {project.category} · {project.platform} · {project.year}
+              </p>
+            </div>
           </div>
           <button
             type="button"
             onClick={onClose}
             aria-label="Close project inspector"
-            className="inline-flex h-10 w-10 items-center justify-center rounded-md border border-white/10 text-zinc-300 transition-colors hover:bg-white/10 hover:text-white"
+            className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-md border border-white/10 text-zinc-300 transition-colors hover:bg-white/10 hover:text-white"
           >
-            <X className="h-5 w-5" />
+            <X className="h-4 w-4" />
           </button>
         </div>
 
@@ -73,7 +116,7 @@ export const ProjectModal: React.FC<ProjectModalProps> = ({ project, onClose }) 
             <button
               type="button"
               onClick={() => setIsAnimating((p) => !p)}
-              className="inline-flex items-center gap-2 rounded-md bg-[#DC2626] px-3.5 py-1.5 text-xs font-semibold text-white transition-colors hover:bg-[#B91C1C]"
+              className="inline-flex items-center gap-2 rounded-md bg-accent px-3.5 py-1.5 text-xs font-semibold text-white transition-colors hover:bg-accent-dark"
             >
               {isAnimating ? (
                 <>
@@ -103,8 +146,8 @@ export const ProjectModal: React.FC<ProjectModalProps> = ({ project, onClose }) 
               </h4>
               <button
                 type="button"
-                onClick={() => setShowArchitecture((v) => !v)}
-                className="text-xs font-medium text-[#EF4444] hover:underline"
+                onClick={() => setShowArchitecture(!showArchitecture)}
+                className="text-xs font-medium text-accent-light hover:underline"
               >
                 {showArchitecture ? 'View Overview' : 'View Tech Notes'}
               </button>
@@ -120,7 +163,7 @@ export const ProjectModal: React.FC<ProjectModalProps> = ({ project, onClose }) 
                     href={project.liveUrl}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="inline-flex items-center gap-1.5 rounded-md bg-[#DC2626] px-3.5 py-2 text-xs font-semibold text-white transition-colors hover:bg-[#B91C1C]"
+                    className="inline-flex items-center gap-1.5 rounded-md bg-accent px-3.5 py-2 text-xs font-semibold text-white transition-colors hover:bg-accent-dark"
                   >
                     Live Preview
                     <ArrowUpRight className="h-3.5 w-3.5" aria-hidden="true" />

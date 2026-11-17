@@ -41,7 +41,19 @@ service cloud.firestore {
     }
 
     function isValidOptionalUrl(data, field, maxLen) {
-      return !(field in data) || (data[field] is string && data[field].size() <= maxLen);
+      return !(field in data) || (
+        data[field] is string
+        && data[field].size() <= maxLen
+        && (data[field] == '' || data[field].matches('^(https?://|/|mailto:).*'))
+      );
+    }
+
+    function isValidPortraitMedia(val) {
+      return val is string
+        && (
+          (val.size() >= 1 && val.size() <= 500 && val.matches('^(https?://|/).*'))
+          || (val.size() >= 1 && val.size() <= 320000 && val.matches('^data:image/(png|jpeg|jpg|webp|gif);base64,.*'))
+        );
     }
 
     function isValidOptionalProjectMedia(data, field, maxLen) {
@@ -60,6 +72,47 @@ service cloud.firestore {
         || (data.coverMediaType is string && data.coverMediaType in ['image', 'video']);
     }
 
+    function isValidViewerControls(vc) {
+      return vc is map
+        && vc.keys().hasAll([
+          'showTopScrollBar', 'showBottomHud', 'showHudProgress',
+          'showHudCursors', 'showHudAutoScroll', 'showHudReplay',
+          'showHudSound', 'showMultiBackBar',
+          'enableCursorsByDefault', 'enableAutoScrollByDefault', 'enableSoundByDefault'
+        ])
+        && vc.keys().hasOnly([
+          'showTopScrollBar', 'showBottomHud', 'showHudProgress',
+          'showHudCursors', 'showHudAutoScroll', 'showHudReplay',
+          'showHudSound', 'showMultiBackBar',
+          'enableCursorsByDefault', 'enableAutoScrollByDefault', 'enableSoundByDefault',
+          'cursorSpeed', 'accentColor', 'showCvDownloadOnViewer'
+        ])
+        && vc.showTopScrollBar is bool
+        && vc.showBottomHud is bool
+        && vc.showHudProgress is bool
+        && vc.showHudCursors is bool
+        && vc.showHudAutoScroll is bool
+        && vc.showHudReplay is bool
+        && vc.showHudSound is bool
+        && vc.showMultiBackBar is bool
+        && vc.enableCursorsByDefault is bool
+        && vc.enableAutoScrollByDefault is bool
+        && vc.enableSoundByDefault is bool
+        && (!('cursorSpeed' in vc) || (vc.cursorSpeed is string && vc.cursorSpeed in ['slow', 'normal', 'fast']))
+        && (!('accentColor' in vc) || (vc.accentColor is string && vc.accentColor.size() == 7 && vc.accentColor.matches('^#[0-9A-Fa-f]{6}$')))
+        && (!('showCvDownloadOnViewer' in vc) || vc.showCvDownloadOnViewer is bool);
+    }
+
+    function isValidCvSettings(cv) {
+      return cv is map
+        && cv.keys().hasAll(['mode', 'customUrl', 'headline'])
+        && cv.keys().hasOnly(['mode', 'customUrl', 'headline'])
+        && cv.mode is string && cv.mode in ['auto', 'custom']
+        && cv.headline is string && cv.headline.size() <= 100
+        && cv.customUrl is string && cv.customUrl.size() <= 540000
+        && (cv.customUrl == '' || cv.customUrl.matches('^(https?://|/|data:application/pdf;base64,).*'));
+    }
+
     function isValidPortfolioSettings(data) {
       return data.keys().hasAll([
           'greeting', 'displayName', 'backdropName', 'wordmark', 'role', 'bio',
@@ -75,18 +128,20 @@ service cloud.firestore {
           'disciplineSummary', 'craftMetricValue', 'craftMetricSuffix', 'craftMetricLabel',
           'craftSummary', 'quoteText', 'quoteAuthor', 'quoteRole',
           'manifestoLead', 'manifestoAvailability', 'prototypeTurnaround',
-          'heroMetrics', 'wireframeScenes', 'techStack', 'services', 'techPartners', 'updatedAt'
+          'heroMetrics', 'wireframeScenes', 'techStack', 'services', 'techPartners', 'viewerControls', 'cvSettings', 'updatedAt'
         ])
+        && (!('viewerControls' in data) || isValidViewerControls(data.viewerControls))
+        && (!('cvSettings' in data) || isValidCvSettings(data.cvSettings))
         && data.greeting is string && data.greeting.size() >= 1 && data.greeting.size() <= 40
         && data.displayName is string && data.displayName.size() >= 1 && data.displayName.size() <= 24
         && data.backdropName is string && data.backdropName.size() >= 1 && data.backdropName.size() <= 14
         && data.wordmark is string && data.wordmark.size() >= 1 && data.wordmark.size() <= 20
         && data.role is string && data.role.size() >= 1 && data.role.size() <= 80
         && data.bio is string && data.bio.size() >= 1 && data.bio.size() <= 300
-        && data.portraitUrl is string && data.portraitUrl.size() >= 1 && data.portraitUrl.size() <= 500
-        && data.email is string && data.email.size() >= 3 && data.email.size() <= 100
+        && isValidPortraitMedia(data.portraitUrl)
+        && data.email is string && data.email.size() >= 3 && data.email.size() <= 100 && data.email.matches('^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$')
         && data.githubHandle is string && data.githubHandle.size() >= 1 && data.githubHandle.size() <= 48
-        && data.githubUrl is string && data.githubUrl.size() >= 1 && data.githubUrl.size() <= 300
+        && data.githubUrl is string && data.githubUrl.size() >= 1 && data.githubUrl.size() <= 300 && data.githubUrl.matches('^(https?://|/|mailto:).*')
         && data.availability is string && data.availability.size() >= 1 && data.availability.size() <= 48
         && data.disciplineSummary is string && data.disciplineSummary.size() >= 1 && data.disciplineSummary.size() <= 48
         && data.craftMetricValue is string && data.craftMetricValue.size() >= 1 && data.craftMetricValue.size() <= 12
@@ -191,7 +246,7 @@ service cloud.firestore {
           'disciplineSummary', 'craftMetricValue', 'craftMetricSuffix', 'craftMetricLabel',
           'craftSummary', 'quoteText', 'quoteAuthor', 'quoteRole',
           'manifestoLead', 'manifestoAvailability', 'prototypeTurnaround',
-          'heroMetrics', 'wireframeScenes', 'techStack', 'services', 'techPartners', 'updatedAt'
+          'heroMetrics', 'wireframeScenes', 'techStack', 'services', 'techPartners', 'viewerControls', 'cvSettings', 'updatedAt'
         ]);
       allow delete: if isValidId(settingId) && isAdmin();
     }
@@ -243,6 +298,96 @@ service cloud.firestore {
         && incoming().createdAt == existing().createdAt
         && incoming().updatedAt == request.time;
       allow delete: if isValidId(inquiryId) && isAdmin();
+    }
+
+    function isValidDateId(dateId) {
+      return dateId is string
+        && dateId.size() == 10
+        && dateId.matches('^20[0-9]{2}-(0[1-9]|1[0-2])-(0[1-9]|[12][0-9]|3[01])$');
+    }
+
+    function isValidDailyAnalyticsCreate(data, dateId) {
+      return data.keys().hasAll([
+          'date', 'month', 'visitors', 'pageViews', 'projectClicks',
+          'hireOpens', 'hireSubmits', 'cvDownloads', 'updatedAt'
+        ])
+        && data.keys().hasOnly([
+          'date', 'month', 'visitors', 'pageViews', 'projectClicks',
+          'hireOpens', 'hireSubmits', 'cvDownloads', 'updatedAt'
+        ])
+        && data.date is string && data.date == dateId
+        && data.month is string && data.month == dateId[0:7]
+        && data.visitors is int && data.visitors >= 0 && data.visitors <= 1
+        && data.pageViews is int && data.pageViews >= 0 && data.pageViews <= 1
+        && data.projectClicks is int && data.projectClicks >= 0 && data.projectClicks <= 1
+        && data.hireOpens is int && data.hireOpens >= 0 && data.hireOpens <= 1
+        && data.hireSubmits is int && data.hireSubmits >= 0 && data.hireSubmits <= 1
+        && data.cvDownloads is int && data.cvDownloads >= 0 && data.cvDownloads <= 1
+        && data.updatedAt == request.time;
+    }
+
+    function isValidDailyAnalyticsUpdate(data, prev) {
+      return data.keys().hasAll([
+          'date', 'month', 'visitors', 'pageViews', 'projectClicks',
+          'hireOpens', 'hireSubmits', 'cvDownloads', 'updatedAt'
+        ])
+        && data.keys().hasOnly([
+          'date', 'month', 'visitors', 'pageViews', 'projectClicks',
+          'hireOpens', 'hireSubmits', 'cvDownloads', 'updatedAt'
+        ])
+        && data.date == prev.date
+        && data.month == prev.month
+        && data.visitors is int && data.visitors >= prev.visitors && data.visitors <= prev.visitors + 1
+        && data.pageViews is int && data.pageViews >= prev.pageViews && data.pageViews <= prev.pageViews + 1
+        && data.projectClicks is int && data.projectClicks >= prev.projectClicks && data.projectClicks <= prev.projectClicks + 1
+        && data.hireOpens is int && data.hireOpens >= prev.hireOpens && data.hireOpens <= prev.hireOpens + 1
+        && data.hireSubmits is int && data.hireSubmits >= prev.hireSubmits && data.hireSubmits <= prev.hireSubmits + 1
+        && data.cvDownloads is int && data.cvDownloads >= prev.cvDownloads && data.cvDownloads <= prev.cvDownloads + 1
+        && data.updatedAt == request.time;
+    }
+
+    function isValidProjectAnalyticsCreate(data, projectId) {
+      return data.keys().hasAll(['projectId', 'title', 'category', 'clicks', 'updatedAt'])
+        && data.keys().hasOnly(['projectId', 'title', 'category', 'clicks', 'updatedAt'])
+        && data.projectId is string && data.projectId == projectId && data.projectId.size() <= 80
+        && data.title is string && data.title.size() >= 1 && data.title.size() <= 80
+        && data.category in ['Websites', 'Apps', 'Games', 'UI/UX Design']
+        && data.clicks is int && data.clicks == 1
+        && data.updatedAt == request.time;
+    }
+
+    function isValidProjectAnalyticsUpdate(data, prev) {
+      return data.keys().hasAll(['projectId', 'title', 'category', 'clicks', 'updatedAt'])
+        && data.keys().hasOnly(['projectId', 'title', 'category', 'clicks', 'updatedAt'])
+        && data.projectId == prev.projectId
+        && data.title is string && data.title.size() >= 1 && data.title.size() <= 80
+        && data.category in ['Websites', 'Apps', 'Games', 'UI/UX Design']
+        && data.clicks is int && data.clicks >= prev.clicks && data.clicks <= prev.clicks + 1
+        && data.updatedAt == request.time;
+    }
+
+    match /analytics_daily/{dateId} {
+      allow get: if isValidDateId(dateId) && isAdmin();
+      allow list: if isBootstrappedAdmin();
+      allow create: if isValidDateId(dateId) && isValidDailyAnalyticsCreate(incoming(), dateId);
+      allow update: if isValidDateId(dateId)
+        && isValidDailyAnalyticsUpdate(incoming(), existing())
+        && incoming().diff(existing()).affectedKeys().hasOnly([
+          'visitors', 'pageViews', 'projectClicks', 'hireOpens', 'hireSubmits', 'cvDownloads', 'updatedAt'
+        ]);
+      allow delete: if isValidDateId(dateId) && isAdmin();
+    }
+
+    match /analytics_projects/{projectId} {
+      allow get: if isValidId(projectId) && isAdmin();
+      allow list: if isBootstrappedAdmin();
+      allow create: if isValidId(projectId) && isValidProjectAnalyticsCreate(incoming(), projectId);
+      allow update: if isValidId(projectId)
+        && isValidProjectAnalyticsUpdate(incoming(), existing())
+        && incoming().diff(existing()).affectedKeys().hasOnly([
+          'title', 'category', 'clicks', 'updatedAt'
+        ]);
+      allow delete: if isValidId(projectId) && isAdmin();
     }
 
     match /admins/{adminUid} {
