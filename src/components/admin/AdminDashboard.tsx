@@ -16,10 +16,12 @@ import {
   Home,
   Inbox,
   KeyRound,
+  Languages,
   LayoutDashboard,
   Lock,
   LogOut,
   MailCheck,
+  Radio,
   RefreshCw,
   UserCog,
 } from 'lucide-react';
@@ -61,6 +63,13 @@ import { AdminCareerEditor } from './AdminCareerEditor';
 import { AdminInquiriesInbox } from './AdminInquiriesInbox';
 import { AdminProfileEditor, type ProfileSubTab } from './AdminProfileEditor';
 import { AdminProjectsEditor } from './AdminProjectsEditor';
+import {
+  getAdminCopy,
+  readStoredAdminLang,
+  writeStoredAdminLang,
+  type AdminLang,
+} from './adminI18n';
+import { AnimatedCounter } from './AnimatedCounter';
 import { ConfirmDialog, StatusNotice } from './FieldControls';
 
 type AdminTab = 'overview' | 'analytics' | 'profile' | 'projects' | 'career' | 'inquiries';
@@ -158,6 +167,22 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
   const [closeChildDialogNonce, setCloseChildDialogNonce] = useState(0);
   const [keyboardOffsetPx, setKeyboardOffsetPx] = useState(0);
 
+  const [lang, setLang] = useState<AdminLang>(() => readStoredAdminLang());
+  const t = getAdminCopy(lang);
+  const toggleAdminLang = () => {
+    setLang((prev) => {
+      const next: AdminLang = prev === 'en' ? 'bn' : 'en';
+      writeStoredAdminLang(next);
+      return next;
+    });
+  };
+
+  const [nowClockMs, setNowClockMs] = useState(() => Date.now());
+  useEffect(() => {
+    const id = window.setInterval(() => setNowClockMs(Date.now()), 10_000);
+    return () => window.clearInterval(id);
+  }, []);
+
   const [loadingData, setLoadingData] = useState(false);
   const [saving, setSaving] = useState(false);
   const [notice, setNotice] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
@@ -180,6 +205,8 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
     inquiries: [],
     dailyAnalytics: [],
     projectAnalytics: [],
+    presenceSessions: [],
+    demographics: [],
   });
 
   const [profileDraft, setProfileDraft] = useState<PortfolioContentBundle>(ADMIN_INITIAL_BUNDLE);
@@ -443,6 +470,8 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
           inquiries: [],
           dailyAnalytics: [],
           projectAnalytics: [],
+          presenceSessions: [],
+          demographics: [],
         });
         setProfileDraft(ADMIN_INITIAL_BUNDLE);
         clearHistorySteps();
@@ -458,7 +487,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
     return unsub;
   }, [clearHistorySteps, loadDashboard]);
 
-  // Real-time live analytics listener once Admin session is authenticated and verified
+  // Real-time live analytics, active viewers, demographics & inquiries listeners
   useEffect(() => {
     if (!authorized || !user) return;
     const unsubAnalytics = subscribeAdminAnalytics(
@@ -480,6 +509,26 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
           ...prev,
           analyticsError: errMessage,
         }));
+      },
+      {
+        onPresenceUpdate: (presenceSessions) => {
+          setSnapshot((prev) => ({
+            ...prev,
+            presenceSessions,
+          }));
+        },
+        onDemographicsUpdate: (demographics) => {
+          setSnapshot((prev) => ({
+            ...prev,
+            demographics,
+          }));
+        },
+        onInquiriesUpdate: (inquiries) => {
+          setSnapshot((prev) => ({
+            ...prev,
+            inquiries,
+          }));
+        },
       }
     );
     return unsubAnalytics;
@@ -578,23 +627,27 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
   const todayVisitorsCount = todayAnalyticsRow?.visitors ?? 0;
   const totalVisitorsAllTime = snapshot.dailyAnalytics.reduce((acc, r) => acc + r.visitors, 0);
 
+  const liveActiveCount = snapshot.presenceSessions.filter(
+    (s) => nowClockMs - s.lastSeenAtMs <= 75_000
+  ).length;
+
   const navItems: Array<{
     id: AdminTab;
     label: string;
     icon: React.ComponentType<{ className?: string }>;
     badge?: number;
   }> = [
-    { id: 'overview', label: 'Overview', icon: LayoutDashboard },
-    { id: 'analytics', label: 'Analytics', icon: BarChart3 },
-    { id: 'profile', label: 'Profile & Copy', icon: UserCog },
-    { id: 'projects', label: 'Projects', icon: FolderKanban, badge: snapshot.projects.length },
+    { id: 'overview', label: t.nav.overview, icon: LayoutDashboard },
+    { id: 'analytics', label: t.nav.analytics, icon: BarChart3, badge: liveActiveCount > 0 ? liveActiveCount : undefined },
+    { id: 'profile', label: t.nav.profile, icon: UserCog },
+    { id: 'projects', label: t.nav.projects, icon: FolderKanban, badge: snapshot.projects.length },
     {
       id: 'career',
-      label: 'Milestones & Bio',
+      label: t.nav.career,
       icon: Award,
       badge: snapshot.milestones.length + snapshot.experience.length,
     },
-    { id: 'inquiries', label: 'Inquiries', icon: Inbox, badge: newInquiriesCount },
+    { id: 'inquiries', label: t.nav.inquiries, icon: Inbox, badge: newInquiriesCount },
   ];
 
   if (!authReady) {
@@ -602,7 +655,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
       <div className="flex min-h-screen items-center justify-center bg-[#050507] px-6 text-[#F4F4F5]">
         <div className="space-y-3 text-center">
           <div className="mx-auto h-8 w-8 animate-spin rounded-full border-2 border-zinc-700 border-t-accent" />
-          <p className="text-xs font-medium text-zinc-400">Checking admin session...</p>
+          <p className="text-xs font-medium text-zinc-400">{t.auth.checkingSession}</p>
         </div>
       </div>
     );
@@ -625,7 +678,16 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
             SHANTO<span className="text-accent">.</span> ADMIN
           </span>
           <div className="flex items-center gap-2">
-            <PWAInstallButton label="Install App" />
+            <button
+              type="button"
+              onClick={toggleAdminLang}
+              aria-label="Switch admin language"
+              className="inline-flex min-h-[40px] items-center gap-1.5 rounded-md border border-white/15 bg-[#0C0D12] px-3 py-1.5 text-xs font-semibold text-zinc-200 hover:border-accent/60 hover:text-white"
+            >
+              <Languages className="h-3.5 w-3.5 text-accent-light" aria-hidden="true" />
+              <span>{lang === 'en' ? 'বাংলা' : 'EN'}</span>
+            </button>
+            <PWAInstallButton label={t.common.installApp} />
             {onOpenViewerPreview ? (
               <button
                 type="button"
@@ -633,7 +695,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                 className="inline-flex min-h-[40px] items-center gap-2 rounded-md border border-white/15 px-3.5 py-2 text-xs font-medium text-zinc-300 hover:bg-white/5 hover:text-white"
               >
                 <ExternalLink className="h-3.5 w-3.5" aria-hidden="true" />
-                Live Site
+                {t.common.liveSite}
               </button>
             ) : (
               <a
@@ -643,7 +705,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                 className="inline-flex min-h-[40px] items-center gap-2 rounded-md border border-white/15 px-3.5 py-2 text-xs font-medium text-zinc-300 hover:bg-white/5 hover:text-white"
               >
                 <ExternalLink className="h-3.5 w-3.5" aria-hidden="true" />
-                Live Site
+                {t.common.liveSite}
               </a>
             )}
           </div>
@@ -659,20 +721,18 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
           </div>
 
           <h1 className="mt-5 font-display text-3xl font-bold tracking-tight text-white">
-            {isOwnerUnverified ? 'VERIFY YOUR EMAIL' : 'ADMIN SIGN IN'}
+            {isOwnerUnverified ? t.auth.verifyYourEmail : t.auth.adminSignIn}
           </h1>
 
           {isOwnerUnverified && user ? (
             <div className="mt-4 space-y-4">
               <p className="text-sm leading-relaxed text-zinc-300">
-                Signed in as <span className="font-mono text-white">{user.email}</span>. Verify
-                this email address once so Firestore Security Rules unlock database writes.
+                <span className="font-mono text-white">{user.email}</span>
               </p>
 
               {verificationSent && (
                 <p className="rounded-md border border-emerald-500/30 bg-emerald-500/10 p-3 text-xs text-emerald-200">
-                  Verification link sent to {user.email}. Click the link in your inbox (check spam
-                  too), then tap &ldquo;I&rsquo;ve Verified&rdquo; below.
+                  Verification link sent to {user.email}.
                 </p>
               )}
 
@@ -689,7 +749,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                   onClick={handleSendVerification}
                   className="inline-flex min-h-[44px] w-full items-center justify-center gap-2 rounded-md bg-accent px-4 py-2.5 text-sm font-semibold text-white hover:bg-accent-dark disabled:opacity-60"
                 >
-                  {authBusy ? 'Sending...' : 'Send Verification Email'}
+                  {authBusy ? t.auth.sendingVerification : t.auth.sendVerification}
                 </button>
                 <button
                   type="button"
@@ -697,7 +757,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                   onClick={handleCheckVerification}
                   className="inline-flex min-h-[42px] w-full items-center justify-center rounded-md border border-white/20 px-4 py-2 text-xs font-semibold text-white hover:bg-white/5"
                 >
-                  I&rsquo;ve Verified — Unlock Dashboard
+                  {t.auth.iveVerified}
                 </button>
                 <button
                   type="button"
@@ -705,19 +765,14 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                   onClick={handleSignOut}
                   className="inline-flex min-h-[40px] w-full items-center justify-center rounded-md px-4 py-2 text-xs font-medium text-zinc-400 hover:text-white"
                 >
-                  Sign Out
+                  {t.common.signOut}
                 </button>
               </div>
             </div>
           ) : user && !authorized ? (
             <div className="mt-4 space-y-4">
               <p className="text-sm leading-relaxed text-zinc-300">
-                The account <span className="font-mono text-white">{user.email}</span> is not
-                authorized as an administrator.
-              </p>
-              <p className="text-xs leading-relaxed text-zinc-400">
-                Sign in with your verified administrator email and password configured in Firebase
-                Authentication.
+                <span className="font-mono text-white">{user.email}</span> {t.auth.notAuthorized}
               </p>
               {authError && (
                 <p className="rounded-md border border-[#DC2626]/40 bg-[#DC2626]/10 p-3 text-xs leading-relaxed text-red-200">
@@ -731,7 +786,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                   onClick={handleSignOut}
                   className="inline-flex min-h-[44px] w-full items-center justify-center gap-2 rounded-md bg-accent px-4 py-2.5 text-sm font-semibold text-white hover:bg-accent-dark disabled:opacity-60"
                 >
-                  Try Another Account
+                  {t.auth.tryAnotherAccount}
                 </button>
               </div>
             </div>
@@ -741,10 +796,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
               onKeyDown={handleFormEnterToNext}
               className="mt-4 space-y-4"
             >
-              <p className="text-sm leading-relaxed text-zinc-300">
-                Enter your administrator email and password to manage portfolio content and client
-                inquiries.
-              </p>
+              <p className="text-sm leading-relaxed text-zinc-300">{t.auth.signInPrompt}</p>
 
               {authError && (
                 <p className="rounded-md border border-[#DC2626]/40 bg-[#DC2626]/10 p-3 text-xs leading-relaxed text-red-200">
@@ -754,7 +806,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
 
               <div>
                 <label htmlFor="admin-email" className="block text-xs font-medium text-zinc-300">
-                  Email Address
+                  {t.auth.emailLabel}
                 </label>
                 <input
                   id="admin-email"
@@ -764,14 +816,14 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                   enterKeyHint="next"
                   value={loginEmail}
                   onChange={(e) => setLoginEmail(e.target.value)}
-                  placeholder="Enter admin email"
+                  placeholder={t.auth.emailPlaceholder}
                   className="mt-1.5 min-h-[44px] w-full rounded-md border border-white/15 bg-[#070709] px-3.5 py-2 text-sm text-white placeholder:text-zinc-500 focus:border-accent focus:outline-none"
                 />
               </div>
 
               <div>
                 <label htmlFor="admin-pass" className="block text-xs font-medium text-zinc-300">
-                  Password
+                  {t.auth.passwordLabel}
                 </label>
                 <div className="relative mt-1.5">
                   <input
@@ -783,7 +835,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                     data-enter-submit="true"
                     value={loginPassword}
                     onChange={(e) => setLoginPassword(e.target.value)}
-                    placeholder="Enter password"
+                    placeholder={t.auth.passwordPlaceholder}
                     className="min-h-[44px] w-full rounded-md border border-white/15 bg-[#070709] py-2 pr-11 pl-3.5 text-sm text-white placeholder:text-zinc-500 focus:border-accent focus:outline-none"
                   />
                   <button
@@ -803,14 +855,14 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                 className="inline-flex min-h-[46px] w-full items-center justify-center gap-2 rounded-md bg-accent px-5 py-3 text-sm font-semibold text-white transition-colors hover:bg-accent-dark disabled:opacity-60"
               >
                 <KeyRound className="h-4 w-4" aria-hidden="true" />
-                {authBusy ? 'Signing In...' : 'Sign In'}
+                {authBusy ? t.auth.signingIn : t.auth.signInButton}
               </button>
             </form>
           )}
         </main>
 
         <footer className="mx-auto w-full max-w-4xl text-center text-xs text-zinc-500">
-          Session-Only Security · Closing browser or app automatically locks Admin access
+          {t.auth.sessionFooter}
         </footer>
       </div>
     );
@@ -884,7 +936,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
         </div>
 
         <div className="space-y-2 border-t border-white/10 pt-4">
-          <PWAInstallButton label="Install Admin App" className="min-h-[40px] w-full" />
+          <PWAInstallButton label={t.common.installAdminApp} className="min-h-[40px] w-full" />
           {onOpenViewerPreview ? (
             <button
               type="button"
@@ -892,7 +944,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
               className="flex min-h-[42px] w-full items-center justify-center gap-2 rounded-md border border-white/15 px-3 py-2 text-xs font-medium text-zinc-200 hover:bg-white/5"
             >
               <ExternalLink className="h-3.5 w-3.5" aria-hidden="true" />
-              Preview Live Site
+              {t.common.previewLiveSite}
             </button>
           ) : (
             <a
@@ -902,7 +954,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
               className="flex min-h-[42px] w-full items-center justify-center gap-2 rounded-md border border-white/15 px-3 py-2 text-xs font-medium text-zinc-200 hover:bg-white/5"
             >
               <ExternalLink className="h-3.5 w-3.5" aria-hidden="true" />
-              Open Live Site
+              {t.common.openLiveSite}
             </a>
           )}
           <button
@@ -911,7 +963,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
             className="flex min-h-[40px] w-full items-center justify-center gap-2 rounded-md px-3 py-2 text-xs font-medium text-zinc-400 hover:bg-white/5 hover:text-white"
           >
             <LogOut className="h-3.5 w-3.5" aria-hidden="true" />
-            Sign Out
+            {t.common.signOut}
           </button>
         </div>
       </aside>
@@ -926,11 +978,11 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                 <button
                   type="button"
                   onClick={handleUiBack}
-                  aria-label="Go back one step"
+                  aria-label={t.common.back}
                   className="inline-flex min-h-[38px] items-center gap-1.5 rounded-md border border-white/15 bg-[#0E1016] px-3 py-1.5 text-xs font-semibold text-white hover:border-accent/60 hover:bg-white/5 shrink-0"
                 >
                   <ArrowLeft className="h-3.5 w-3.5 text-accent-light" aria-hidden="true" />
-                  <span>Back</span>
+                  <span>{t.common.back}</span>
                   {adminBackStepCount > 1 && (
                     <span className="rounded bg-white/10 px-1.5 py-0.5 font-mono text-[10px] tabular-nums text-zinc-200">
                       {adminBackStepCount}
@@ -944,7 +996,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
               </span>
 
               <span className="hidden text-xs font-medium text-zinc-400 lg:inline">
-                Portfolio Control Center /{' '}
+                {t.nav.controlCenter} /{' '}
                 <span className="text-white">{currentTabLabel}</span>
                 {subViewLabel && (
                   <>
@@ -956,20 +1008,30 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
             </div>
 
             <div className="flex items-center gap-2 shrink-0">
+              <button
+                type="button"
+                onClick={toggleAdminLang}
+                aria-label="Switch Admin language"
+                className="inline-flex min-h-[38px] items-center gap-1.5 rounded-md border border-white/15 bg-[#0C0D12] px-2.5 py-1.5 text-xs font-semibold text-zinc-100 hover:border-accent/60 hover:bg-white/5 whitespace-nowrap shrink-0"
+              >
+                <Languages className="h-3.5 w-3.5 text-accent-light" aria-hidden="true" />
+                <span>{lang === 'en' ? 'বাংলা' : 'EN'}</span>
+              </button>
+
               <PWAInstallButton compact className="min-h-[38px] lg:hidden" />
 
               <button
                 type="button"
                 disabled={loadingData || saving}
                 onClick={() => void loadDashboard()}
-                aria-label="Refresh cloud data"
+                aria-label={t.common.refresh}
                 className="inline-flex min-h-[38px] items-center gap-1.5 rounded-md border border-white/15 px-3 py-1.5 text-xs font-medium text-zinc-300 hover:bg-white/5 hover:text-white disabled:opacity-50 whitespace-nowrap shrink-0"
               >
                 <RefreshCw
                   className={`h-3.5 w-3.5 ${loadingData ? 'animate-spin' : ''}`}
                   aria-hidden="true"
                 />
-                <span className="hidden sm:inline">Refresh</span>
+                <span className="hidden sm:inline">{t.common.refresh}</span>
               </button>
 
               {onOpenViewerPreview ? (
@@ -979,7 +1041,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                   className="inline-flex min-h-[38px] items-center gap-1.5 rounded-md border border-white/15 px-3 py-1.5 text-xs font-medium text-zinc-200 hover:bg-white/5 lg:hidden whitespace-nowrap shrink-0"
                 >
                   <ExternalLink className="h-3.5 w-3.5" aria-hidden="true" />
-                  Live Site
+                  {t.common.liveSite}
                 </button>
               ) : (
                 <a
@@ -989,14 +1051,14 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                   className="inline-flex min-h-[38px] items-center gap-1.5 rounded-md border border-white/15 px-3 py-1.5 text-xs font-medium text-zinc-200 hover:bg-white/5 lg:hidden whitespace-nowrap shrink-0"
                 >
                   <ExternalLink className="h-3.5 w-3.5" aria-hidden="true" />
-                  Live Site
+                  {t.common.liveSite}
                 </a>
               )}
 
               <button
                 type="button"
                 onClick={() => void signOutAdmin()}
-                aria-label="Sign out"
+                aria-label={t.common.signOut}
                 className="inline-flex h-[38px] w-[38px] items-center justify-center rounded-md border border-white/15 text-zinc-300 hover:bg-white/5 lg:hidden"
               >
                 <LogOut className="h-4 w-4" />
@@ -1040,7 +1102,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                 className="inline-flex min-h-[30px] items-center gap-1 rounded border border-white/10 bg-[#0B0C10] px-2.5 py-1 text-zinc-300 hover:border-white/25 hover:text-white"
               >
                 <Home className="h-3 w-3 text-accent-light" aria-hidden="true" />
-                Overview
+                {t.nav.overview}
               </button>
 
               {activeTab !== 'overview' && (
@@ -1082,7 +1144,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                 <>
                   <ChevronRight className="h-3.5 w-3.5 text-zinc-600" aria-hidden="true" />
                   <span className="rounded bg-white/10 px-2.5 py-1 font-semibold text-white">
-                    {PROFILE_SUB_LABELS[activeProfileSubTab]}
+                    {t.nav.subProfile[activeProfileSubTab] ?? PROFILE_SUB_LABELS[activeProfileSubTab]}
                   </span>
                 </>
               )}
@@ -1091,7 +1153,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                 <>
                   <ChevronRight className="h-3.5 w-3.5 text-zinc-600" aria-hidden="true" />
                   <span className="rounded bg-white/10 px-2.5 py-1 font-semibold text-white">
-                    {CAREER_SUB_LABELS[activeCareerSubTab]}
+                    {t.nav.subCareer[activeCareerSubTab] ?? CAREER_SUB_LABELS[activeCareerSubTab]}
                   </span>
                 </>
               )}
@@ -1118,23 +1180,19 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
             <div className="space-y-8">
               <div className="border-b border-white/10 pb-5">
                 <h1 className="font-display text-3xl font-bold tracking-tight text-white">
-                  STUDIO OVERVIEW
+                  {t.overview.heading}
                 </h1>
-                <p className="mt-1 text-sm text-zinc-400">
-                  Manage everything displayed on your public portfolio website with automatic
-                  character bounds and safe fallbacks.
-                </p>
+                <p className="mt-1 text-sm text-zinc-400">{t.overview.subtitle}</p>
               </div>
 
               {(!snapshot.hasRemoteSettings || snapshot.projects.length === 0) && (
                 <div className="flex flex-col gap-4 rounded-xl border border-amber-500/30 bg-amber-500/10 p-5 sm:flex-row sm:items-center sm:justify-between">
                   <div>
                     <h2 className="text-sm font-semibold text-amber-200">
-                      Cloud Database Ready to Initialize
+                      {t.overview.cloudInitTitle}
                     </h2>
                     <p className="mt-1 text-xs leading-relaxed text-amber-100/80">
-                      Right now your viewer site is showing built-in defaults. Sync those defaults
-                      into Cloud Firestore in one click so you can edit every item directly.
+                      {t.overview.cloudInitDesc}
                     </p>
                   </div>
                   <button
@@ -1144,30 +1202,47 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                     className="inline-flex min-h-[42px] items-center justify-center gap-2 rounded-md bg-accent px-4 py-2 text-xs font-semibold text-white hover:bg-accent-dark disabled:opacity-60 whitespace-nowrap shrink-0"
                   >
                     <CloudUpload className="h-4 w-4" aria-hidden="true" />
-                    Sync Default Portfolio to Cloud
+                    {t.overview.syncButton}
                   </button>
                 </div>
               )}
 
-              <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
+              <div className="grid grid-cols-2 gap-4 lg:grid-cols-5">
+                <button
+                  type="button"
+                  onClick={() => navigateToTab('analytics')}
+                  className="rounded-xl border border-emerald-500/35 bg-emerald-500/10 p-5 text-left transition-colors hover:border-emerald-400/70"
+                >
+                  <div className="flex items-center justify-between gap-2">
+                    <p className="text-xs font-medium text-emerald-200">{t.overview.liveRightNow}</p>
+                    <Radio className="h-3.5 w-3.5 animate-pulse text-emerald-300" aria-hidden="true" />
+                  </div>
+                  <p className="mt-2 font-display text-3xl font-bold tabular-nums text-white">
+                    <AnimatedCounter value={liveActiveCount} />
+                  </p>
+                  <p className="mt-1 truncate text-[11px] text-emerald-200/75">
+                    {t.overview.activeViewersDesc}
+                  </p>
+                </button>
+
                 <button
                   type="button"
                   onClick={() => navigateToTab('analytics')}
                   className="rounded-xl border border-white/10 bg-[#090A0F] p-5 text-left transition-colors hover:border-accent/50"
                 >
-                  <p className="text-xs text-zinc-400">Today Visitors</p>
+                  <p className="text-xs text-zinc-400">{t.overview.todayVisitors}</p>
                   <p className="mt-2 font-display text-3xl font-bold tabular-nums text-white">
-                    {todayVisitorsCount}
+                    <AnimatedCounter value={todayVisitorsCount} />
                     <span className="ml-1.5 text-sm font-normal text-zinc-500">
-                      / {totalVisitorsAllTime} total
+                      / <AnimatedCounter value={totalVisitorsAllTime} /> {t.overview.totalSuffix}
                     </span>
                   </p>
                 </button>
 
                 <div className="rounded-xl border border-white/10 bg-[#090A0F] p-5">
-                  <p className="text-xs text-zinc-400">Published Projects</p>
+                  <p className="text-xs text-zinc-400">{t.overview.publishedProjects}</p>
                   <p className="mt-2 font-display text-3xl font-bold tabular-nums text-white">
-                    {publishedProjectsCount}
+                    <AnimatedCounter value={publishedProjectsCount} />
                     <span className="ml-1.5 text-sm font-normal text-zinc-500">
                       / {snapshot.projects.length}
                     </span>
@@ -1175,23 +1250,25 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                 </div>
 
                 <div className="rounded-xl border border-white/10 bg-[#090A0F] p-5">
-                  <p className="text-xs text-zinc-400">Milestones &amp; Timeline</p>
+                  <p className="text-xs text-zinc-400">{t.overview.milestonesTimeline}</p>
                   <p className="mt-2 font-display text-3xl font-bold tabular-nums text-white">
-                    {snapshot.milestones.length + snapshot.experience.length}
+                    <AnimatedCounter
+                      value={snapshot.milestones.length + snapshot.experience.length}
+                    />
                   </p>
                 </div>
 
-                <div className="rounded-xl border border-white/10 bg-[#090A0F] p-5">
-                  <p className="text-xs text-zinc-400">New Client Inquiries</p>
+                <div className="rounded-xl border border-white/10 bg-[#090A0F] p-5 col-span-2 lg:col-span-1">
+                  <p className="text-xs text-zinc-400">{t.overview.newInquiries}</p>
                   <p className="mt-2 font-display text-3xl font-bold tabular-nums text-accent-light">
-                    {newInquiriesCount}
+                    <AnimatedCounter value={newInquiriesCount} />
                   </p>
                 </div>
               </div>
 
               <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
                 <div className="rounded-xl border border-white/10 bg-[#090A0F] p-5">
-                  <h2 className="text-sm font-semibold text-white">Quick Shortcuts</h2>
+                  <h2 className="text-sm font-semibold text-white">{t.overview.quickShortcuts}</h2>
                   <div className="mt-4 grid grid-cols-1 gap-2.5 sm:grid-cols-2">
                     <button
                       type="button"
@@ -1199,7 +1276,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                       className="flex min-h-[44px] items-center gap-2.5 rounded-md border border-white/10 bg-[#0E1016] px-3.5 py-2 text-left text-xs font-medium text-zinc-200 hover:border-white/25 hover:text-white"
                     >
                       <UserCog className="h-4 w-4 text-accent-light" aria-hidden="true" />
-                      Edit Name, Photo &amp; Bio
+                      {t.overview.editNamePhotoBio}
                     </button>
                     <button
                       type="button"
@@ -1207,7 +1284,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                       className="flex min-h-[44px] items-center gap-2.5 rounded-md border border-white/10 bg-[#0E1016] px-3.5 py-2 text-left text-xs font-medium text-zinc-200 hover:border-white/25 hover:text-white"
                     >
                       <FolderKanban className="h-4 w-4 text-accent-light" aria-hidden="true" />
-                      Add / Update Projects
+                      {t.overview.addUpdateProjects}
                     </button>
                     <button
                       type="button"
@@ -1215,7 +1292,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                       className="flex min-h-[44px] items-center gap-2.5 rounded-md border border-white/10 bg-[#0E1016] px-3.5 py-2 text-left text-xs font-medium text-zinc-200 hover:border-white/25 hover:text-white"
                     >
                       <Briefcase className="h-4 w-4 text-accent-light" aria-hidden="true" />
-                      Milestones &amp; Experience
+                      {t.overview.milestonesExperience}
                     </button>
                     <button
                       type="button"
@@ -1223,7 +1300,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                       className="flex min-h-[44px] items-center gap-2.5 rounded-md border border-white/10 bg-[#0E1016] px-3.5 py-2 text-left text-xs font-medium text-zinc-200 hover:border-white/25 hover:text-white"
                     >
                       <Inbox className="h-4 w-4 text-accent-light" aria-hidden="true" />
-                      Open Inquiries ({snapshot.inquiries.length})
+                      {t.overview.openInquiries} ({snapshot.inquiries.length})
                     </button>
                     <button
                       type="button"
@@ -1231,7 +1308,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                       className="flex min-h-[44px] items-center gap-2.5 rounded-md border border-white/10 bg-[#0E1016] px-3.5 py-2 text-left text-xs font-medium text-zinc-200 hover:border-white/25 hover:text-white sm:col-span-2"
                     >
                       <BarChart3 className="h-4 w-4 text-accent-light" aria-hidden="true" />
-                      View Visitor &amp; Project Analytics
+                      {t.overview.viewAnalytics}
                     </button>
                   </div>
                 </div>
@@ -1241,7 +1318,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                     <div className="flex flex-wrap items-center justify-between gap-2">
                       <h2 className="flex items-center gap-2 text-sm font-semibold text-white">
                         <FileText className="h-4 w-4 text-accent-light" aria-hidden="true" />
-                        Resume / CV &amp; Cloud Status
+                        {t.overview.cvCloudStatus}
                       </h2>
                       <span
                         className={`rounded px-2 py-0.5 font-mono text-[10px] font-bold uppercase ${
@@ -1251,14 +1328,12 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                         }`}
                       >
                         {profileDraft.viewerControls.showCvDownloadOnViewer
-                          ? 'Public CV: ON'
-                          : 'Public CV: OFF (Admin Only)'}
+                          ? t.overview.publicCvOn
+                          : t.overview.publicCvOff}
                       </span>
                     </div>
                     <p className="mt-2 text-xs leading-relaxed text-zinc-400">
-                      Generate and download your latest portfolio PDF CV here anytime, or configure
-                      whether visitors can see the CV button on{' '}
-                      <span className="font-mono text-zinc-200">sbshanto.web.app</span>.
+                      {t.overview.cvDesc}
                     </p>
                   </div>
 
@@ -1269,7 +1344,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                       className="inline-flex min-h-[38px] items-center gap-1.5 rounded-md bg-accent px-3.5 py-1.5 text-xs font-semibold text-white hover:bg-accent-dark"
                     >
                       <Download className="h-3.5 w-3.5" aria-hidden="true" />
-                      Download My CV (PDF)
+                      {t.overview.downloadCv}
                     </button>
                     <button
                       type="button"
@@ -1279,7 +1354,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                       }}
                       className="inline-flex min-h-[38px] items-center gap-1.5 rounded-md border border-white/15 bg-[#0E1016] px-3 py-1.5 text-xs font-medium text-zinc-200 hover:border-white/30 hover:text-white"
                     >
-                      CV Toggle &amp; Settings
+                      {t.overview.cvToggleSettings}
                     </button>
                     {snapshot.hasRemoteSettings && (
                       <button
@@ -1289,7 +1364,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                         className="inline-flex min-h-[38px] items-center gap-1.5 rounded-md border border-white/15 px-3 py-1.5 text-xs font-medium text-zinc-300 hover:bg-white/5"
                       >
                         <CloudUpload className="h-3.5 w-3.5" aria-hidden="true" />
-                        Re-sync Defaults
+                        {t.overview.resyncDefaults}
                       </button>
                     )}
                   </div>
@@ -1304,7 +1379,10 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
               projectAnalytics={snapshot.projectAnalytics}
               inquiries={snapshot.inquiries}
               projects={snapshot.projects}
+              presenceSessions={snapshot.presenceSessions}
+              demographics={snapshot.demographics}
               analyticsError={snapshot.analyticsError}
+              lang={lang}
             />
           )}
 
@@ -1312,6 +1390,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
             <AdminProfileEditor
               draft={profileDraft}
               saving={saving}
+              lang={lang}
               hasUnsavedChanges={hasUnsavedProfileChanges}
               subTab={activeProfileSubTab}
               onChangeSubTab={navigateProfileSubTab}
@@ -1330,6 +1409,14 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
             <AdminProjectsEditor
               projects={snapshot.projects}
               saving={saving}
+              lang={lang}
+              showStarterDemoProjects={
+                snapshot.settingsBundle.viewerControls.showStarterDemoProjects !== false
+              }
+              onOpenViewerControls={() => {
+                navigateToTab('profile');
+                navigateProfileSubTab('viewer');
+              }}
               onSubViewChange={handleSubViewChange}
               exitSubViewNonce={exitSubViewNonce}
               closeDialogNonce={closeChildDialogNonce}
@@ -1351,6 +1438,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
               milestones={snapshot.milestones}
               experience={snapshot.experience}
               saving={saving}
+              lang={lang}
               activeSubTab={activeCareerSubTab}
               onChangeSubTab={navigateCareerSubTab}
               onSubViewChange={handleSubViewChange}
@@ -1382,6 +1470,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
             <AdminInquiriesInbox
               inquiries={snapshot.inquiries}
               saving={saving}
+              lang={lang}
               onBack={handleUiBack}
               closeDialogNonce={closeChildDialogNonce}
               onDialogOpenChange={handleDialogOpenChange}
@@ -1401,10 +1490,11 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
 
       <ConfirmDialog
         open={seedConfirmOpen}
-        title="Initialize Cloud Settings Document"
-        description="Creates the starter cloud settings record in Firestore so your site profile, theme controls, and analytics can be customized anytime."
-        confirmLabel="Initialize Cloud"
+        title={t.overview.seedDialogTitle}
+        description={t.overview.seedDialogDesc}
+        confirmLabel={t.overview.seedDialogConfirm}
         busy={saving}
+        lang={lang}
         onCancel={() => setSeedConfirmOpen(false)}
         onConfirm={async () => {
           await runMutation(

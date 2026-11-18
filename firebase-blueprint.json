@@ -59,6 +59,7 @@
         },
         "dimensions": { "type": "string", "maxLength": 24 },
         "coverImageUrl": { "type": "string", "maxLength": 780000 },
+        "galleryUrls": { "type": "array" },
         "coverMediaType": { "type": "string", "enum": ["image", "video"] },
         "liveUrl": { "type": "string", "maxLength": 300 },
         "repoUrl": { "type": "string", "maxLength": 300 },
@@ -153,6 +154,33 @@
         "updatedAt": { "type": "string", "format": "date-time" }
       },
       "required": ["projectId", "title", "category", "clicks", "updatedAt"]
+    },
+    "VisitorPresence": {
+      "title": "VisitorPresence",
+      "description": "Ephemeral anonymous active viewer heartbeat for real-time visitor count in Admin.",
+      "type": "object",
+      "properties": {
+        "sessionId": { "type": "string", "maxLength": 80 },
+        "countryCode": { "type": "string", "maxLength": 8 },
+        "countryName": { "type": "string", "maxLength": 60 },
+        "path": { "type": "string", "maxLength": 64 },
+        "lastSeenAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["sessionId", "countryCode", "countryName", "path", "lastSeenAt"]
+    },
+    "DemographicAnalytics": {
+      "title": "DemographicAnalytics",
+      "description": "Aggregated anonymous visitor country and optional reported age-group counters.",
+      "type": "object",
+      "properties": {
+        "bucketId": { "type": "string", "maxLength": 48 },
+        "bucketType": { "type": "string", "enum": ["country", "age"] },
+        "code": { "type": "string", "maxLength": 24 },
+        "label": { "type": "string", "maxLength": 60 },
+        "count": { "type": "integer" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["bucketId", "bucketType", "code", "label", "count", "updatedAt"]
     }
   },
   "firestore": {
@@ -187,6 +215,14 @@
     "/analytics_projects/{projectId}": {
       "schema": { "$ref": "#/entities/ProjectAnalytics" },
       "description": "Per-project click counts readable only by verified admins."
+    },
+    "/analytics_presence/{sessionId}": {
+      "schema": { "$ref": "#/entities/VisitorPresence" },
+      "description": "Live active visitor presence sessions readable only by verified admins."
+    },
+    "/analytics_demographics/{bucketId}": {
+      "schema": { "$ref": "#/entities/DemographicAnalytics" },
+      "description": "Anonymous country & reported age-group visitor counts readable only by verified admins."
     }
   }
 }

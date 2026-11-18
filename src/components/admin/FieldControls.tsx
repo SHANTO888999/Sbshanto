@@ -1,6 +1,7 @@
 import React, { useEffect } from 'react';
 import { AlertTriangle, CheckCircle2, X } from 'lucide-react';
 import { sanitizePublicUrl } from '../../data/contentSchema';
+import { getAdminCopy, type AdminLang } from './adminI18n';
 
 type EnterKeyHintValue = 'enter' | 'done' | 'go' | 'next' | 'previous' | 'search' | 'send';
 
@@ -134,6 +135,8 @@ interface SafeUrlInputProps {
   hint?: string;
   required?: boolean;
   enterKeyHint?: EnterKeyHintValue;
+  autoPrefixHttps?: boolean;
+  lang?: AdminLang;
 }
 
 export const SafeUrlInput: React.FC<SafeUrlInputProps> = ({
@@ -146,9 +149,22 @@ export const SafeUrlInput: React.FC<SafeUrlInputProps> = ({
   hint,
   required = false,
   enterKeyHint = 'next',
+  autoPrefixHttps = false,
+  lang = 'en',
 }) => {
   const trimmed = value.trim();
   const isValid = !trimmed || Boolean(sanitizePublicUrl(trimmed, ''));
+
+  const handleBlur = () => {
+    if (!autoPrefixHttps) return;
+    const raw = value.trim();
+    if (!raw || raw.startsWith('/') || raw.includes('://') || raw.startsWith('mailto:') || raw.startsWith('data:')) {
+      return;
+    }
+    if (/^[a-z0-9.-]+\.[a-z]{2,}(\/.*)?$/i.test(raw)) {
+      onChange(`https://${raw}`.slice(0, maxLength));
+    }
+  };
 
   return (
     <div>
@@ -169,6 +185,7 @@ export const SafeUrlInput: React.FC<SafeUrlInputProps> = ({
         required={required}
         enterKeyHint={enterKeyHint}
         onChange={(e) => onChange(e.target.value.slice(0, maxLength))}
+        onBlur={handleBlur}
         placeholder={placeholder}
         className={`mt-1.5 min-h-[44px] w-full rounded-md border bg-[#070709] px-3.5 py-2 font-mono text-xs text-white placeholder:text-zinc-500 transition-colors focus:outline-none ${
           isValid ? 'border-white/15 focus:border-accent' : 'border-[#EF4444]'
@@ -176,7 +193,9 @@ export const SafeUrlInput: React.FC<SafeUrlInputProps> = ({
       />
       {!isValid ? (
         <p className="mt-1 text-xs text-[#EF4444]">
-          Enter a valid https:// URL or relative /assets/... path.
+          {lang === 'bn'
+            ? 'সঠিক https:// লিংক বা /assets/... পাথ লিখুন।'
+            : 'Enter a valid https:// URL or relative /assets/... path.'}
         </p>
       ) : hint ? (
         <p className="mt-1 text-xs text-zinc-500">{hint}</p>
@@ -191,6 +210,7 @@ interface ConfirmDialogProps {
   description: string;
   confirmLabel?: string;
   busy?: boolean;
+  lang?: AdminLang;
   onCancel: () => void;
   onConfirm: () => void;
 }
@@ -199,11 +219,15 @@ export const ConfirmDialog: React.FC<ConfirmDialogProps> = ({
   open,
   title,
   description,
-  confirmLabel = 'Delete',
+  confirmLabel,
   busy = false,
+  lang = 'en',
   onCancel,
   onConfirm,
 }) => {
+  const t = getAdminCopy(lang);
+  const resolvedConfirmLabel = confirmLabel ?? t.common.delete;
+
   useEffect(() => {
     if (!open) return;
     const onKey = (e: KeyboardEvent) => {
@@ -250,7 +274,7 @@ export const ConfirmDialog: React.FC<ConfirmDialogProps> = ({
             onClick={onCancel}
             className="min-h-[40px] rounded-md border border-white/15 px-4 py-2 text-xs font-medium text-zinc-300 hover:bg-white/5 hover:text-white disabled:opacity-50"
           >
-            Cancel
+            {t.common.cancel}
           </button>
           <button
             type="button"
@@ -258,7 +282,7 @@ export const ConfirmDialog: React.FC<ConfirmDialogProps> = ({
             onClick={onConfirm}
             className="min-h-[40px] rounded-md bg-[#DC2626] px-4 py-2 text-xs font-semibold text-white hover:bg-[#B91C1C] disabled:opacity-60"
           >
-            {busy ? 'Working...' : confirmLabel}
+            {busy ? t.common.working : resolvedConfirmLabel}
           </button>
         </div>
       </div>

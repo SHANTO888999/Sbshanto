@@ -42,6 +42,7 @@ import { downloadPortfolioCv } from '../../utils/cvPdfGenerator';
 import { handleFormEnterToNext } from '../../utils/formKeyboardNav';
 import { processProjectPhotoFile } from '../../utils/mediaCompressor';
 import { ACCENT_PRESETS, applyDocumentAccentTheme } from '../../utils/themeAccent';
+import { getAdminCopy, type AdminLang } from './adminI18n';
 import { LimitedInput, LimitedTextarea, SafeUrlInput } from './FieldControls';
 
 export type ProfileSubTab = 'identity' | 'contact' | 'metrics' | 'process' | 'viewer' | 'cv';
@@ -119,6 +120,7 @@ const VIEWER_DEFAULT_BEHAVIOR_TOGGLES: ReadonlyArray<ViewerToggleDef> = [
 interface AdminProfileEditorProps {
   draft: PortfolioContentBundle;
   saving: boolean;
+  lang?: AdminLang;
   hasUnsavedChanges?: boolean;
   subTab?: ProfileSubTab;
   onChangeSubTab?: (tab: ProfileSubTab) => void;
@@ -130,6 +132,7 @@ interface AdminProfileEditorProps {
 export const AdminProfileEditor: React.FC<AdminProfileEditorProps> = ({
   draft,
   saving,
+  lang = 'en',
   hasUnsavedChanges = false,
   subTab: controlledSubTab,
   onChangeSubTab,
@@ -137,6 +140,7 @@ export const AdminProfileEditor: React.FC<AdminProfileEditorProps> = ({
   onChange,
   onSave,
 }) => {
+  const t = getAdminCopy(lang);
   const [internalSubTab, setInternalSubTab] = useState<ProfileSubTab>('identity');
   const subTab = controlledSubTab ?? internalSubTab;
   const setSubTab = (tab: ProfileSubTab) => {
@@ -391,18 +395,15 @@ export const AdminProfileEditor: React.FC<AdminProfileEditorProps> = ({
         <div>
           <div className="flex flex-wrap items-center gap-2.5">
             <h2 className="font-display text-2xl font-bold tracking-tight text-white">
-              PROFILE &amp; SITE COPY
+              {t.profile.heading}
             </h2>
             {hasUnsavedChanges && (
               <span className="rounded border border-amber-500/40 bg-amber-500/15 px-2 py-0.5 font-mono text-[10px] font-semibold uppercase tracking-wide text-amber-300">
-                Unsaved changes
+                {t.common.unsavedChanges}
               </span>
             )}
           </div>
-          <p className="mt-1 text-sm text-zinc-400">
-            Edit personal identity, contact links, hero counters, services, and stack. Every field
-            has safe layout limits.
-          </p>
+          <p className="mt-1 text-sm text-zinc-400">{t.profile.subtitle}</p>
         </div>
 
         <div className="flex flex-wrap items-center gap-2.5 shrink-0">
@@ -426,7 +427,7 @@ export const AdminProfileEditor: React.FC<AdminProfileEditorProps> = ({
             className="inline-flex min-h-[42px] items-center gap-2 rounded-md border border-white/15 px-3.5 py-2 text-xs font-medium text-zinc-300 transition-colors hover:bg-white/5 hover:text-white whitespace-nowrap shrink-0"
           >
             <RotateCcw className="h-3.5 w-3.5" aria-hidden="true" />
-            Load Safe Defaults
+            {t.profile.loadDefaults}
           </button>
 
           <button
@@ -435,7 +436,7 @@ export const AdminProfileEditor: React.FC<AdminProfileEditorProps> = ({
             className="inline-flex min-h-[42px] items-center gap-2 rounded-md bg-accent px-4 py-2 text-xs font-semibold text-white transition-colors hover:bg-accent-dark disabled:opacity-60 whitespace-nowrap shrink-0"
           >
             <Save className="h-3.5 w-3.5" aria-hidden="true" />
-            {saving ? 'Saving Changes...' : 'Save Profile & Settings'}
+            {saving ? t.common.saving : t.profile.saveSettings}
           </button>
         </div>
       </div>
@@ -461,12 +462,12 @@ export const AdminProfileEditor: React.FC<AdminProfileEditorProps> = ({
       <div className="flex flex-wrap gap-1.5 rounded-lg border border-white/10 bg-[#08090D] p-1">
         {(
           [
-            { id: 'identity', label: 'Hero & Portrait' },
-            { id: 'contact', label: 'Contact, Quote & CTA' },
-            { id: 'metrics', label: 'Metrics & Partners' },
-            { id: 'process', label: 'Services, Stack & Scenes' },
-            { id: 'viewer', label: 'Viewer Controls' },
-            { id: 'cv', label: 'Resume / CV' },
+            { id: 'identity', label: t.nav.subProfile.identity },
+            { id: 'contact', label: t.nav.subProfile.contact },
+            { id: 'metrics', label: t.nav.subProfile.metrics },
+            { id: 'process', label: t.nav.subProfile.process },
+            { id: 'viewer', label: t.nav.subProfile.viewer },
+            { id: 'cv', label: t.nav.subProfile.cv },
           ] as const
         ).map((tab) => (
           <button
@@ -1303,6 +1304,41 @@ export const AdminProfileEditor: React.FC<AdminProfileEditorProps> = ({
             </div>
           </div>
 
+          <div className="space-y-3">
+            <h4 className="font-mono text-[11px] font-semibold uppercase tracking-wider text-zinc-400">
+              {lang === 'bn' ? 'প্রজেক্ট শোকেস' : 'Portfolio Works Display'}
+            </h4>
+            <div className="flex items-center justify-between gap-4 rounded-xl border border-emerald-500/25 bg-[#090A0F] p-4">
+              <div className="min-w-0">
+                <p className="text-sm font-medium text-white">{t.profile.starterDemosTitle}</p>
+                <p className="mt-0.5 text-xs leading-relaxed text-zinc-400">
+                  {t.profile.starterDemosDesc}
+                </p>
+              </div>
+              <button
+                type="button"
+                role="switch"
+                aria-checked={vc.showStarterDemoProjects !== false}
+                aria-label={t.profile.starterDemosTitle}
+                onClick={() =>
+                  updateViewerControl(
+                    'showStarterDemoProjects',
+                    vc.showStarterDemoProjects === false
+                  )
+                }
+                className={`relative inline-flex h-8 w-16 shrink-0 items-center justify-between rounded-md border px-2 text-[11px] font-bold tracking-wide transition-colors ${
+                  vc.showStarterDemoProjects !== false
+                    ? 'border-emerald-500 bg-emerald-600 text-white'
+                    : 'border-white/15 bg-[#111218] text-zinc-400 hover:text-white'
+                }`}
+              >
+                <span className="mx-auto">
+                  {vc.showStarterDemoProjects !== false ? 'ON' : 'OFF'}
+                </span>
+              </button>
+            </div>
+          </div>
+
           {[
             { heading: 'Bars & Color Lines', items: VIEWER_BAR_AND_LINE_TOGGLES },
             { heading: 'Bottom Bar Buttons', items: VIEWER_BUTTON_TOGGLES },
@@ -1562,7 +1598,7 @@ export const AdminProfileEditor: React.FC<AdminProfileEditorProps> = ({
             className="inline-flex min-h-[44px] items-center gap-2 rounded-md border border-white/15 px-4 py-2 text-xs font-medium text-zinc-300 hover:bg-white/5 hover:text-white"
           >
             <ArrowLeft className="h-3.5 w-3.5" aria-hidden="true" />
-            Back
+            {t.common.back}
           </button>
         ) : (
           <span />
@@ -1573,7 +1609,7 @@ export const AdminProfileEditor: React.FC<AdminProfileEditorProps> = ({
           className="inline-flex min-h-[44px] items-center gap-2 rounded-md bg-accent px-5 py-2 text-xs font-semibold text-white transition-colors hover:bg-accent-dark disabled:opacity-60"
         >
           <Save className="h-3.5 w-3.5" aria-hidden="true" />
-          {saving ? 'Saving Changes...' : 'Save Profile & Settings'}
+          {saving ? t.common.saving : t.profile.saveSettings}
         </button>
       </div>
     </form>

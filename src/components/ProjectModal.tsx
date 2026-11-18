@@ -1,5 +1,15 @@
-import React, { useEffect, useState } from 'react';
-import { ArrowLeft, ArrowUpRight, Code2, Pause, Play, X } from 'lucide-react';
+import React, { useEffect, useMemo, useState } from 'react';
+import {
+  ArrowLeft,
+  ArrowUpRight,
+  ChevronLeft,
+  ChevronRight,
+  Code2,
+  Pause,
+  Play,
+  X,
+} from 'lucide-react';
+import { isVideoMediaSource } from '../data/contentSchema';
 import { ProjectItem } from '../data/portfolioData';
 import { ProductPreviewCanvas } from './ProductPreviewCanvas';
 
@@ -19,6 +29,7 @@ export const ProjectModal: React.FC<ProjectModalProps> = ({
   onShowArchitectureChange,
 }) => {
   const [isAnimating, setIsAnimating] = useState(true);
+  const [slideIdx, setSlideIdx] = useState(0);
   const [internalShowArchitecture, setInternalShowArchitecture] = useState(false);
 
   const showArchitecture = controlledShowArchitecture ?? internalShowArchitecture;
@@ -27,9 +38,25 @@ export const ProjectModal: React.FC<ProjectModalProps> = ({
     onShowArchitectureChange?.(next);
   };
 
+  const slidesCount = useMemo(() => {
+    if (!project) return 0;
+    if (project.coverImageUrl && isVideoMediaSource(project.coverImageUrl, project.coverMediaType)) {
+      return 1;
+    }
+    const set = new Set<string>();
+    (project.galleryUrls ?? []).forEach((u) => {
+      if (u && !isVideoMediaSource(u)) set.add(u);
+    });
+    if (project.coverImageUrl && !isVideoMediaSource(project.coverImageUrl)) {
+      set.add(project.coverImageUrl);
+    }
+    return set.size;
+  }, [project]);
+
   useEffect(() => {
     if (!project) return;
     setIsAnimating(true);
+    setSlideIdx(0);
     setInternalShowArchitecture(false);
 
     const prevBodyOverflow = document.body.style.overflow;
@@ -91,45 +118,101 @@ export const ProjectModal: React.FC<ProjectModalProps> = ({
               </p>
             </div>
           </div>
-          <button
-            type="button"
-            onClick={onClose}
-            aria-label="Close project inspector"
-            className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-md border border-white/10 text-zinc-300 transition-colors hover:bg-white/10 hover:text-white"
-          >
-            <X className="h-4 w-4" />
-          </button>
+
+          <div className="flex items-center gap-2 shrink-0">
+            {project.liveUrl && (
+              <a
+                href={project.liveUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="hidden sm:inline-flex h-9 items-center gap-1.5 rounded-md bg-accent px-3 text-xs font-semibold text-white transition-colors hover:bg-accent-dark"
+              >
+                Open Live Project
+                <ArrowUpRight className="h-3.5 w-3.5" aria-hidden="true" />
+              </a>
+            )}
+            <button
+              type="button"
+              onClick={onClose}
+              aria-label="Close project inspector"
+              className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-md border border-white/10 text-zinc-300 hover:bg-white/10 hover:text-white"
+            >
+              <X className="h-4 w-4" />
+            </button>
+          </div>
         </div>
 
-        {/* Live Canvas Preview */}
+        {/* Live Canvas / Photo Reel Preview */}
         <div className="relative bg-black" data-cursor="eye">
           <ProductPreviewCanvas
             theme={project.previewTheme}
             coverImageUrl={project.coverImageUrl}
+            galleryUrls={project.galleryUrls}
             coverMediaType={project.coverMediaType}
             title={project.title}
             isAnimating={isAnimating}
             controlPlayback
+            activeSlideIndex={slidesCount > 1 ? slideIdx : undefined}
+            onSlideChange={slidesCount > 1 ? setSlideIdx : undefined}
           />
 
-          <div className="flex items-center justify-between border-t border-white/10 bg-[#08080A] px-5 py-3">
-            <button
-              type="button"
-              onClick={() => setIsAnimating((p) => !p)}
-              className="inline-flex items-center gap-2 rounded-md bg-accent px-3.5 py-1.5 text-xs font-semibold text-white transition-colors hover:bg-accent-dark"
-            >
-              {isAnimating ? (
-                <>
-                  <Pause className="h-3.5 w-3.5" aria-hidden="true" />
-                  Pause Simulation
-                </>
-              ) : (
-                <>
-                  <Play className="h-3.5 w-3.5 fill-current" aria-hidden="true" />
-                  Run Simulation
-                </>
+          {slidesCount > 1 && (
+            <>
+              <button
+                type="button"
+                aria-label="Previous project photo"
+                onClick={() => setSlideIdx((prev) => (prev - 1 + slidesCount) % slidesCount)}
+                className="absolute top-1/2 left-3 z-10 inline-flex h-9 w-9 -translate-y-1/2 items-center justify-center rounded-full border border-white/20 bg-black/65 text-white backdrop-blur-sm transition-colors hover:bg-black/85"
+              >
+                <ChevronLeft className="h-4 w-4" />
+              </button>
+              <button
+                type="button"
+                aria-label="Next project photo"
+                onClick={() => setSlideIdx((prev) => (prev + 1) % slidesCount)}
+                className="absolute top-1/2 right-3 z-10 inline-flex h-9 w-9 -translate-y-1/2 items-center justify-center rounded-full border border-white/20 bg-black/65 text-white backdrop-blur-sm transition-colors hover:bg-black/85"
+              >
+                <ChevronRight className="h-4 w-4" />
+              </button>
+            </>
+          )}
+
+          <div className="flex flex-wrap items-center justify-between gap-3 border-t border-white/10 bg-[#08080A] px-5 py-3">
+            <div className="flex items-center gap-3">
+              <button
+                type="button"
+                onClick={() => setIsAnimating((p) => !p)}
+                className="inline-flex items-center gap-2 rounded-md bg-accent px-3.5 py-1.5 text-xs font-semibold text-white transition-colors hover:bg-accent-dark"
+              >
+                {isAnimating ? (
+                  <>
+                    <Pause className="h-3.5 w-3.5" aria-hidden="true" />
+                    {slidesCount > 1 ? 'Pause Reel' : 'Pause Simulation'}
+                  </>
+                ) : (
+                  <>
+                    <Play className="h-3.5 w-3.5 fill-current" aria-hidden="true" />
+                    {slidesCount > 1 ? 'Play Reel' : 'Run Simulation'}
+                  </>
+                )}
+              </button>
+
+              {slidesCount > 1 && (
+                <div className="flex items-center gap-1.5" role="group" aria-label="Slide selector">
+                  {Array.from({ length: slidesCount }).map((_, idx) => (
+                    <button
+                      key={idx}
+                      type="button"
+                      onClick={() => setSlideIdx(idx)}
+                      aria-label={`View photo ${idx + 1}`}
+                      className={`h-2 rounded-full transition-all ${
+                        idx === slideIdx ? 'w-5 bg-accent' : 'w-2 bg-white/25 hover:bg-white/50'
+                      }`}
+                    />
+                  ))}
+                </div>
               )}
-            </button>
+            </div>
 
             <span className="font-mono text-xs text-zinc-400 tabular-nums">
               Viewport · {project.dimensions}
@@ -163,9 +246,9 @@ export const ProjectModal: React.FC<ProjectModalProps> = ({
                     href={project.liveUrl}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="inline-flex items-center gap-1.5 rounded-md bg-accent px-3.5 py-2 text-xs font-semibold text-white transition-colors hover:bg-accent-dark"
+                    className="inline-flex items-center gap-1.5 rounded-md bg-accent px-4 py-2 text-xs font-semibold text-white transition-colors hover:bg-accent-dark"
                   >
-                    Live Preview
+                    Open Live Project
                     <ArrowUpRight className="h-3.5 w-3.5" aria-hidden="true" />
                   </a>
                 )}

@@ -58,6 +58,7 @@ export interface ProjectItem {
   previewTheme: PreviewTheme;
   dimensions: string;
   coverImageUrl?: string;
+  galleryUrls?: string[];
   coverMediaType?: 'image' | 'video';
   liveUrl?: string;
   repoUrl?: string;
@@ -120,6 +121,7 @@ export interface ViewerControlsConfig {
   cursorSpeed: CursorSpeed;
   accentColor: string;
   showCvDownloadOnViewer: boolean;
+  showStarterDemoProjects: boolean;
 }
 
 export interface CvSettingsConfig {
@@ -145,6 +147,7 @@ export const DEFAULT_VIEWER_CONTROLS: ViewerControlsConfig = {
   cursorSpeed: 'normal',
   accentColor: DEFAULT_ACCENT_COLOR,
   showCvDownloadOnViewer: false,
+  showStarterDemoProjects: true,
 };
 
 export const DEFAULT_CV_SETTINGS: CvSettingsConfig = {
@@ -365,10 +368,16 @@ export function normalizePortfolioContent(
       const formattedIndex = rawIndex || String(idx + 1).padStart(2, '0');
 
       const coverUrl = sanitizePublicUrl(p.coverImageUrl, '', true) || undefined;
-      const mediaType: 'image' | 'video' | undefined = coverUrl
+      const rawGallery = Array.isArray(p.galleryUrls) ? p.galleryUrls : [];
+      const galleryUrls = rawGallery
+        .map((url) => sanitizePublicUrl(url, '', true))
+        .filter((url) => Boolean(url) && !isVideoMediaSource(url) && url.length <= 165_000)
+        .slice(0, 5);
+      const effectiveCover = coverUrl || galleryUrls[0] || undefined;
+      const mediaType: 'image' | 'video' | undefined = effectiveCover
         ? p.coverMediaType === 'video' || p.coverMediaType === 'image'
           ? p.coverMediaType
-          : isVideoMediaSource(coverUrl)
+          : isVideoMediaSource(effectiveCover)
             ? 'video'
             : 'image'
         : undefined;
@@ -391,7 +400,8 @@ export function normalizePortfolioContent(
         ),
         previewTheme,
         dimensions: clampExact(p.dimensions, 20, '1440 × 900'),
-        coverImageUrl: coverUrl,
+        coverImageUrl: effectiveCover,
+        galleryUrls: galleryUrls.length > 0 ? galleryUrls : undefined,
         coverMediaType: mediaType,
         liveUrl: sanitizePublicUrl(p.liveUrl, '') || undefined,
         repoUrl: sanitizePublicUrl(p.repoUrl, '') || undefined,
@@ -494,6 +504,10 @@ export function normalizePortfolioContent(
     showCvDownloadOnViewer: pickBool(
       rawVc.showCvDownloadOnViewer,
       dv.showCvDownloadOnViewer ?? false
+    ),
+    showStarterDemoProjects: pickBool(
+      rawVc.showStarterDemoProjects,
+      dv.showStarterDemoProjects ?? true
     ),
   };
 

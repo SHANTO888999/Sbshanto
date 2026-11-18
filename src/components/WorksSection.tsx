@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { ArrowUpRight } from 'lucide-react';
+import { ArrowUpRight, ExternalLink } from 'lucide-react';
 import { ProjectCategory, ProjectItem } from '../data/portfolioData';
 import { usePortfolioContent } from '../context/PortfolioContentContext';
 import { ProductPreviewCanvas } from './ProductPreviewCanvas';
@@ -56,6 +56,7 @@ const ProjectCardContent: React.FC<{
           <ProductPreviewCanvas
             theme={showingCloneTheme ? firstProject.previewTheme : project.previewTheme}
             coverImageUrl={showingCloneTheme ? firstProject.coverImageUrl : project.coverImageUrl}
+            galleryUrls={showingCloneTheme ? firstProject.galleryUrls : project.galleryUrls}
             coverMediaType={showingCloneTheme ? firstProject.coverMediaType : project.coverMediaType}
             title={project.title}
             isAnimating={isHovered}
@@ -115,6 +116,20 @@ const ProjectCardContent: React.FC<{
           </div>
         </div>
       </button>
+
+      {project.liveUrl && (
+        <div className="mt-2.5 pl-10">
+          <a
+            href={project.liveUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="inline-flex items-center gap-1.5 rounded-md border border-white/15 bg-[#101116] px-3 py-1.5 text-xs font-semibold text-zinc-100 transition-colors hover:border-accent hover:bg-accent/15 hover:text-white"
+          >
+            <span>Open Live Project</span>
+            <ExternalLink className="h-3.5 w-3.5 text-accent-light" aria-hidden="true" />
+          </a>
+        </div>
+      )}
     </article>
   );
 };

@@ -59,10 +59,31 @@ export const PortfolioContentProvider: React.FC<PortfolioContentProviderProps> =
     };
   }, []);
 
-  const safeContent = useMemo(
-    () => normalizePortfolioContent(overrideContent ?? remoteContent, DEFAULT_PORTFOLIO_CONTENT),
-    [overrideContent, remoteContent]
-  );
+  const safeContent = useMemo(() => {
+    const source = overrideContent ?? remoteContent;
+    const normalized = normalizePortfolioContent(source, DEFAULT_PORTFOLIO_CONTENT);
+
+    // Keep starter demo projects visible alongside custom cloud projects unless explicitly disabled
+    if (
+      source &&
+      Array.isArray(source.projects) &&
+      source.projects.length > 0 &&
+      normalized.viewerControls.showStarterDemoProjects !== false
+    ) {
+      const existingIds = new Set(normalized.projects.map((p) => p.id));
+      const remainingStarters = DEFAULT_PORTFOLIO_CONTENT.projects.filter(
+        (starter) => !existingIds.has(starter.id)
+      );
+      if (remainingStarters.length > 0) {
+        return {
+          ...normalized,
+          projects: [...normalized.projects, ...remainingStarters],
+        };
+      }
+    }
+
+    return normalized;
+  }, [overrideContent, remoteContent]);
 
   return (
     <PortfolioContentContext.Provider value={safeContent}>

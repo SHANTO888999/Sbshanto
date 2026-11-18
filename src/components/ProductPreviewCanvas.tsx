@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
   DEFAULT_ACCENT_COLOR,
   isVideoMediaSource,
@@ -9,10 +9,14 @@ import { computeAccentPalette } from '../utils/themeAccent';
 interface ProductPreviewCanvasProps {
   theme: PreviewTheme;
   coverImageUrl?: string;
+  galleryUrls?: string[];
   coverMediaType?: 'image' | 'video';
   title?: string;
   isAnimating?: boolean;
   controlPlayback?: boolean;
+  activeSlideIndex?: number;
+  onSlideChange?: (idx: number) => void;
+  showSlideBadge?: boolean;
   accentColor?: string;
   className?: string;
 }
@@ -20,10 +24,14 @@ interface ProductPreviewCanvasProps {
 export const ProductPreviewCanvas: React.FC<ProductPreviewCanvasProps> = ({
   theme,
   coverImageUrl,
+  galleryUrls,
   coverMediaType,
   title = 'Project preview',
   isAnimating = false,
   controlPlayback = false,
+  activeSlideIndex,
+  onSlideChange,
+  showSlideBadge = true,
   accentColor,
   className = '',
 }) => {
@@ -35,17 +43,66 @@ export const ProductPreviewCanvas: React.FC<ProductPreviewCanvasProps> = ({
       : DEFAULT_ACCENT_COLOR);
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const videoRef = useRef<HTMLVideoElement | null>(null);
-  const [imageFailed, setImageFailed] = useState(false);
+  const [failedUrls, setFailedUrls] = useState<Record<string, boolean>>({});
+  const [internalSlideIdx, setInternalSlideIdx] = useState(0);
+
+  const isExplicitVideo = Boolean(
+    coverImageUrl && isVideoMediaSource(coverImageUrl, coverMediaType) && !failedUrls[coverImageUrl]
+  );
+
+  const imageSlides = useMemo(() => {
+    if (isExplicitVideo) return [];
+    const merged: string[] = [];
+    const seen = new Set<string>();
+    const candidates = [
+      ...(Array.isArray(galleryUrls) ? galleryUrls : []),
+      ...(coverImageUrl ? [coverImageUrl] : []),
+    ];
+    for (const url of candidates) {
+      const clean = typeof url === 'string' ? url.trim() : '';
+      if (!clean || seen.has(clean) || failedUrls[clean] || isVideoMediaSource(clean)) continue;
+      seen.add(clean);
+      merged.push(clean);
+    }
+    return merged.slice(0, 5);
+  }, [coverImageUrl, galleryUrls, failedUrls, isExplicitVideo]);
 
   useEffect(() => {
-    setImageFailed(false);
-  }, [coverImageUrl, coverMediaType]);
+    setFailedUrls({});
+    setInternalSlideIdx(0);
+  }, [coverImageUrl, galleryUrls, coverMediaType]);
 
-  const showCustomCover = Boolean(coverImageUrl && !imageFailed);
-  const isVideo = showCustomCover && isVideoMediaSource(coverImageUrl, coverMediaType);
+  const currentIdx =
+    imageSlides.length > 0
+      ? (activeSlideIndex ?? internalSlideIdx) % imageSlides.length
+      : 0;
+
+  const shouldCycleSlides =
+    !isExplicitVideo && imageSlides.length > 1 && (!controlPlayback || isAnimating);
 
   useEffect(() => {
-    if (!isVideo || !controlPlayback) return;
+    if (!shouldCycleSlides) return;
+    const prefersReduced =
+      typeof window !== 'undefined' &&
+      window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    if (prefersReduced) return;
+
+    const timer = window.setInterval(() => {
+      const next = (currentIdx + 1) % imageSlides.length;
+      if (onSlideChange) {
+        onSlideChange(next);
+      } else {
+        setInternalSlideIdx(next);
+      }
+    }, 2400);
+
+    return () => window.clearInterval(timer);
+  }, [shouldCycleSlides, currentIdx, imageSlides.length, onSlideChange]);
+
+  const showCustomCover = isExplicitVideo || imageSlides.length > 0;
+
+  useEffect(() => {
+    if (!isExplicitVideo || !controlPlayback) return;
     const vid = videoRef.current;
     if (!vid) return;
     if (isAnimating) {
@@ -53,7 +110,7 @@ export const ProductPreviewCanvas: React.FC<ProductPreviewCanvasProps> = ({
     } else {
       vid.pause();
     }
-  }, [isVideo, controlPlayback, isAnimating]);
+  }, [isExplicitVideo, controlPlayback, isAnimating]);
 
   useEffect(() => {
     if (showCustomCover) return;
@@ -77,11 +134,9 @@ export const ProductPreviewCanvas: React.FC<ProductPreviewCanvasProps> = ({
       ctx.clearRect(0, 0, width, height);
 
       if (theme === 'app-workspace') {
-        // Dark SaaS App Interface Preview with Live Cursor & Cards
         ctx.fillStyle = '#09090D';
         ctx.fillRect(0, 0, width, height);
 
-        // Sidebar
         ctx.fillStyle = '#111116';
         ctx.fillRect(0, 0, 130, height);
         ctx.strokeStyle = 'rgba(255,255,255,0.08)';
@@ -92,7 +147,6 @@ export const ProductPreviewCanvas: React.FC<ProductPreviewCanvasProps> = ({
           ctx.fillRect(20, 48 + i * 32, 86, 12);
         }
 
-        // Main Workspace Board Cards
         const cols = [155, 315, 475];
         cols.forEach((cx, ci) => {
           ctx.fillStyle = '#131319';
@@ -111,7 +165,6 @@ export const ProductPreviewCanvas: React.FC<ProductPreviewCanvasProps> = ({
           }
         });
 
-        // Mini live cursor inside app preview
         const mx = 350 + Math.sin(t * 0.04) * 55;
         const my = 120 + Math.cos(t * 0.03) * 35;
         ctx.fillStyle = '#38BDF8';
@@ -123,7 +176,6 @@ export const ProductPreviewCanvas: React.FC<ProductPreviewCanvasProps> = ({
         ctx.closePath();
         ctx.fill();
       } else if (theme === 'game-rift') {
-        // 2.5D Action Roguelite Game Scene
         const bg = ctx.createRadialGradient(width / 2, height / 2, 20, width / 2, height / 2, 360);
         bg.addColorStop(0, accentRgba(0.28));
         bg.addColorStop(0.6, '#12080D');
@@ -131,7 +183,6 @@ export const ProductPreviewCanvas: React.FC<ProductPreviewCanvasProps> = ({
         ctx.fillStyle = bg;
         ctx.fillRect(0, 0, width, height);
 
-        // Isometric arena floor grid
         ctx.strokeStyle = accentRgba(0.25);
         ctx.lineWidth = 1;
         for (let i = -6; i <= 6; i++) {
@@ -148,7 +199,6 @@ export const ProductPreviewCanvas: React.FC<ProductPreviewCanvasProps> = ({
           ctx.stroke();
         }
 
-        // Player character & slash arc
         const px = width / 2 + Math.sin(t * 0.05) * 40;
         const py = 215;
         ctx.fillStyle = '#FFFFFF';
@@ -159,23 +209,19 @@ export const ProductPreviewCanvas: React.FC<ProductPreviewCanvasProps> = ({
         ctx.arc(px + 12, py - 8, 36, -0.8 + Math.sin(t * 0.1) * 0.4, 0.8 + Math.sin(t * 0.1) * 0.4);
         ctx.stroke();
 
-        // Game HUD health & energy bar
         ctx.fillStyle = 'rgba(0,0,0,0.65)';
         ctx.fillRect(24, 22, 160, 18);
         ctx.fillStyle = accent.primary;
         ctx.fillRect(27, 25, 118, 12);
       } else if (theme === 'web-commerce') {
-        // Modern Dark Editorial Website Preview
         ctx.fillStyle = '#08080C';
         ctx.fillRect(0, 0, width, height);
 
-        // Browser bar
         ctx.fillStyle = '#121218';
         ctx.fillRect(28, 22, width - 56, height - 44);
         ctx.strokeStyle = 'rgba(255,255,255,0.12)';
         ctx.strokeRect(28, 22, width - 56, height - 44);
 
-        // Split Hero inside browser preview
         ctx.fillStyle = '#FFFFFF';
         ctx.fillRect(58, 92, 175, 22);
         ctx.fillStyle = accent.primary;
@@ -186,7 +232,6 @@ export const ProductPreviewCanvas: React.FC<ProductPreviewCanvasProps> = ({
         ctx.fillStyle = accent.primary;
         ctx.fillRect(58, 206, 95, 26);
 
-        // Right product stage
         const glow = ctx.createRadialGradient(445, 185, 10, 445, 185, 120);
         glow.addColorStop(0, accentRgba(0.45));
         glow.addColorStop(1, 'rgba(0,0,0,0)');
@@ -197,24 +242,20 @@ export const ProductPreviewCanvas: React.FC<ProductPreviewCanvasProps> = ({
         ctx.lineWidth = 2;
         ctx.strokeRect(365, 95 + Math.sin(t * 0.04) * 5, 165, 180);
       } else if (theme === 'app-realtime') {
-        // Mobile & Web App Screens Side-by-Side
         ctx.fillStyle = '#090A0F';
         ctx.fillRect(0, 0, width, height);
 
-        // Desktop frame
         ctx.fillStyle = '#12131A';
         ctx.fillRect(54, 48, 360, 264);
         ctx.strokeStyle = 'rgba(255,255,255,0.12)';
         ctx.strokeRect(54, 48, 360, 264);
 
-        // Chat bubbles animating
         for (let i = 0; i < 4; i++) {
           const isMe = i % 2 === 1;
           ctx.fillStyle = isMe ? accent.primary : '#27272A';
           ctx.fillRect(isMe ? 210 : 80, 82 + i * 50, 175, 32);
         }
 
-        // Overlapping Mobile Phone Frame
         ctx.fillStyle = '#0D0E13';
         ctx.fillRect(438, 38, 146, 284);
         ctx.strokeStyle = '#3B82F6';
@@ -226,11 +267,9 @@ export const ProductPreviewCanvas: React.FC<ProductPreviewCanvasProps> = ({
         ctx.fillRect(456, 136, 110, 38);
         ctx.fillRect(456, 186, 110, 38);
       } else if (theme === 'game-drift') {
-        // Top-Down Neon Drift Racing Track
         ctx.fillStyle = '#06070B';
         ctx.fillRect(0, 0, width, height);
 
-        // Oval racing circuit
         ctx.strokeStyle = '#27272A';
         ctx.lineWidth = 58;
         ctx.beginPath();
@@ -245,7 +284,6 @@ export const ProductPreviewCanvas: React.FC<ProductPreviewCanvasProps> = ({
         ctx.stroke();
         ctx.setLineDash([]);
 
-        // Animated Drift Car
         const angle = t * 0.04;
         const cx = width / 2 + Math.cos(angle) * 210;
         const cy = height / 2 + Math.sin(angle) * 105;
@@ -259,18 +297,15 @@ export const ProductPreviewCanvas: React.FC<ProductPreviewCanvasProps> = ({
         ctx.fillRect(-7, -10, 14, 12);
         ctx.restore();
       } else {
-        // UI/UX Design System Tokens & Components Grid
         ctx.fillStyle = '#09090D';
         ctx.fillRect(0, 0, width, height);
 
-        // Blue Figma canvas selection guides
         ctx.strokeStyle = 'rgba(59, 130, 246, 0.4)';
         ctx.lineWidth = 1;
         ctx.strokeRect(42, 42, 250, 125);
         ctx.strokeRect(320, 42, 275, 275);
         ctx.strokeRect(42, 190, 250, 127);
 
-        // Component buttons & swatches
         ctx.fillStyle = accent.primary;
         ctx.fillRect(62, 74, 110, 34);
         ctx.fillStyle = '#27272A';
@@ -284,7 +319,6 @@ export const ProductPreviewCanvas: React.FC<ProductPreviewCanvasProps> = ({
           ctx.strokeRect(62 + i * 44, 224, 34, 34);
         });
 
-        // Typography scale preview
         ctx.fillStyle = '#FFFFFF';
         ctx.fillRect(348, 76, 190, 22);
         ctx.fillStyle = '#A1A1AA';
@@ -314,7 +348,7 @@ export const ProductPreviewCanvas: React.FC<ProductPreviewCanvasProps> = ({
   return (
     <div className={`relative aspect-video overflow-hidden bg-[#0B0B0F] ${className}`}>
       {showCustomCover ? (
-        isVideo ? (
+        isExplicitVideo ? (
           <video
             ref={videoRef}
             src={coverImageUrl}
@@ -324,16 +358,51 @@ export const ProductPreviewCanvas: React.FC<ProductPreviewCanvasProps> = ({
             playsInline
             preload="metadata"
             aria-label={title}
-            onError={() => setImageFailed(true)}
+            onError={() => {
+              if (coverImageUrl) {
+                setFailedUrls((prev) => ({ ...prev, [coverImageUrl]: true }));
+              }
+            }}
             className="block h-full w-full object-cover"
           />
+        ) : imageSlides.length > 1 ? (
+          <>
+            {imageSlides.map((slideUrl, idx) => {
+              const active = idx === currentIdx;
+              const zoomShift = idx % 2 === 0 ? 'scale-[1.06]' : 'scale-[1.04]';
+              return (
+                <img
+                  key={`${slideUrl.slice(0, 64)}-${idx}`}
+                  src={slideUrl}
+                  alt={`${title} frame ${idx + 1}`}
+                  loading={idx === 0 ? 'eager' : 'lazy'}
+                  referrerPolicy="no-referrer"
+                  onError={() => setFailedUrls((prev) => ({ ...prev, [slideUrl]: true }))}
+                  className={`absolute inset-0 block h-full w-full object-cover transition-all duration-1000 ease-out ${
+                    active ? `opacity-100 ${zoomShift}` : 'pointer-events-none opacity-0 scale-100'
+                  }`}
+                />
+              );
+            })}
+            {showSlideBadge && (
+              <div className="pointer-events-none absolute top-2.5 right-2.5 z-10 flex items-center gap-1.5 rounded bg-black/70 px-2 py-0.5 font-mono text-[10px] text-zinc-200 backdrop-blur-sm">
+                <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-accent-light" />
+                <span className="tabular-nums">
+                  {currentIdx + 1}/{imageSlides.length}
+                </span>
+              </div>
+            )}
+          </>
         ) : (
           <img
-            src={coverImageUrl}
+            src={imageSlides[0]}
             alt={title}
             loading="lazy"
             referrerPolicy="no-referrer"
-            onError={() => setImageFailed(true)}
+            onError={() => {
+              const bad = imageSlides[0];
+              if (bad) setFailedUrls((prev) => ({ ...prev, [bad]: true }));
+            }}
             className={`block h-full w-full object-cover transition-transform duration-500 ${
               isAnimating ? 'scale-[1.03]' : 'scale-100'
             }`}

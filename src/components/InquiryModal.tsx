@@ -2,7 +2,12 @@ import React, { useEffect, useState } from 'react';
 import { ArrowLeft, Check, CheckCircle2, Copy, Mail, X } from 'lucide-react';
 import { usePortfolioContent } from '../context/PortfolioContentContext';
 import { isValidEmailAddress } from '../data/contentSchema';
-import { submitProjectInquiry, trackHireInquirySubmit } from '../firebaseViewer';
+import {
+  submitProjectInquiry,
+  trackHireInquirySubmit,
+  trackVisitorAgeGroup,
+  type VisitorAgeGroup,
+} from '../firebaseViewer';
 import { copyTextSafely } from '../utils/clipboard';
 import { handleViewerFormEnterToSubmit } from '../utils/formKeyboardNav';
 
@@ -14,6 +19,14 @@ interface InquiryModalProps {
   onSubmittedChange?: (submitted: boolean) => void;
   trackAnalytics?: boolean;
 }
+
+const AGE_GROUPS: ReadonlyArray<{ id: VisitorAgeGroup; label: string }> = [
+  { id: 'under18', label: '< 18' },
+  { id: '18-24', label: '18–24' },
+  { id: '25-34', label: '25–34' },
+  { id: '35-44', label: '35–44' },
+  { id: '45plus', label: '45+' },
+];
 
 export const InquiryModal: React.FC<InquiryModalProps> = ({
   isOpen,
@@ -27,6 +40,7 @@ export const InquiryModal: React.FC<InquiryModalProps> = ({
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [scope, setScope] = useState('Website Design & Development');
+  const [ageGroup, setAgeGroup] = useState<VisitorAgeGroup | ''>('');
   const [brief, setBrief] = useState('');
   const [internalSubmitted, setInternalSubmitted] = useState(false);
   const [cloudSaved, setCloudSaved] = useState(true);
@@ -117,6 +131,9 @@ export const InquiryModal: React.FC<InquiryModalProps> = ({
       setCloudSaved(true);
       if (trackAnalytics) {
         void trackHireInquirySubmit();
+        if (ageGroup) {
+          void trackVisitorAgeGroup(ageGroup);
+        }
       }
     } catch (err) {
       console.warn('Firestore inquiry save fallback used:', err);
@@ -145,6 +162,7 @@ export const InquiryModal: React.FC<InquiryModalProps> = ({
     setCopiedBrief(false);
     setName('');
     setEmail('');
+    setAgeGroup('');
     setBrief('');
     onClose();
   };
@@ -174,49 +192,49 @@ export const InquiryModal: React.FC<InquiryModalProps> = ({
         onClick={(e) => e.stopPropagation()}
       >
         <div className="flex items-start justify-between gap-3">
-          <div className="flex items-start gap-2.5 min-w-0">
-              <button
-                type="button"
-                onClick={handleBackAction}
-                aria-label="Go back"
-                className="mt-0.5 inline-flex h-9 items-center gap-1.5 rounded-md border border-white/15 bg-[#121319] px-2.5 text-xs font-semibold text-zinc-200 transition-colors hover:border-accent/60 hover:text-white shrink-0"
-              >
-                <ArrowLeft className="h-3.5 w-3.5 text-accent-light" aria-hidden="true" />
-                <span>Back</span>
-              </button>
-              <div className="min-w-0">
-                <p className="text-xs font-medium text-accent-light">Work With Shanto</p>
-                <h3 className="mt-0.5 truncate font-display text-2xl font-bold text-white sm:text-3xl">
-                  START A PROJECT BRIEF
-                </h3>
-              </div>
-            </div>
+          <div className="flex min-w-0 items-start gap-2.5">
             <button
               type="button"
-              onClick={resetAndClose}
-              aria-label="Close inquiry modal"
-              className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-md border border-white/10 text-zinc-300 hover:bg-white/10 hover:text-white"
+              onClick={handleBackAction}
+              aria-label="Go back"
+              className="mt-0.5 inline-flex h-9 shrink-0 items-center gap-1.5 rounded-md border border-white/15 bg-[#121319] px-2.5 text-xs font-semibold text-zinc-200 transition-colors hover:border-accent/60 hover:text-white"
             >
-              <X className="h-4 w-4" />
+              <ArrowLeft className="h-3.5 w-3.5 text-accent-light" aria-hidden="true" />
+              <span>Back</span>
             </button>
+            <div className="min-w-0">
+              <p className="text-xs font-medium text-accent-light">Work With Shanto</p>
+              <h3 className="mt-0.5 truncate font-display text-2xl font-bold text-white sm:text-3xl">
+                START A PROJECT BRIEF
+              </h3>
+            </div>
           </div>
+          <button
+            type="button"
+            onClick={resetAndClose}
+            aria-label="Close inquiry modal"
+            className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-md border border-white/10 text-zinc-300 hover:bg-white/10 hover:text-white"
+          >
+            <X className="h-4 w-4" />
+          </button>
+        </div>
 
-          {submitted ? (
-            <div className="mt-6 rounded-xl border border-emerald-500/30 bg-emerald-500/10 p-5 text-center sm:p-6">
-              <CheckCircle2 className="mx-auto h-10 w-10 text-emerald-400" aria-hidden="true" />
-              <h4 className="mt-3 text-lg font-semibold text-white">
-                {cloudSaved ? 'Brief Delivered & Saved' : 'Brief Ready to Send'}
-              </h4>
-              <p className="mt-2 text-sm text-zinc-300">
-                {cloudSaved
-                  ? `Thanks, ${name}. Your ${scope.toLowerCase()} brief is delivered to Shanto's inbox. You can also send via email or copy it below.`
-                  : `Cloud inbox could not be reached right now, so your brief is saved locally. Tap Open in Email App or Copy Brief below to send it to ${profile.email}.`}
-              </p>
-              <div className="mt-5 flex flex-wrap items-center justify-center gap-3">
-                <a
-                  href={mailtoHref}
-                  className="inline-flex items-center gap-2 rounded-md bg-accent px-4 py-2.5 text-xs font-semibold text-white transition-colors hover:bg-accent-dark"
-                >
+        {submitted ? (
+          <div className="mt-6 rounded-xl border border-emerald-500/30 bg-emerald-500/10 p-5 text-center sm:p-6">
+            <CheckCircle2 className="mx-auto h-10 w-10 text-emerald-400" aria-hidden="true" />
+            <h4 className="mt-3 text-lg font-semibold text-white">
+              {cloudSaved ? 'Brief Delivered & Saved' : 'Brief Ready to Send'}
+            </h4>
+            <p className="mt-2 text-sm text-zinc-300">
+              {cloudSaved
+                ? `Thanks, ${name}. Your ${scope.toLowerCase()} brief is delivered to Shanto's inbox. You can also send via email or copy it below.`
+                : `Cloud inbox could not be reached right now, so your brief is saved locally. Tap Open in Email App or Copy Brief below to send it to ${profile.email}.`}
+            </p>
+            <div className="mt-5 flex flex-wrap items-center justify-center gap-3">
+              <a
+                href={mailtoHref}
+                className="inline-flex items-center gap-2 rounded-md bg-accent px-4 py-2.5 text-xs font-semibold text-white transition-colors hover:bg-accent-dark"
+              >
                 <Mail className="h-3.5 w-3.5" aria-hidden="true" />
                 Open in Email App
               </a>
@@ -313,6 +331,31 @@ export const InquiryModal: React.FC<InquiryModalProps> = ({
                 <option>2D / 3D Game Design &amp; Development</option>
                 <option>UI/UX Design System &amp; Prototype</option>
               </select>
+            </div>
+
+            <div>
+              <span className="block text-xs font-medium text-zinc-300">
+                Your Age Group <span className="text-zinc-500">(optional)</span>
+              </span>
+              <div className="mt-1.5 flex flex-wrap gap-1.5">
+                {AGE_GROUPS.map((opt) => {
+                  const selected = ageGroup === opt.id;
+                  return (
+                    <button
+                      key={opt.id}
+                      type="button"
+                      onClick={() => setAgeGroup(selected ? '' : opt.id)}
+                      className={`rounded border px-2.5 py-1 text-xs font-medium transition-colors ${
+                        selected
+                          ? 'border-accent bg-accent/20 text-white'
+                          : 'border-white/15 bg-[#08080A] text-zinc-300 hover:border-white/30'
+                      }`}
+                    >
+                      {opt.label}
+                    </button>
+                  );
+                })}
+              </div>
             </div>
 
             <div>

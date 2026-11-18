@@ -38,7 +38,7 @@ function loadImageFromFile(file: File): Promise<{ img: HTMLImageElement; cleanup
 
 export async function processProjectPhotoFile(
   file: File,
-  options?: { maxDataUrlLength?: number; hardCapLength?: number }
+  options?: { maxDataUrlLength?: number; hardCapLength?: number; widths?: number[] }
 ): Promise<{ dataUrl: string; sizeKB: number }> {
   if (!file.type.startsWith('image/')) {
     throw new Error('Please choose a valid image file (JPG, PNG, or WebP).');
@@ -51,7 +51,7 @@ export async function processProjectPhotoFile(
   try {
     const srcW = img.naturalWidth || 1280;
     const srcH = img.naturalHeight || 720;
-    const widths = [1200, 960, 720, 540];
+    const widths = options?.widths ?? [1200, 960, 720, 540];
     const qualities = [0.84, 0.72, 0.58, 0.45];
 
     const canvas = document.createElement('canvas');
@@ -99,6 +99,16 @@ export async function processProjectPhotoFile(
   } finally {
     cleanup();
   }
+}
+
+export async function processGalleryPhotoFile(
+  file: File
+): Promise<{ dataUrl: string; sizeKB: number }> {
+  return processProjectPhotoFile(file, {
+    maxDataUrlLength: 105_000,
+    hardCapLength: 155_000,
+    widths: [960, 760, 600, 460],
+  });
 }
 
 function loadVideoMetadata(

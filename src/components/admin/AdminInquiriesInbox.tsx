@@ -2,11 +2,13 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { ArrowLeft, Check, Copy, Mail, Trash2 } from 'lucide-react';
 import type { InquiryRecord, InquiryStatus } from '../../firebaseAdmin';
 import { copyTextSafely } from '../../utils/clipboard';
+import { getAdminCopy, type AdminLang } from './adminI18n';
 import { ConfirmDialog } from './FieldControls';
 
 interface AdminInquiriesInboxProps {
   inquiries: InquiryRecord[];
   saving: boolean;
+  lang?: AdminLang;
   onUpdateStatus: (id: string, status: InquiryStatus) => Promise<boolean>;
   onDelete: (id: string) => Promise<boolean>;
   onBack?: () => void;
@@ -32,12 +34,14 @@ const STATUS_LABELS: Record<InquiryStatus, string> = {
 export const AdminInquiriesInbox: React.FC<AdminInquiriesInboxProps> = ({
   inquiries,
   saving,
+  lang = 'en',
   onUpdateStatus,
   onDelete,
   onBack,
   closeDialogNonce = 0,
   onDialogOpenChange,
 }) => {
+  const t = getAdminCopy(lang);
   const [filter, setFilter] = useState<'all' | InquiryStatus>('all');
   const [copiedId, setCopiedId] = useState<string | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<InquiryRecord | null>(null);
@@ -71,12 +75,9 @@ export const AdminInquiriesInbox: React.FC<AdminInquiriesInboxProps> = ({
     <div className="space-y-6">
       <div className="border-b border-white/10 pb-5">
         <h2 className="font-display text-2xl font-bold tracking-tight text-white">
-          CLIENT INQUIRIES ({inquiries.length})
+          {t.inquiries.heading} ({inquiries.length})
         </h2>
-        <p className="mt-1 text-sm text-zinc-400">
-          Private project briefs submitted from your public portfolio website. Only your verified
-          admin account can read them.
-        </p>
+        <p className="mt-1 text-sm text-zinc-400">{t.inquiries.subtitle}</p>
       </div>
 
       <div className="flex flex-wrap gap-1.5 rounded-lg border border-white/10 bg-[#08090D] p-1">
@@ -94,7 +95,7 @@ export const AdminInquiriesInbox: React.FC<AdminInquiriesInboxProps> = ({
                   : 'text-zinc-400 hover:bg-white/5 hover:text-white'
               }`}
             >
-              {st} ({count})
+              {t.inquiries.statuses[st]} ({count})
             </button>
           );
         })}
@@ -102,11 +103,8 @@ export const AdminInquiriesInbox: React.FC<AdminInquiriesInboxProps> = ({
 
       {visible.length === 0 ? (
         <div className="rounded-xl border border-dashed border-white/15 bg-[#090A0F] p-10 text-center">
-          <p className="text-sm font-medium text-zinc-200">No inquiries in this view.</p>
-          <p className="mt-1 text-xs text-zinc-500">
-            When visitors submit the Hire Me form on your viewer site, messages appear here
-            instantly.
-          </p>
+          <p className="text-sm font-medium text-zinc-200">{t.inquiries.emptyTitle}</p>
+          <p className="mt-1 text-xs text-zinc-500">{t.inquiries.emptyDesc}</p>
         </div>
       ) : (
         <div className="space-y-4">
@@ -165,12 +163,12 @@ export const AdminInquiriesInbox: React.FC<AdminInquiriesInboxProps> = ({
                       {copiedId === inq.id ? (
                         <>
                           <Check className="h-3.5 w-3.5 text-emerald-400" aria-hidden="true" />
-                          Copied
+                          {t.inquiries.copied}
                         </>
                       ) : (
                         <>
                           <Copy className="h-3.5 w-3.5" aria-hidden="true" />
-                          Email
+                          {t.inquiries.copyEmail}
                         </>
                       )}
                     </button>
@@ -182,7 +180,7 @@ export const AdminInquiriesInbox: React.FC<AdminInquiriesInboxProps> = ({
                       className="inline-flex min-h-[38px] items-center gap-1.5 rounded-md bg-accent px-3 py-1.5 text-xs font-semibold text-white hover:bg-accent-dark"
                     >
                       <Mail className="h-3.5 w-3.5" aria-hidden="true" />
-                      Reply
+                      {t.inquiries.reply}
                     </a>
 
                     <button
@@ -207,13 +205,14 @@ export const AdminInquiriesInbox: React.FC<AdminInquiriesInboxProps> = ({
 
       <ConfirmDialog
         open={Boolean(deleteTarget)}
-        title="Delete Inquiry"
+        title={t.inquiries.deleteTitle}
         description={
           deleteTarget
             ? `Permanently delete project brief from ${deleteTarget.name} (${deleteTarget.email})?`
             : ''
         }
         busy={saving}
+        lang={lang}
         onCancel={() => setDeleteTarget(null)}
         onConfirm={async () => {
           if (!deleteTarget) return;
@@ -232,7 +231,7 @@ export const AdminInquiriesInbox: React.FC<AdminInquiriesInboxProps> = ({
             className="inline-flex min-h-[42px] items-center gap-2 rounded-md border border-white/15 px-4 py-2 text-xs font-medium text-zinc-300 hover:bg-white/5 hover:text-white"
           >
             <ArrowLeft className="h-3.5 w-3.5" aria-hidden="true" />
-            Back
+            {t.common.back}
           </button>
         </div>
       )}

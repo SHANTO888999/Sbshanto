@@ -6,7 +6,12 @@ import {
   PortfolioContentProvider,
   usePortfolioContent,
 } from './context/PortfolioContentContext';
-import { trackHireModalOpen, trackProjectCardClick, trackVisitorSession } from './firebaseViewer';
+import {
+  startLivePresenceHeartbeat,
+  trackHireModalOpen,
+  trackProjectCardClick,
+  trackVisitorSession,
+} from './firebaseViewer';
 import { applyDocumentAccentTheme } from './utils/themeAccent';
 import { DesignCanvasProvider } from './components/DesignCursorSystem';
 import { IntroSequence } from './components/IntroSequence';
@@ -192,6 +197,7 @@ function ViewerShell({
   useEffect(() => {
     if (!trackAnalytics) return;
     void trackVisitorSession();
+    return startLivePresenceHeartbeat();
   }, [trackAnalytics]);
 
   useEffect(() => {

@@ -2,12 +2,14 @@ import React, { useEffect, useRef, useState } from 'react';
 import { ArrowLeft, Eye, EyeOff, Pencil, Plus, Save, Trash2, X } from 'lucide-react';
 import type { AdminExperienceRecord, AdminMilestoneRecord } from '../../firebaseAdmin';
 import { handleFormEnterToNext } from '../../utils/formKeyboardNav';
+import { getAdminCopy, type AdminLang } from './adminI18n';
 import { ConfirmDialog, LimitedInput, LimitedTextarea } from './FieldControls';
 
 interface AdminCareerEditorProps {
   milestones: AdminMilestoneRecord[];
   experience: AdminExperienceRecord[];
   saving: boolean;
+  lang?: AdminLang;
   activeSubTab?: 'milestones' | 'experience';
   onChangeSubTab?: (tab: 'milestones' | 'experience') => void;
   onSubViewChange?: (label: string | null) => void;
@@ -24,6 +26,7 @@ export const AdminCareerEditor: React.FC<AdminCareerEditorProps> = ({
   milestones,
   experience,
   saving,
+  lang = 'en',
   activeSubTab: controlledSubTab,
   onChangeSubTab,
   onSubViewChange,
@@ -35,6 +38,7 @@ export const AdminCareerEditor: React.FC<AdminCareerEditorProps> = ({
   onSaveExperience,
   onDeleteExperience,
 }) => {
+  const t = getAdminCopy(lang);
   const [internalSubTab, setInternalSubTab] = useState<'milestones' | 'experience'>('milestones');
   const activeSubTab = controlledSubTab ?? internalSubTab;
   const setActiveSubTab = (tab: 'milestones' | 'experience') => {
@@ -438,11 +442,9 @@ export const AdminCareerEditor: React.FC<AdminCareerEditorProps> = ({
       <div className="flex flex-col gap-4 border-b border-white/10 pb-5 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <h2 className="font-display text-2xl font-bold tracking-tight text-white">
-            MILESTONES &amp; EXPERIENCE
+            {t.career.heading}
           </h2>
-          <p className="mt-1 text-sm text-zinc-400">
-            Control your shipped build milestones and studio timeline entries.
-          </p>
+          <p className="mt-1 text-sm text-zinc-400">{t.career.subtitle}</p>
         </div>
 
         <button
@@ -477,7 +479,7 @@ export const AdminCareerEditor: React.FC<AdminCareerEditorProps> = ({
           className="inline-flex min-h-[42px] items-center justify-center gap-2 rounded-md bg-accent px-4 py-2 text-xs font-semibold text-white hover:bg-accent-dark whitespace-nowrap shrink-0"
         >
           <Plus className="h-4 w-4" aria-hidden="true" />
-          {activeSubTab === 'milestones' ? 'Add Milestone' : 'Add Experience'}
+          {activeSubTab === 'milestones' ? t.career.addMilestone : t.career.addExperience}
         </button>
       </div>
 
@@ -491,7 +493,7 @@ export const AdminCareerEditor: React.FC<AdminCareerEditorProps> = ({
               : 'text-zinc-400 hover:text-white'
           }`}
         >
-          Milestones ({milestones.length})
+          {t.career.milestonesTab} ({milestones.length})
         </button>
         <button
           type="button"
@@ -502,14 +504,14 @@ export const AdminCareerEditor: React.FC<AdminCareerEditorProps> = ({
               : 'text-zinc-400 hover:text-white'
           }`}
         >
-          Career Timeline ({experience.length})
+          {t.career.experienceTab} ({experience.length})
         </button>
       </div>
 
       {activeSubTab === 'milestones' ? (
         milestones.length === 0 ? (
           <div className="rounded-xl border border-dashed border-white/15 bg-[#090A0F] p-10 text-center text-sm text-zinc-400">
-            No cloud milestones saved yet. Add one or sync defaults from Overview.
+            {t.career.emptyMilestones}
           </div>
         ) : (
           <div className="divide-y divide-white/10 overflow-hidden rounded-xl border border-white/10 bg-[#090A0F]">
@@ -573,7 +575,7 @@ export const AdminCareerEditor: React.FC<AdminCareerEditorProps> = ({
         )
       ) : experience.length === 0 ? (
         <div className="rounded-xl border border-dashed border-white/15 bg-[#090A0F] p-10 text-center text-sm text-zinc-400">
-          No cloud experience entries saved yet. Add one or sync defaults from Overview.
+          {t.career.emptyExperience}
         </div>
       ) : (
         <div className="divide-y divide-white/10 overflow-hidden rounded-xl border border-white/10 bg-[#090A0F]">
@@ -589,7 +591,7 @@ export const AdminCareerEditor: React.FC<AdminCareerEditorProps> = ({
                   <span>{item.org}</span>
                   <span aria-hidden="true">·</span>
                   <span className={item.published ? 'text-emerald-400' : 'text-amber-400'}>
-                    {item.published ? 'Published' : 'Draft'}
+                    {item.published ? t.common.published : t.common.draft}
                   </span>
                 </div>
                 <h3 className="mt-0.5 truncate text-sm font-semibold text-white">{item.role}</h3>
@@ -608,7 +610,7 @@ export const AdminCareerEditor: React.FC<AdminCareerEditorProps> = ({
                   ) : (
                     <Eye className="h-3.5 w-3.5" aria-hidden="true" />
                   )}
-                  {item.published ? 'Hide' : 'Publish'}
+                  {item.published ? t.common.hide : t.common.publish}
                 </button>
                 <button
                   type="button"
@@ -616,7 +618,7 @@ export const AdminCareerEditor: React.FC<AdminCareerEditorProps> = ({
                   className="inline-flex min-h-[38px] items-center gap-1.5 rounded-md border border-white/15 px-3 py-1.5 text-xs text-zinc-200 hover:bg-white/5"
                 >
                   <Pencil className="h-3.5 w-3.5" aria-hidden="true" />
-                  Edit
+                  {t.common.edit}
                 </button>
                 <button
                   type="button"
@@ -636,11 +638,16 @@ export const AdminCareerEditor: React.FC<AdminCareerEditorProps> = ({
 
       <ConfirmDialog
         open={Boolean(deleteConfirm)}
-        title={deleteConfirm?.kind === 'milestone' ? 'Delete Milestone' : 'Delete Experience'}
+        title={
+          deleteConfirm?.kind === 'milestone'
+            ? t.career.deleteMilestoneTitle
+            : t.career.deleteExperienceTitle
+        }
         description={
           deleteConfirm ? `Remove "${deleteConfirm.label}" from your cloud database?` : ''
         }
         busy={saving}
+        lang={lang}
         onCancel={() => setDeleteConfirm(null)}
         onConfirm={async () => {
           if (!deleteConfirm) return;

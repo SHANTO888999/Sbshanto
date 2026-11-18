@@ -1,15 +1,21 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
   ArrowLeft,
+  ChevronLeft,
+  ChevronRight,
+  ExternalLink,
   Eye,
   EyeOff,
   Film,
   ImagePlus,
+  Info,
+  Link2,
   Loader2,
   Pencil,
   Plus,
   Save,
   Search,
+  Star,
   Trash2,
   X,
 } from 'lucide-react';
@@ -17,13 +23,17 @@ import type { PreviewTheme, ProjectCategory } from '../../data/contentSchema';
 import { isVideoMediaSource, sanitizePublicUrl } from '../../data/contentSchema';
 import type { AdminProjectRecord } from '../../firebaseAdmin';
 import { handleFormEnterToNext } from '../../utils/formKeyboardNav';
-import { processProjectPhotoFile, processProjectVideoFile } from '../../utils/mediaCompressor';
+import { processGalleryPhotoFile, processProjectVideoFile } from '../../utils/mediaCompressor';
 import { ProductPreviewCanvas } from '../ProductPreviewCanvas';
+import { getAdminCopy, type AdminLang } from './adminI18n';
 import { ConfirmDialog, LimitedInput, LimitedTextarea, SafeUrlInput } from './FieldControls';
 
 interface AdminProjectsEditorProps {
   projects: AdminProjectRecord[];
   saving: boolean;
+  lang?: AdminLang;
+  showStarterDemoProjects?: boolean;
+  onOpenViewerControls?: () => void;
   onSaveProject: (project: AdminProjectRecord) => Promise<boolean>;
   onDeleteProject: (projectId: string) => Promise<boolean>;
   onSubViewChange?: (label: string | null) => void;
@@ -48,6 +58,31 @@ const THEMES: ReadonlyArray<{ id: PreviewTheme; label: string }> = [
   { id: 'ui-system', label: 'UI Component Library Canvas' },
 ];
 
+const MAX_GALLERY_PHOTOS = 5;
+
+function getEffectiveGallery(proj: AdminProjectRecord): string[] {
+  if (proj.coverMediaType === 'video' && isVideoMediaSource(proj.coverImageUrl, proj.coverMediaType)) {
+    return [];
+  }
+  const merged: string[] = [];
+  const seen = new Set<string>();
+  const rawList = [
+    ...(Array.isArray(proj.galleryUrls) ? proj.galleryUrls : []),
+    ...(proj.coverImageUrl && !isVideoMediaSource(proj.coverImageUrl, proj.coverMediaType)
+      ? [proj.coverImageUrl]
+      : []),
+  ];
+  for (const item of rawList) {
+    const clean = sanitizePublicUrl(item, '', true);
+    if (clean && !seen.has(clean)) {
+      seen.add(clean);
+      merged.push(clean);
+    }
+    if (merged.length >= MAX_GALLERY_PHOTOS) break;
+  }
+  return merged;
+}
+
 function createBlankProject(projects: AdminProjectRecord[]): AdminProjectRecord {
   const maxOrder = projects.reduce((max, item) => Math.max(max, item.sortOrder), -1);
   const maxNum = projects.reduce(
@@ -71,6 +106,7 @@ function createBlankProject(projects: AdminProjectRecord[]): AdminProjectRecord 
     previewTheme: 'web-commerce',
     dimensions: '1440 × 900',
     coverImageUrl: '',
+    galleryUrls: [],
     coverMediaType: undefined,
     liveUrl: '',
     repoUrl: '',
@@ -82,6 +118,9 @@ function createBlankProject(projects: AdminProjectRecord[]): AdminProjectRecord 
 export const AdminProjectsEditor: React.FC<AdminProjectsEditorProps> = ({
   projects,
   saving,
+  lang = 'en',
+  showStarterDemoProjects = true,
+  onOpenViewerControls,
   onSaveProject,
   onDeleteProject,
   onSubViewChange,
@@ -89,10 +128,12 @@ export const AdminProjectsEditor: React.FC<AdminProjectsEditorProps> = ({
   closeDialogNonce = 0,
   onDialogOpenChange,
 }) => {
+  const t = getAdminCopy(lang);
   const [filterCategory, setFilterCategory] = useState<ProjectCategory>('All');
   const [searchQuery, setSearchQuery] = useState('');
   const [editing, setEditing] = useState<AdminProjectRecord | null>(null);
   const [stackInput, setStackInput] = useState('');
+  const [photoUrlInput, setPhotoUrlInput] = useState('');
   const [deleteTarget, setDeleteTarget] = useState<AdminProjectRecord | null>(null);
 
   const [mediaBusyLabel, setMediaBusyLabel] = useState<string | null>(null);
@@ -123,6 +164,7 @@ export const AdminProjectsEditor: React.FC<AdminProjectsEditorProps> = ({
       setMediaError(null);
       setMediaStatusNote(null);
       setFormError(null);
+      setPhotoUrlInput('');
     }
   }, [exitSubViewNonce]);
 
@@ -133,8 +175,8 @@ export const AdminProjectsEditor: React.FC<AdminProjectsEditorProps> = ({
       return;
     }
     const isExisting = projects.some((p) => p.id === editing.id);
-    onSubViewChange(isExisting ? 'Edit Project' : 'New Project');
-  }, [editing, projects, onSubViewChange]);
+    onSubViewChange(isExisting ? t.projects.editHeading : t.projects.newHeading);
+  }, [editing, projects, onSubViewChange, t.projects.editHeading, t.projects.newHeading]);
 
   const filtered = useMemo(() => {
     const q = searchQuery.trim().toLowerCase();
@@ -150,8 +192,16 @@ export const AdminProjectsEditor: React.FC<AdminProjectsEditorProps> = ({
   }, [projects, filterCategory, searchQuery]);
 
   const startEdit = (proj: AdminProjectRecord) => {
-    setEditing({ ...proj, stack: [...proj.stack] });
+    const gallery = getEffectiveGallery(proj);
+    setEditing({
+      ...proj,
+      stack: [...proj.stack],
+      galleryUrls: gallery,
+      coverImageUrl:
+        proj.coverMediaType === 'video' ? proj.coverImageUrl : gallery[0] ?? proj.coverImageUrl ?? '',
+    });
     setStackInput('');
+    setPhotoUrlInput('');
     setMediaError(null);
     setMediaStatusNote(null);
     setFormError(null);
@@ -160,6 +210,7 @@ export const AdminProjectsEditor: React.FC<AdminProjectsEditorProps> = ({
   const startNew = () => {
     setEditing(createBlankProject(projects));
     setStackInput('');
+    setPhotoUrlInput('');
     setMediaError(null);
     setMediaStatusNote(null);
     setFormError(null);
@@ -177,30 +228,132 @@ export const AdminProjectsEditor: React.FC<AdminProjectsEditorProps> = ({
     setStackInput('');
   };
 
-  const handlePhotoPicked = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
+  const handlePhotosPicked = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = Array.from(e.target.files ?? []);
     e.target.value = '';
-    if (!file || !editing) return;
+    if (files.length === 0 || !editing) return;
+
+    const currentGallery = getEffectiveGallery(editing);
+    const remainingSlots = Math.max(0, MAX_GALLERY_PHOTOS - currentGallery.length);
+    if (remainingSlots === 0) {
+      setMediaError(
+        lang === 'bn'
+          ? 'সর্বোচ্চ ৫টি ছবি যোগ করা যায়। নতুন ছবি যোগ করতে একটি ছবি মুছুন।'
+          : 'Maximum 5 photos per project. Remove one photo before adding another.'
+      );
+      return;
+    }
+
+    const toProcess = files.slice(0, remainingSlots);
     setMediaError(null);
     setMediaStatusNote(null);
-    setMediaBusyLabel('Optimizing photo...');
+    setMediaBusyLabel(
+      lang === 'bn'
+        ? `${toProcess.length}টি ছবি অপ্টিমাইজ হচ্ছে...`
+        : `Optimizing ${toProcess.length} photo(s)...`
+    );
+
     try {
-      const result = await processProjectPhotoFile(file);
+      const addedUrls: string[] = [];
+      let totalKB = 0;
+      for (const file of toProcess) {
+        const res = await processGalleryPhotoFile(file);
+        addedUrls.push(res.dataUrl);
+        totalKB += res.sizeKB;
+      }
+
+      const nextGallery = [...currentGallery, ...addedUrls].slice(0, MAX_GALLERY_PHOTOS);
       setEditing((prev) =>
         prev
           ? {
               ...prev,
-              coverImageUrl: result.dataUrl,
+              galleryUrls: nextGallery,
+              coverImageUrl: nextGallery[0] ?? '',
               coverMediaType: 'image',
             }
           : prev
       );
-      setMediaStatusNote(`Photo ready (${result.sizeKB} KB)`);
+      setMediaStatusNote(
+        lang === 'bn'
+          ? `${addedUrls.length}টি ছবি স্লাইডশোতে যোগ হয়েছে (${totalKB} KB)`
+          : `${addedUrls.length} photo(s) added to slideshow (${totalKB} KB)`
+      );
     } catch (err) {
-      setMediaError(err instanceof Error ? err.message : 'Failed to process selected photo.');
+      setMediaError(err instanceof Error ? err.message : 'Failed to process selected photos.');
     } finally {
       setMediaBusyLabel(null);
     }
+  };
+
+  const handleAddPhotoUrl = () => {
+    if (!editing) return;
+    const raw = photoUrlInput.trim();
+    if (!raw) return;
+    const clean = sanitizePublicUrl(raw, '', false);
+    if (!clean) {
+      setMediaError(
+        lang === 'bn'
+          ? 'সঠিক https:// ছবির লিংক বা /assets/... পাথ লিখুন।'
+          : 'Enter a valid https:// image link or /assets/... path.'
+      );
+      return;
+    }
+    const currentGallery = getEffectiveGallery(editing);
+    if (currentGallery.length >= MAX_GALLERY_PHOTOS) {
+      setMediaError(
+        lang === 'bn' ? 'সর্বোচ্চ ৫টি ছবি যোগ করা যায়।' : 'Maximum 5 slideshow photos allowed.'
+      );
+      return;
+    }
+    const nextGallery = [...currentGallery, clean].slice(0, MAX_GALLERY_PHOTOS);
+    setEditing({
+      ...editing,
+      galleryUrls: nextGallery,
+      coverImageUrl: nextGallery[0] ?? clean,
+      coverMediaType: 'image',
+    });
+    setPhotoUrlInput('');
+    setMediaError(null);
+  };
+
+  const handleRemoveGallerySlide = (idx: number) => {
+    if (!editing) return;
+    const currentGallery = getEffectiveGallery(editing);
+    const nextGallery = currentGallery.filter((_, i) => i !== idx);
+    setEditing({
+      ...editing,
+      galleryUrls: nextGallery,
+      coverImageUrl: nextGallery[0] ?? '',
+      coverMediaType: nextGallery.length > 0 ? 'image' : undefined,
+    });
+  };
+
+  const handleMoveGallerySlide = (idx: number, dir: -1 | 1) => {
+    if (!editing) return;
+    const currentGallery = [...getEffectiveGallery(editing)];
+    const target = idx + dir;
+    if (target < 0 || target >= currentGallery.length) return;
+    const [moved] = currentGallery.splice(idx, 1);
+    currentGallery.splice(target, 0, moved);
+    setEditing({
+      ...editing,
+      galleryUrls: currentGallery,
+      coverImageUrl: currentGallery[0] ?? '',
+      coverMediaType: 'image',
+    });
+  };
+
+  const handleSetPrimarySlide = (idx: number) => {
+    if (!editing || idx === 0) return;
+    const currentGallery = [...getEffectiveGallery(editing)];
+    const [picked] = currentGallery.splice(idx, 1);
+    currentGallery.unshift(picked);
+    setEditing({
+      ...editing,
+      galleryUrls: currentGallery,
+      coverImageUrl: currentGallery[0] ?? '',
+      coverMediaType: 'image',
+    });
   };
 
   const handleVideoPicked = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -209,7 +362,7 @@ export const AdminProjectsEditor: React.FC<AdminProjectsEditorProps> = ({
     if (!file || !editing) return;
     setMediaError(null);
     setMediaStatusNote(null);
-    setMediaBusyLabel('Preparing video clip...');
+    setMediaBusyLabel(lang === 'bn' ? 'ভিডিও প্রসেস হচ্ছে...' : 'Preparing video clip...');
     try {
       const result = await processProjectVideoFile(file, (label) => setMediaBusyLabel(label));
       setEditing((prev) =>
@@ -217,6 +370,7 @@ export const AdminProjectsEditor: React.FC<AdminProjectsEditorProps> = ({
           ? {
               ...prev,
               coverImageUrl: result.dataUrl,
+              galleryUrls: [],
               coverMediaType: 'video',
             }
           : prev
@@ -246,7 +400,7 @@ export const AdminProjectsEditor: React.FC<AdminProjectsEditorProps> = ({
       !editing.summary.trim() ||
       !editing.architectureNotes.trim()
     ) {
-      setFormError('Fill in all required project details before saving.');
+      setFormError(t.projects.enterNextError);
       return;
     }
 
@@ -256,7 +410,7 @@ export const AdminProjectsEditor: React.FC<AdminProjectsEditorProps> = ({
       return;
     }
     if ((editing.liveUrl ?? '').trim() && !sanitizePublicUrl(editing.liveUrl, '')) {
-      setFormError('Live Demo URL must start with https:// or http://.');
+      setFormError('Live Project URL must start with https:// or http://.');
       return;
     }
     if ((editing.repoUrl ?? '').trim() && !sanitizePublicUrl(editing.repoUrl, '')) {
@@ -274,10 +428,10 @@ export const AdminProjectsEditor: React.FC<AdminProjectsEditorProps> = ({
 
   if (editing) {
     const coverValue = editing.coverImageUrl ?? '';
-    const isUploadedMedia = coverValue.startsWith('data:');
     const isVideoCover = Boolean(
       coverValue && isVideoMediaSource(coverValue, editing.coverMediaType)
     );
+    const gallerySlides = isVideoCover ? [] : getEffectiveGallery(editing);
 
     return (
       <form
@@ -294,15 +448,15 @@ export const AdminProjectsEditor: React.FC<AdminProjectsEditorProps> = ({
               className="inline-flex min-h-[40px] items-center gap-1.5 rounded-md border border-white/15 px-3 py-1.5 text-xs font-medium text-zinc-300 hover:bg-white/5 hover:text-white"
             >
               <ArrowLeft className="h-3.5 w-3.5" aria-hidden="true" />
-              Back to Projects
+              {t.projects.backToProjects}
             </button>
             <div>
               <h2 className="font-display text-2xl font-bold text-white">
-                {projects.some((p) => p.id === editing.id) ? 'EDIT PROJECT' : 'NEW PROJECT'}
+                {projects.some((p) => p.id === editing.id)
+                  ? t.projects.editHeading
+                  : t.projects.newHeading}
               </h2>
-              <p className="text-xs text-zinc-400">
-                Press Enter to jump to the next field. Attach a photo or short video clip below.
-              </p>
+              <p className="text-xs text-zinc-400">{t.projects.formHint}</p>
             </div>
           </div>
 
@@ -319,12 +473,12 @@ export const AdminProjectsEditor: React.FC<AdminProjectsEditorProps> = ({
               {editing.published ? (
                 <>
                   <Eye className="h-3.5 w-3.5" aria-hidden="true" />
-                  Published on Site
+                  {t.projects.publishedOnSite}
                 </>
               ) : (
                 <>
                   <EyeOff className="h-3.5 w-3.5" aria-hidden="true" />
-                  Hidden Draft
+                  {t.common.hiddenDraft}
                 </>
               )}
             </button>
@@ -335,7 +489,7 @@ export const AdminProjectsEditor: React.FC<AdminProjectsEditorProps> = ({
               className="inline-flex min-h-[40px] items-center gap-2 rounded-md bg-accent px-4 py-2 text-xs font-semibold text-white hover:bg-accent-dark disabled:opacity-60 whitespace-nowrap shrink-0"
             >
               <Save className="h-3.5 w-3.5" aria-hidden="true" />
-              {saving ? 'Saving...' : 'Save Project'}
+              {saving ? t.common.saving : t.projects.saveProject}
             </button>
           </div>
         </div>
@@ -371,7 +525,7 @@ export const AdminProjectsEditor: React.FC<AdminProjectsEditorProps> = ({
               <div className="sm:col-span-2">
                 <LimitedInput
                   id="proj-title"
-                  label="Project Title"
+                  label={lang === 'bn' ? 'প্রজেক্টের নাম' : 'Project Title'}
                   value={editing.title}
                   maxLength={56}
                   required
@@ -384,7 +538,8 @@ export const AdminProjectsEditor: React.FC<AdminProjectsEditorProps> = ({
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
               <div>
                 <label htmlFor="proj-cat" className="block text-xs font-medium text-zinc-200">
-                  Category <span className="text-accent-light">*</span>
+                  {lang === 'bn' ? 'ক্যাটাগরি' : 'Category'}{' '}
+                  <span className="text-accent-light">*</span>
                 </label>
                 <select
                   id="proj-cat"
@@ -407,7 +562,7 @@ export const AdminProjectsEditor: React.FC<AdminProjectsEditorProps> = ({
 
               <LimitedInput
                 id="proj-year"
-                label="Year"
+                label={lang === 'bn' ? 'সাল' : 'Year'}
                 value={editing.year}
                 maxLength={12}
                 required
@@ -416,7 +571,7 @@ export const AdminProjectsEditor: React.FC<AdminProjectsEditorProps> = ({
 
               <div>
                 <label htmlFor="proj-order" className="block text-xs font-medium text-zinc-200">
-                  Display Order (0–1000)
+                  {lang === 'bn' ? 'ক্রমিক নম্বর (0–1000)' : 'Display Order (0–1000)'}
                 </label>
                 <input
                   id="proj-order"
@@ -439,7 +594,7 @@ export const AdminProjectsEditor: React.FC<AdminProjectsEditorProps> = ({
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
               <LimitedInput
                 id="proj-platform"
-                label="Platform"
+                label={lang === 'bn' ? 'প্ল্যাটফর্ম' : 'Platform'}
                 value={editing.platform}
                 maxLength={36}
                 required
@@ -448,7 +603,7 @@ export const AdminProjectsEditor: React.FC<AdminProjectsEditorProps> = ({
               />
               <LimitedInput
                 id="proj-client"
-                label="Client / Label"
+                label={lang === 'bn' ? 'ক্লায়েন্ট / লেবেল' : 'Client / Label'}
                 value={editing.client}
                 maxLength={36}
                 required
@@ -456,7 +611,7 @@ export const AdminProjectsEditor: React.FC<AdminProjectsEditorProps> = ({
               />
               <LimitedInput
                 id="proj-role"
-                label="Your Role"
+                label={lang === 'bn' ? 'আপনার ভূমিকা' : 'Your Role'}
                 value={editing.role}
                 maxLength={64}
                 required
@@ -464,7 +619,7 @@ export const AdminProjectsEditor: React.FC<AdminProjectsEditorProps> = ({
               />
               <LimitedInput
                 id="proj-dims"
-                label="Viewport Badge Dimensions"
+                label={lang === 'bn' ? 'ব্যাজ সাইজ' : 'Viewport Badge Dimensions'}
                 value={editing.dimensions}
                 maxLength={20}
                 required
@@ -475,7 +630,7 @@ export const AdminProjectsEditor: React.FC<AdminProjectsEditorProps> = ({
 
             <LimitedTextarea
               id="proj-summary"
-              label="Project Summary"
+              label={lang === 'bn' ? 'প্রজেক্টের সংক্ষিপ্ত বিবরণ' : 'Project Summary'}
               value={editing.summary}
               maxLength={280}
               rows={3}
@@ -486,7 +641,7 @@ export const AdminProjectsEditor: React.FC<AdminProjectsEditorProps> = ({
 
             <LimitedTextarea
               id="proj-arch"
-              label="Architecture & Craft Notes"
+              label={lang === 'bn' ? 'টেকনিক্যাল নোটস' : 'Architecture & Craft Notes'}
               value={editing.architectureNotes}
               maxLength={300}
               rows={2}
@@ -553,113 +708,237 @@ export const AdminProjectsEditor: React.FC<AdminProjectsEditorProps> = ({
                     onClick={addStackTag}
                     className="min-h-[42px] rounded-md border border-white/15 px-3.5 py-1.5 text-xs font-medium text-zinc-200 hover:bg-white/5"
                   >
-                    Add Tag
+                    + Tag
                   </button>
                 </div>
               )}
             </div>
           </div>
 
+          {/* Right Column: Live Project URL + Multi-Photo Reel / Video */}
           <div className="space-y-5 lg:col-span-5">
+            {/* Prominent Live Project URL Box */}
+            <div className="rounded-xl border border-accent/35 bg-accent/10 p-5 space-y-3">
+              <div className="flex items-center justify-between gap-2">
+                <div className="flex items-center gap-2 text-xs font-semibold text-white">
+                  <Link2 className="h-4 w-4 text-accent-light" aria-hidden="true" />
+                  <span>{t.projects.liveUrlLabel}</span>
+                </div>
+                {sanitizePublicUrl(editing.liveUrl, '') && (
+                  <a
+                    href={sanitizePublicUrl(editing.liveUrl, '')}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex items-center gap-1 font-mono text-[11px] text-accent-light hover:underline"
+                  >
+                    Test
+                    <ExternalLink className="h-3 w-3" aria-hidden="true" />
+                  </a>
+                )}
+              </div>
+
+              <SafeUrlInput
+                id="proj-live"
+                label="https://..."
+                value={editing.liveUrl ?? ''}
+                maxLength={300}
+                autoPrefixHttps
+                lang={lang}
+                placeholder="https://myproject.web.app"
+                hint={t.projects.liveUrlHint}
+                onChange={(v) => setEditing({ ...editing, liveUrl: v })}
+              />
+            </div>
+
             <div className="rounded-xl border border-white/10 bg-[#090A0F] p-5">
-              <p className="font-mono text-[11px] uppercase tracking-wider text-zinc-400">
-                Project Photo, Short Video &amp; Links
+              <div className="flex items-center justify-between gap-2">
+                <p className="font-mono text-[11px] uppercase tracking-wider text-zinc-300">
+                  {t.projects.slidesTitle}
+                </p>
+                {(gallerySlides.length > 0 || isVideoCover) && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setEditing({
+                        ...editing,
+                        coverImageUrl: '',
+                        galleryUrls: [],
+                        coverMediaType: undefined,
+                      });
+                      setMediaStatusNote(null);
+                      setMediaError(null);
+                    }}
+                    className="inline-flex items-center gap-1 rounded px-2 py-1 text-[11px] font-medium text-zinc-400 hover:bg-white/5 hover:text-[#EF4444]"
+                  >
+                    <X className="h-3 w-3" aria-hidden="true" />
+                    {t.common.clear}
+                  </button>
+                )}
+              </div>
+
+              <p className="mt-1 text-xs leading-relaxed text-zinc-400">
+                {t.projects.slidesSubtitle}
               </p>
 
-              {/* Upload Photo or Short Video from Phone */}
-              <div className="mt-4 space-y-3 rounded-lg border border-white/10 bg-[#070709] p-3.5">
-                <div className="flex items-center justify-between gap-2">
-                  <span className="text-xs font-medium text-zinc-200">
-                    Cover Media (Photo or Short Clip)
-                  </span>
-                  {coverValue && (
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setEditing({
-                          ...editing,
-                          coverImageUrl: '',
-                          coverMediaType: undefined,
-                        });
-                        setMediaStatusNote(null);
-                        setMediaError(null);
-                      }}
-                      className="inline-flex items-center gap-1 rounded px-2 py-1 text-[11px] font-medium text-zinc-400 hover:bg-white/5 hover:text-[#EF4444]"
-                    >
-                      <X className="h-3 w-3" aria-hidden="true" />
-                      Clear
-                    </button>
-                  )}
-                </div>
+              <input
+                ref={photoInputRef}
+                type="file"
+                accept="image/*"
+                multiple
+                className="hidden"
+                onChange={handlePhotosPicked}
+              />
+              <input
+                ref={videoInputRef}
+                type="file"
+                accept="video/*"
+                className="hidden"
+                onChange={handleVideoPicked}
+              />
 
-                <input
-                  ref={photoInputRef}
-                  type="file"
-                  accept="image/*"
-                  className="hidden"
-                  onChange={handlePhotoPicked}
-                />
-                <input
-                  ref={videoInputRef}
-                  type="file"
-                  accept="video/*"
-                  className="hidden"
-                  onChange={handleVideoPicked}
-                />
+              <div className="mt-3 grid grid-cols-2 gap-2.5">
+                <button
+                  type="button"
+                  disabled={Boolean(mediaBusyLabel) || gallerySlides.length >= MAX_GALLERY_PHOTOS}
+                  onClick={() => photoInputRef.current?.click()}
+                  className="inline-flex min-h-[44px] items-center justify-center gap-2 rounded-md border border-white/15 bg-[#101218] px-3 py-2 text-xs font-medium text-white hover:border-accent/60 hover:bg-[#161922] disabled:opacity-50"
+                >
+                  <ImagePlus className="h-4 w-4 text-accent-light" aria-hidden="true" />
+                  {t.projects.addPhotosBtn} ({gallerySlides.length}/{MAX_GALLERY_PHOTOS})
+                </button>
 
-                <div className="grid grid-cols-2 gap-2.5">
+                <button
+                  type="button"
+                  disabled={Boolean(mediaBusyLabel)}
+                  onClick={() => videoInputRef.current?.click()}
+                  className="inline-flex min-h-[44px] items-center justify-center gap-2 rounded-md border border-white/15 bg-[#101218] px-3 py-2 text-xs font-medium text-white hover:border-accent/60 hover:bg-[#161922] disabled:opacity-50"
+                >
+                  <Film className="h-4 w-4 text-accent-light" aria-hidden="true" />
+                  {t.projects.shortVideoBtn}
+                </button>
+              </div>
+
+              {/* Paste external image URL into slideshow */}
+              {!isVideoCover && gallerySlides.length < MAX_GALLERY_PHOTOS && (
+                <div className="mt-3 flex gap-2">
+                  <input
+                    type="text"
+                    value={photoUrlInput}
+                    onChange={(e) => setPhotoUrlInput(e.target.value)}
+                    placeholder={t.projects.addPhotoUrlPlaceholder}
+                    className="min-h-[40px] flex-1 rounded-md border border-white/15 bg-[#070709] px-3 py-1.5 font-mono text-xs text-white placeholder:text-zinc-500 focus:border-accent focus:outline-none"
+                  />
                   <button
                     type="button"
-                    disabled={Boolean(mediaBusyLabel)}
-                    onClick={() => photoInputRef.current?.click()}
-                    className="inline-flex min-h-[44px] items-center justify-center gap-2 rounded-md border border-white/15 bg-[#101218] px-3 py-2 text-xs font-medium text-white hover:border-accent/60 hover:bg-[#161922] disabled:opacity-50"
+                    onClick={handleAddPhotoUrl}
+                    className="min-h-[40px] rounded-md border border-white/15 px-3 py-1.5 text-xs font-medium text-zinc-200 hover:bg-white/5 shrink-0"
                   >
-                    <ImagePlus className="h-4 w-4 text-accent-light" aria-hidden="true" />
-                    Pick Photo
-                  </button>
-
-                  <button
-                    type="button"
-                    disabled={Boolean(mediaBusyLabel)}
-                    onClick={() => videoInputRef.current?.click()}
-                    className="inline-flex min-h-[44px] items-center justify-center gap-2 rounded-md border border-white/15 bg-[#101218] px-3 py-2 text-xs font-medium text-white hover:border-accent/60 hover:bg-[#161922] disabled:opacity-50"
-                  >
-                    <Film className="h-4 w-4 text-accent-light" aria-hidden="true" />
-                    Short Video
+                    {t.projects.addPhotoUrlBtn}
                   </button>
                 </div>
+              )}
 
-                {mediaBusyLabel && (
-                  <div className="flex items-center gap-2 rounded-md border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-xs text-amber-200">
-                    <Loader2 className="h-3.5 w-3.5 animate-spin shrink-0" aria-hidden="true" />
-                    <span>{mediaBusyLabel}</span>
-                  </div>
-                )}
+              {mediaBusyLabel && (
+                <div className="mt-3 flex items-center gap-2 rounded-md border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-xs text-amber-200">
+                  <Loader2 className="h-3.5 w-3.5 animate-spin shrink-0" aria-hidden="true" />
+                  <span>{mediaBusyLabel}</span>
+                </div>
+              )}
 
-                {mediaError && (
-                  <p className="rounded-md border border-[#DC2626]/40 bg-[#DC2626]/10 px-3 py-2 text-xs text-red-200">
-                    {mediaError}
-                  </p>
-                )}
-
-                {!mediaBusyLabel && (mediaStatusNote || isUploadedMedia) && (
-                  <p className="rounded-md border border-emerald-500/30 bg-emerald-500/10 px-3 py-2 text-xs text-emerald-200">
-                    {mediaStatusNote ??
-                      (isVideoCover
-                        ? 'Short video clip attached from device.'
-                        : 'Compressed photo attached from device.')}
-                  </p>
-                )}
-
-                <p className="text-[11px] leading-relaxed text-zinc-500">
-                  Photos auto-compress cleanly. Short videos (3–6 sec) auto-optimize into a silent
-                  loop for fast mobile loading.
+              {mediaError && (
+                <p className="mt-3 rounded-md border border-[#DC2626]/40 bg-[#DC2626]/10 px-3 py-2 text-xs text-red-200">
+                  {mediaError}
                 </p>
+              )}
+
+              {!mediaBusyLabel && mediaStatusNote && (
+                <p className="mt-3 rounded-md border border-emerald-500/30 bg-emerald-500/10 px-3 py-2 text-xs text-emerald-200">
+                  {mediaStatusNote}
+                </p>
+              )}
+
+              {/* Reorderable Slideshow Thumbnails */}
+              {gallerySlides.length > 0 && (
+                <div className="mt-4 grid grid-cols-2 gap-2.5 sm:grid-cols-3">
+                  {gallerySlides.map((slideUrl, idx) => (
+                    <div
+                      key={`${idx}-${slideUrl.slice(0, 32)}`}
+                      className="group relative overflow-hidden rounded-lg border border-white/15 bg-[#050507]"
+                    >
+                      <div className="aspect-[16/10] w-full overflow-hidden">
+                        <img
+                          src={slideUrl}
+                          alt={`Slide ${idx + 1}`}
+                          className="h-full w-full object-cover"
+                        />
+                      </div>
+                      <div className="flex items-center justify-between gap-1 border-t border-white/10 bg-[#0C0D12] px-1.5 py-1">
+                        <div className="flex items-center gap-0.5">
+                          <button
+                            type="button"
+                            disabled={idx === 0}
+                            onClick={() => handleMoveGallerySlide(idx, -1)}
+                            aria-label="Move slide left"
+                            className="rounded p-1 text-zinc-400 hover:bg-white/10 hover:text-white disabled:opacity-30"
+                          >
+                            <ChevronLeft className="h-3.5 w-3.5" />
+                          </button>
+                          <button
+                            type="button"
+                            disabled={idx === gallerySlides.length - 1}
+                            onClick={() => handleMoveGallerySlide(idx, 1)}
+                            aria-label="Move slide right"
+                            className="rounded p-1 text-zinc-400 hover:bg-white/10 hover:text-white disabled:opacity-30"
+                          >
+                            <ChevronRight className="h-3.5 w-3.5" />
+                          </button>
+                        </div>
+
+                        {idx === 0 ? (
+                          <span className="font-mono text-[10px] font-semibold text-emerald-300">
+                            #1 {t.projects.setCover}
+                          </span>
+                        ) : (
+                          <button
+                            type="button"
+                            onClick={() => handleSetPrimarySlide(idx)}
+                            title="Make primary cover"
+                            className="inline-flex items-center gap-0.5 rounded px-1.5 py-0.5 text-[10px] text-zinc-300 hover:bg-white/10 hover:text-white"
+                          >
+                            <Star className="h-2.5 w-2.5" />
+                            #{idx + 1}
+                          </button>
+                        )}
+
+                        <button
+                          type="button"
+                          onClick={() => handleRemoveGallerySlide(idx)}
+                          aria-label={`Remove slide ${idx + 1}`}
+                          className="rounded p-1 text-zinc-400 hover:bg-[#DC2626]/20 hover:text-[#EF4444]"
+                        >
+                          <Trash2 className="h-3 w-3" />
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              {/* Live Animated Preview Canvas */}
+              <div className="mt-4 aspect-[16/10] w-full overflow-hidden rounded-lg border border-white/10 bg-[#050507]">
+                <ProductPreviewCanvas
+                  theme={editing.previewTheme}
+                  title={editing.title || 'Untitled Project'}
+                  coverImageUrl={editing.coverImageUrl || undefined}
+                  galleryUrls={gallerySlides}
+                  coverMediaType={editing.coverMediaType}
+                  isAnimating
+                />
               </div>
 
               <div className="mt-4">
                 <label htmlFor="proj-theme" className="block text-xs font-medium text-zinc-200">
-                  Fallback Vector Canvas Theme
+                  {t.projects.fallbackThemeLabel}
                 </label>
                 <select
                   id="proj-theme"
@@ -669,59 +948,22 @@ export const AdminProjectsEditor: React.FC<AdminProjectsEditorProps> = ({
                   }
                   className="mt-1.5 min-h-[44px] w-full rounded-md border border-white/15 bg-[#070709] px-3 py-2 text-sm text-white focus:border-accent focus:outline-none"
                 >
-                  {THEMES.map((t) => (
-                    <option key={t.id} value={t.id}>
-                      {t.label}
+                  {THEMES.map((th) => (
+                    <option key={th.id} value={th.id}>
+                      {th.label}
                     </option>
                   ))}
                 </select>
               </div>
 
-              <div className="mt-4 aspect-[16/10] w-full overflow-hidden rounded-lg border border-white/10 bg-[#050507]">
-                <ProductPreviewCanvas
-                  theme={editing.previewTheme}
-                  title={editing.title || 'Untitled Project'}
-                  coverImageUrl={editing.coverImageUrl || undefined}
-                  coverMediaType={editing.coverMediaType}
-                  isAnimating
-                />
-              </div>
-
-              <div className="mt-4 space-y-4">
-                {!isUploadedMedia && (
-                  <SafeUrlInput
-                    id="proj-cover"
-                    label="Or Paste Photo / Video URL"
-                    value={coverValue}
-                    maxLength={500}
-                    placeholder="https://... (.jpg, .png, .webp, .mp4)"
-                    hint="Optional external image or MP4 link if you didn't pick from phone."
-                    onChange={(v) =>
-                      setEditing({
-                        ...editing,
-                        coverImageUrl: v,
-                        coverMediaType: v
-                          ? isVideoMediaSource(v)
-                            ? 'video'
-                            : 'image'
-                          : undefined,
-                      })
-                    }
-                  />
-                )}
-                <SafeUrlInput
-                  id="proj-live"
-                  label="Optional Live Demo URL"
-                  value={editing.liveUrl ?? ''}
-                  maxLength={300}
-                  placeholder="https://..."
-                  onChange={(v) => setEditing({ ...editing, liveUrl: v })}
-                />
+              <div className="mt-4">
                 <SafeUrlInput
                   id="proj-repo"
-                  label="Optional GitHub / Source URL"
+                  label={t.projects.repoUrlLabel}
                   value={editing.repoUrl ?? ''}
                   maxLength={300}
+                  autoPrefixHttps
+                  lang={lang}
                   placeholder="https://github.com/..."
                   enterKeyHint="done"
                   onChange={(v) => setEditing({ ...editing, repoUrl: v })}
@@ -739,7 +981,7 @@ export const AdminProjectsEditor: React.FC<AdminProjectsEditorProps> = ({
             className="inline-flex min-h-[44px] items-center gap-2 rounded-md border border-white/15 px-4 py-2 text-xs font-medium text-zinc-300 hover:bg-white/5 hover:text-white"
           >
             <ArrowLeft className="h-3.5 w-3.5" aria-hidden="true" />
-            Back to Projects List
+            {t.projects.backToProjects}
           </button>
           <button
             type="submit"
@@ -747,7 +989,7 @@ export const AdminProjectsEditor: React.FC<AdminProjectsEditorProps> = ({
             className="inline-flex min-h-[44px] items-center gap-2 rounded-md bg-accent px-5 py-2 text-xs font-semibold text-white hover:bg-accent-dark disabled:opacity-60"
           >
             <Save className="h-3.5 w-3.5" aria-hidden="true" />
-            {saving ? 'Saving...' : 'Save Project'}
+            {saving ? t.common.saving : t.projects.saveProject}
           </button>
         </div>
       </form>
@@ -759,11 +1001,9 @@ export const AdminProjectsEditor: React.FC<AdminProjectsEditorProps> = ({
       <div className="flex flex-col gap-4 border-b border-white/10 pb-5 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <h2 className="font-display text-2xl font-bold tracking-tight text-white">
-            PROJECTS SHOWCASE ({projects.length})
+            {t.projects.heading} ({projects.length})
           </h2>
-          <p className="mt-1 text-sm text-zinc-400">
-            Add photos or short videos, reorder, hide drafts, or update projects shown in Works.
-          </p>
+          <p className="mt-1 text-sm text-zinc-400">{t.projects.subtitle}</p>
         </div>
 
         <button
@@ -772,9 +1012,34 @@ export const AdminProjectsEditor: React.FC<AdminProjectsEditorProps> = ({
           className="inline-flex min-h-[42px] items-center justify-center gap-2 rounded-md bg-accent px-4 py-2 text-xs font-semibold text-white hover:bg-accent-dark whitespace-nowrap shrink-0"
         >
           <Plus className="h-4 w-4" aria-hidden="true" />
-          Add New Project
+          {t.projects.addNew}
         </button>
       </div>
+
+      {showStarterDemoProjects && (
+        <div className="flex flex-col gap-3 rounded-xl border border-emerald-500/25 bg-emerald-500/10 p-4 sm:flex-row sm:items-center sm:justify-between">
+          <div className="flex items-start gap-2.5">
+            <Info className="mt-0.5 h-4 w-4 shrink-0 text-emerald-300" aria-hidden="true" />
+            <div>
+              <p className="text-xs font-semibold text-emerald-200">
+                {t.projects.starterDemoNoticeTitle}
+              </p>
+              <p className="mt-0.5 text-xs leading-relaxed text-emerald-100/80">
+                {t.projects.starterDemoNoticeDesc}
+              </p>
+            </div>
+          </div>
+          {onOpenViewerControls && (
+            <button
+              type="button"
+              onClick={onOpenViewerControls}
+              className="min-h-[36px] shrink-0 rounded-md border border-emerald-400/30 bg-black/30 px-3 py-1.5 text-xs font-medium text-emerald-200 hover:bg-black/50"
+            >
+              {t.projects.manageStarterToggle}
+            </button>
+          )}
+        </div>
+      )}
 
       {/* Filters & Search */}
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
@@ -805,8 +1070,8 @@ export const AdminProjectsEditor: React.FC<AdminProjectsEditorProps> = ({
             value={searchQuery}
             enterKeyHint="search"
             onChange={(e) => setSearchQuery(e.target.value)}
-            placeholder="Filter projects..."
-            aria-label="Filter projects"
+            placeholder={t.projects.filterPlaceholder}
+            aria-label={t.projects.filterPlaceholder}
             className="min-h-[40px] w-full rounded-md border border-white/15 bg-[#070709] py-2 pr-3 pl-9 text-xs text-white placeholder:text-zinc-500 focus:border-accent focus:outline-none"
           />
         </div>
@@ -815,14 +1080,10 @@ export const AdminProjectsEditor: React.FC<AdminProjectsEditorProps> = ({
       {filtered.length === 0 ? (
         <div className="rounded-xl border border-dashed border-white/15 bg-[#090A0F] p-10 text-center">
           <p className="text-sm font-medium text-zinc-200">
-            {projects.length === 0
-              ? 'No cloud projects saved yet.'
-              : 'No projects match this filter.'}
+            {projects.length === 0 ? t.projects.emptyCloudTitle : t.projects.emptyFilterTitle}
           </p>
           <p className="mt-1 text-xs text-zinc-500">
-            {projects.length === 0
-              ? 'Create a new project or use "Sync Default Portfolio" from Overview.'
-              : 'Try switching category or clearing the search box.'}
+            {projects.length === 0 ? t.projects.emptyCloudDesc : t.projects.emptyFilterDesc}
           </p>
           {projects.length === 0 && (
             <button
@@ -831,7 +1092,7 @@ export const AdminProjectsEditor: React.FC<AdminProjectsEditorProps> = ({
               className="mt-4 inline-flex min-h-[40px] items-center gap-2 rounded-md bg-accent px-4 py-2 text-xs font-semibold text-white hover:bg-accent-dark"
             >
               <Plus className="h-3.5 w-3.5" aria-hidden="true" />
-              Create First Project
+              {t.projects.createFirst}
             </button>
           )}
         </div>
@@ -848,7 +1109,9 @@ export const AdminProjectsEditor: React.FC<AdminProjectsEditorProps> = ({
                     theme={proj.previewTheme}
                     title={proj.title}
                     coverImageUrl={proj.coverImageUrl}
+                    galleryUrls={proj.galleryUrls}
                     coverMediaType={proj.coverMediaType}
+                    showSlideBadge={false}
                   />
                 </div>
                 <div className="min-w-0">
@@ -860,14 +1123,23 @@ export const AdminProjectsEditor: React.FC<AdminProjectsEditorProps> = ({
                     <span className="font-mono tabular-nums">{proj.year}</span>
                     <span aria-hidden="true">·</span>
                     <span className={proj.published ? 'text-emerald-400' : 'text-amber-400'}>
-                      {proj.published ? 'Published' : 'Draft'}
+                      {proj.published ? t.common.published : t.common.draft}
                     </span>
+                    {proj.galleryUrls && proj.galleryUrls.length > 1 && (
+                      <>
+                        <span aria-hidden="true">·</span>
+                        <span className="font-mono text-[11px] text-zinc-300">
+                          {proj.galleryUrls.length} photos
+                        </span>
+                      </>
+                    )}
                   </div>
                   <h3 className="mt-0.5 truncate text-base font-semibold text-white">
                     {proj.title}
                   </h3>
                   <p className="truncate text-xs text-zinc-400">
                     {proj.platform} · {proj.client}
+                    {proj.liveUrl ? ` · ${proj.liveUrl}` : ''}
                   </p>
                 </div>
               </div>
@@ -883,12 +1155,12 @@ export const AdminProjectsEditor: React.FC<AdminProjectsEditorProps> = ({
                   {proj.published ? (
                     <>
                       <EyeOff className="h-3.5 w-3.5" aria-hidden="true" />
-                      Hide
+                      {t.common.hide}
                     </>
                   ) : (
                     <>
                       <Eye className="h-3.5 w-3.5" aria-hidden="true" />
-                      Publish
+                      {t.common.publish}
                     </>
                   )}
                 </button>
@@ -899,7 +1171,7 @@ export const AdminProjectsEditor: React.FC<AdminProjectsEditorProps> = ({
                   className="inline-flex min-h-[40px] items-center gap-1.5 rounded-md border border-white/15 px-3 py-1.5 text-xs font-medium text-zinc-200 hover:bg-white/5 hover:text-white"
                 >
                   <Pencil className="h-3.5 w-3.5" aria-hidden="true" />
-                  Edit
+                  {t.common.edit}
                 </button>
 
                 <button
@@ -918,14 +1190,13 @@ export const AdminProjectsEditor: React.FC<AdminProjectsEditorProps> = ({
 
       <ConfirmDialog
         open={Boolean(deleteTarget)}
-        title="Delete Project"
+        title={t.projects.deleteTitle}
         description={
-          deleteTarget
-            ? `Remove "${deleteTarget.title}" permanently from your portfolio database?`
-            : ''
+          deleteTarget ? `"${deleteTarget.title}" — ${t.projects.deleteConfirm}` : ''
         }
-        confirmLabel="Delete Project"
+        confirmLabel={t.projects.deleteTitle}
         busy={saving}
+        lang={lang}
         onCancel={() => setDeleteTarget(null)}
         onConfirm={async () => {
           if (!deleteTarget) return;

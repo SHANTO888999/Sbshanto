@@ -28,6 +28,17 @@ import {
   waitMs,
   type FirestoreErrorInfo,
 } from './firebaseClientBase';
+import { detectVisitorCountry } from './utils/visitorGeo';
+
+export type VisitorAgeGroup = 'under18' | '18-24' | '25-34' | '35-44' | '45plus';
+
+const AGE_GROUP_LABELS: Record<VisitorAgeGroup, string> = {
+  under18: 'Under 18',
+  '18-24': '18–24',
+  '25-34': '25–34',
+  '35-44': '35–44',
+  '45plus': '45+',
+};
 
 function handleViewerFirestoreError(
   error: unknown,
@@ -128,29 +139,38 @@ export async function fetchLivePortfolioContent(): Promise<Partial<PortfolioCont
         }));
         const items: ProjectItem[] = docsData
           .sort((a, b) => Number(a.sortOrder ?? 999) - Number(b.sortOrder ?? 999))
-          .map((d) => ({
-            id: d.id,
-            index: String(d.index ?? ''),
-            title: String(d.title ?? ''),
-            category: d.category as ProjectItem['category'],
-            year: String(d.year ?? ''),
-            platform: String(d.platform ?? ''),
-            client: String(d.client ?? ''),
-            role: String(d.role ?? ''),
-            stack: Array.isArray(d.stack) ? (d.stack as string[]) : [],
-            summary: String(d.summary ?? ''),
-            architectureNotes: String(d.architectureNotes ?? ''),
-            previewTheme: d.previewTheme as ProjectItem['previewTheme'],
-            dimensions: String(d.dimensions ?? '1440 × 900'),
-            coverImageUrl: sanitizePublicUrl(d.coverImageUrl, '', true) || undefined,
-            coverMediaType:
-              d.coverMediaType === 'video' || d.coverMediaType === 'image'
-                ? d.coverMediaType
-                : undefined,
-            liveUrl: sanitizePublicUrl(d.liveUrl, '') || undefined,
-            repoUrl: sanitizePublicUrl(d.repoUrl, '') || undefined,
-            published: true,
-          }));
+          .map((d) => {
+            const rawGallery = Array.isArray(d.galleryUrls)
+              ? (d.galleryUrls as unknown[])
+                  .map((u) => sanitizePublicUrl(u, '', true))
+                  .filter(Boolean)
+                  .slice(0, 5)
+              : [];
+            return {
+              id: d.id,
+              index: String(d.index ?? ''),
+              title: String(d.title ?? ''),
+              category: d.category as ProjectItem['category'],
+              year: String(d.year ?? ''),
+              platform: String(d.platform ?? ''),
+              client: String(d.client ?? ''),
+              role: String(d.role ?? ''),
+              stack: Array.isArray(d.stack) ? (d.stack as string[]) : [],
+              summary: String(d.summary ?? ''),
+              architectureNotes: String(d.architectureNotes ?? ''),
+              previewTheme: d.previewTheme as ProjectItem['previewTheme'],
+              dimensions: String(d.dimensions ?? '1440 × 900'),
+              coverImageUrl: sanitizePublicUrl(d.coverImageUrl, '', true) || undefined,
+              galleryUrls: rawGallery.length > 0 ? rawGallery : undefined,
+              coverMediaType:
+                d.coverMediaType === 'video' || d.coverMediaType === 'image'
+                  ? d.coverMediaType
+                  : undefined,
+              liveUrl: sanitizePublicUrl(d.liveUrl, '') || undefined,
+              repoUrl: sanitizePublicUrl(d.repoUrl, '') || undefined,
+              published: true,
+            };
+          });
         override.projects = items;
       }
     } catch (error) {
@@ -346,7 +366,6 @@ async function incrementDailyMetricOnce(
       return 'ok';
     } catch (setErr) {
       if (isTransientOfflineError(setErr)) return 'retry';
-      // Another concurrent visitor may have just created today's doc; retry atomic increment
       try {
         await updateDoc(ref, updatePayload);
         return 'ok';
@@ -370,24 +389,162 @@ async function incrementDailyMetric(
   return false;
 }
 
+async function incrementDemographicBucket(
+  bucketId: string,
+  bucketType: 'country' | 'age',
+  code: string,
+  label: string
+): Promise<boolean> {
+  if (typeof navigator !== 'undefined' && navigator.onLine === false) return false;
+  const safeBucketId = sanitizeFirestoreId(bucketId, 'bucket').slice(0, 48);
+  const safeCode = code.trim().slice(0, 24) || 'UN';
+  const safeLabel = clampText(label, 60, safeCode);
+  const ref = doc(db, 'analytics_demographics', safeBucketId);
+
+  try {
+    await updateDoc(ref, {
+      label: safeLabel,
+      count: increment(1),
+      updatedAt: serverTimestamp(),
+    });
+    return true;
+  } catch (err) {
+    if (!isTransientOfflineError(err) && !isMissingDocOrRuleEvalError(err)) return false;
+    if (isTransientOfflineError(err)) {
+      await waitMs(1000);
+    }
+    try {
+      await setDoc(ref, {
+        bucketId: safeBucketId,
+        bucketType,
+        code: safeCode,
+        label: safeLabel,
+        count: 1,
+        updatedAt: serverTimestamp(),
+      });
+      return true;
+    } catch {
+      try {
+        await updateDoc(ref, {
+          label: safeLabel,
+          count: increment(1),
+          updatedAt: serverTimestamp(),
+        });
+        return true;
+      } catch {
+        return false;
+      }
+    }
+  }
+}
+
 export async function trackVisitorSession(): Promise<void> {
   if (typeof window === 'undefined') return;
   const { date } = getLocalDateKey();
   const visitKey = `shanto_uv_${date}`;
   const sessionKey = `shanto_pv_${date}`;
+  const countryKey = `shanto_geo_rec_${date}`;
 
-  if (safeGetStorage('session', sessionKey) === '1') return;
-  const isNewDailyVisitor = safeGetStorage('local', visitKey) !== '1';
-  const recorded = await incrementDailyMetric({
-    visitors: isNewDailyVisitor ? 1 : undefined,
-    pageViews: 1,
-  });
-  if (recorded) {
-    safeSetStorage('session', sessionKey, '1');
-    if (isNewDailyVisitor) {
-      safeSetStorage('local', visitKey, '1');
+  const geoPromise = detectVisitorCountry();
+
+  if (safeGetStorage('session', sessionKey) !== '1') {
+    const isNewDailyVisitor = safeGetStorage('local', visitKey) !== '1';
+    const recorded = await incrementDailyMetric({
+      visitors: isNewDailyVisitor ? 1 : undefined,
+      pageViews: 1,
+    });
+    if (recorded) {
+      safeSetStorage('session', sessionKey, '1');
+      if (isNewDailyVisitor) {
+        safeSetStorage('local', visitKey, '1');
+      }
     }
   }
+
+  if (safeGetStorage('local', countryKey) !== '1') {
+    const geo = await geoPromise;
+    const savedGeo = await incrementDemographicBucket(
+      `c_${geo.countryCode}`,
+      'country',
+      geo.countryCode,
+      geo.countryName
+    );
+    if (savedGeo) {
+      safeSetStorage('local', countryKey, '1');
+    }
+  }
+}
+
+export async function trackVisitorAgeGroup(ageGroup: VisitorAgeGroup): Promise<boolean> {
+  if (typeof window === 'undefined') return false;
+  const recordedKey = 'shanto_age_group_v1';
+  if (safeGetStorage('local', recordedKey)) {
+    return true;
+  }
+  const label = AGE_GROUP_LABELS[ageGroup] ?? ageGroup;
+  const bucketId = `a_${ageGroup.replace(/[^a-zA-Z0-9]/g, '_')}`;
+  const ok = await incrementDemographicBucket(bucketId, 'age', ageGroup, label);
+  if (ok) {
+    safeSetStorage('local', recordedKey, ageGroup);
+  }
+  return ok;
+}
+
+export function hasReportedVisitorAgeGroup(): string | null {
+  return safeGetStorage('local', 'shanto_age_group_v1');
+}
+
+export function startLivePresenceHeartbeat(): () => void {
+  if (typeof window === 'undefined') return () => {};
+
+  let stopped = false;
+  let sessionId = safeGetStorage('session', 'shanto_presence_sid') ?? '';
+  if (!sessionId) {
+    sessionId = `sess_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`;
+    safeSetStorage('session', 'shanto_presence_sid', sessionId);
+  }
+  const safeSid = sanitizeFirestoreId(sessionId, 'sess').slice(0, 80);
+  const ref = doc(db, 'analytics_presence', safeSid);
+
+  const pushHeartbeat = async () => {
+    if (stopped) return;
+    if (typeof navigator !== 'undefined' && navigator.onLine === false) return;
+    if (typeof document !== 'undefined' && document.visibilityState === 'hidden') return;
+    try {
+      const geo = await detectVisitorCountry();
+      if (stopped) return;
+      const cleanPath = (window.location.pathname || '/').slice(0, 64) || '/';
+      await setDoc(ref, {
+        sessionId: safeSid,
+        countryCode: (geo.countryCode || 'UN').replace(/[^A-Z0-9_-]/g, '').slice(0, 8) || 'UN',
+        countryName: clampText(geo.countryName, 60, 'International'),
+        path: cleanPath,
+        lastSeenAt: serverTimestamp(),
+      });
+    } catch {
+      // Non-fatal silent presence retry on next heartbeat
+    }
+  };
+
+  void pushHeartbeat();
+  const intervalId = window.setInterval(() => {
+    void pushHeartbeat();
+  }, 25_000);
+
+  const onActive = () => {
+    if (document.visibilityState === 'visible') {
+      void pushHeartbeat();
+    }
+  };
+  document.addEventListener('visibilitychange', onActive);
+  window.addEventListener('focus', onActive);
+
+  return () => {
+    stopped = true;
+    window.clearInterval(intervalId);
+    document.removeEventListener('visibilitychange', onActive);
+    window.removeEventListener('focus', onActive);
+  };
 }
 
 export async function trackProjectCardClick(project: {

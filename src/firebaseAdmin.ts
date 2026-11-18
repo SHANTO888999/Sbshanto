@@ -147,6 +147,22 @@ export interface ProjectAnalyticsRecord {
   clicks: number;
 }
 
+export interface PresenceSessionRecord {
+  sessionId: string;
+  countryCode: string;
+  countryName: string;
+  path: string;
+  lastSeenAtMs: number;
+}
+
+export interface DemographicRecord {
+  bucketId: string;
+  bucketType: 'country' | 'age';
+  code: string;
+  label: string;
+  count: number;
+}
+
 export interface AdminDashboardSnapshot {
   hasRemoteSettings: boolean;
   settingsBundle: PortfolioContentBundle;
@@ -156,6 +172,8 @@ export interface AdminDashboardSnapshot {
   inquiries: InquiryRecord[];
   dailyAnalytics: DailyAnalyticsRecord[];
   projectAnalytics: ProjectAnalyticsRecord[];
+  presenceSessions: PresenceSessionRecord[];
+  demographics: DemographicRecord[];
   analyticsError?: string | null;
 }
 
@@ -260,6 +278,8 @@ export async function fetchAdminDashboardSnapshot(): Promise<AdminDashboardSnaps
   let inquiries: InquiryRecord[] = [];
   let dailyAnalytics: DailyAnalyticsRecord[] = [];
   let projectAnalytics: ProjectAnalyticsRecord[] = [];
+  let presenceSessions: PresenceSessionRecord[] = [];
+  let demographics: DemographicRecord[] = [];
   let analyticsError: string | null = null;
 
   const loadSettings = async () => {
@@ -311,6 +331,12 @@ export async function fetchAdminDashboardSnapshot(): Promise<AdminDashboardSnaps
           previewTheme: (d.previewTheme as ProjectItem['previewTheme']) || 'web-commerce',
           dimensions: String(d.dimensions ?? '1440 × 900'),
           coverImageUrl: sanitizePublicUrl(d.coverImageUrl, '', true) || undefined,
+          galleryUrls: Array.isArray(d.galleryUrls)
+            ? d.galleryUrls
+                .map((u) => sanitizePublicUrl(u, '', true))
+                .filter(Boolean)
+                .slice(0, 5)
+            : undefined,
           coverMediaType:
             d.coverMediaType === 'video' || d.coverMediaType === 'image'
               ? d.coverMediaType
@@ -446,6 +472,52 @@ export async function fetchAdminDashboardSnapshot(): Promise<AdminDashboardSnaps
     }
   };
 
+  const loadPresence = async () => {
+    try {
+      const snap = await getDocs(collection(db, 'analytics_presence'));
+      const cutoffPrune = Date.now() - 6 * 60 * 60 * 1000;
+      presenceSessions = snap.docs
+        .map((d) => {
+          const data = d.data() as Record<string, unknown>;
+          const lastSeenAtMs = toMillis(data.lastSeenAt);
+          if (lastSeenAtMs < cutoffPrune) {
+            void deleteDoc(doc(db, 'analytics_presence', d.id)).catch(() => {});
+            return null;
+          }
+          return {
+            sessionId: String(data.sessionId ?? d.id),
+            countryCode: String(data.countryCode ?? 'INTL').toUpperCase(),
+            countryName: String(data.countryName ?? 'International'),
+            path: String(data.path ?? '/'),
+            lastSeenAtMs,
+          };
+        })
+        .filter((r): r is PresenceSessionRecord => r !== null);
+    } catch {
+      // Non-fatal
+    }
+  };
+
+  const loadDemographics = async () => {
+    try {
+      const snap = await getDocs(collection(db, 'analytics_demographics'));
+      demographics = snap.docs
+        .map((d) => {
+          const data = d.data() as Record<string, unknown>;
+          return {
+            bucketId: d.id,
+            bucketType: (data.bucketType === 'age' ? 'age' : 'country') as 'country' | 'age',
+            code: String(data.code ?? d.id),
+            label: String(data.label ?? d.id),
+            count: Number(data.count ?? 0) || 0,
+          };
+        })
+        .sort((a, b) => b.count - a.count);
+    } catch {
+      // Non-fatal
+    }
+  };
+
   await Promise.all([
     loadSettings(),
     loadProjects(),
@@ -454,6 +526,8 @@ export async function fetchAdminDashboardSnapshot(): Promise<AdminDashboardSnaps
     loadInquiries(),
     loadDailyAnalytics(),
     loadProjectAnalytics(),
+    loadPresence(),
+    loadDemographics(),
   ]);
 
   const settingsBundle = normalizePortfolioContent(partial, ADMIN_INITIAL_BUNDLE);
@@ -467,6 +541,8 @@ export async function fetchAdminDashboardSnapshot(): Promise<AdminDashboardSnaps
     inquiries,
     dailyAnalytics,
     projectAnalytics,
+    presenceSessions,
+    demographics,
     analyticsError,
   };
 }
@@ -474,7 +550,12 @@ export async function fetchAdminDashboardSnapshot(): Promise<AdminDashboardSnaps
 export function subscribeAdminAnalytics(
   onDailyUpdate: (rows: DailyAnalyticsRecord[]) => void,
   onProjectUpdate: (rows: ProjectAnalyticsRecord[]) => void,
-  onError?: (message: string) => void
+  onError?: (message: string) => void,
+  extra?: {
+    onPresenceUpdate?: (rows: PresenceSessionRecord[]) => void;
+    onDemographicsUpdate?: (rows: DemographicRecord[]) => void;
+    onInquiriesUpdate?: (rows: InquiryRecord[]) => void;
+  }
 ): () => void {
   const tomorrowCutoff = (() => {
     const t = new Date();
@@ -537,9 +618,86 @@ export function subscribeAdminAnalytics(
     }
   );
 
+  const unsubPresence = extra?.onPresenceUpdate
+    ? onSnapshot(
+        collection(db, 'analytics_presence'),
+        (snap) => {
+          const cutoffPrune = Date.now() - 6 * 60 * 60 * 1000;
+          const rows = snap.docs
+            .map((d) => {
+              const data = d.data() as Record<string, unknown>;
+              const lastSeenAtMs = toMillis(data.lastSeenAt);
+              if (lastSeenAtMs < cutoffPrune) {
+                void deleteDoc(doc(db, 'analytics_presence', d.id)).catch(() => {});
+                return null;
+              }
+              return {
+                sessionId: String(data.sessionId ?? d.id),
+                countryCode: String(data.countryCode ?? 'INTL').toUpperCase(),
+                countryName: String(data.countryName ?? 'International'),
+                path: String(data.path ?? '/'),
+                lastSeenAtMs,
+              };
+            })
+            .filter((r): r is PresenceSessionRecord => r !== null);
+          extra.onPresenceUpdate?.(rows);
+        },
+        () => {}
+      )
+    : () => {};
+
+  const unsubDemo = extra?.onDemographicsUpdate
+    ? onSnapshot(
+        collection(db, 'analytics_demographics'),
+        (snap) => {
+          const rows = snap.docs
+            .map((d) => {
+              const data = d.data() as Record<string, unknown>;
+              return {
+                bucketId: d.id,
+                bucketType: (data.bucketType === 'age' ? 'age' : 'country') as 'country' | 'age',
+                code: String(data.code ?? d.id),
+                label: String(data.label ?? d.id),
+                count: Number(data.count ?? 0) || 0,
+              };
+            })
+            .sort((a, b) => b.count - a.count);
+          extra.onDemographicsUpdate?.(rows);
+        },
+        () => {}
+      )
+    : () => {};
+
+  const unsubInquiries = extra?.onInquiriesUpdate
+    ? onSnapshot(
+        query(collection(db, 'inquiries'), orderBy('createdAt', 'desc')),
+        (snap) => {
+          const rows = snap.docs.map((d) => {
+            const data = d.data() as Record<string, unknown>;
+            return {
+              id: d.id,
+              name: String(data.name ?? 'Visitor'),
+              email: String(data.email ?? ''),
+              scope: String(data.scope ?? 'Project Inquiry'),
+              brief: String(data.brief ?? ''),
+              status: (['new', 'read', 'replied', 'archived'].includes(String(data.status))
+                ? String(data.status)
+                : 'new') as InquiryStatus,
+              createdAtMs: toMillis(data.createdAt),
+            };
+          });
+          extra.onInquiriesUpdate?.(rows);
+        },
+        () => {}
+      )
+    : () => {};
+
   return () => {
     unsubDaily();
     unsubProj();
+    unsubPresence();
+    unsubDemo();
+    unsubInquiries();
   };
 }
 
@@ -619,6 +777,7 @@ function buildSettingsPayload(bundle: PortfolioContentBundle) {
       cursorSpeed: safe.viewerControls.cursorSpeed,
       accentColor: sanitizeHexColor(safe.viewerControls.accentColor, DEFAULT_ACCENT_COLOR),
       showCvDownloadOnViewer: Boolean(safe.viewerControls.showCvDownloadOnViewer),
+      showStarterDemoProjects: safe.viewerControls.showStarterDemoProjects !== false,
     },
     cvSettings: {
       mode: safe.cvSettings.mode === 'custom' ? 'custom' : 'auto',
@@ -667,12 +826,37 @@ function buildProjectPayload(project: AdminProjectRecord) {
     updatedAt: serverTimestamp(),
   };
 
-  const cover = sanitizePublicUrl(project.coverImageUrl, '', true);
-  if (cover) {
-    payload.coverImageUrl = cover.slice(0, 780_000);
-    payload.coverMediaType = isVideoMediaSource(cover, project.coverMediaType)
-      ? 'video'
-      : 'image';
+  const cleanedGallery = Array.isArray(project.galleryUrls)
+    ? project.galleryUrls
+        .map((u) => sanitizePublicUrl(u, '', true))
+        .filter((u) => u && u.length <= 165_000)
+        .slice(0, 5)
+    : [];
+
+  const coverCandidate = sanitizePublicUrl(project.coverImageUrl, '', true);
+  const isVideo = Boolean(coverCandidate && isVideoMediaSource(coverCandidate, project.coverMediaType));
+
+  if (isVideo) {
+    payload.coverImageUrl = coverCandidate.slice(0, 780_000);
+    payload.coverMediaType = 'video';
+  } else {
+    const galleryTotalChars = cleanedGallery.reduce((sum, u) => sum + u.length, 0);
+    if (cleanedGallery.length > 0) {
+      payload.galleryUrls = cleanedGallery;
+      // Only also store separate coverImageUrl if total payload stays safely well under 1 MiB
+      const preferredCover = coverCandidate || cleanedGallery[0];
+      if (
+        preferredCover &&
+        preferredCover.length <= 320_000 &&
+        galleryTotalChars + preferredCover.length <= 760_000
+      ) {
+        payload.coverImageUrl = preferredCover;
+      }
+      payload.coverMediaType = 'image';
+    } else if (coverCandidate) {
+      payload.coverImageUrl = coverCandidate.slice(0, 780_000);
+      payload.coverMediaType = 'image';
+    }
   }
 
   const live = sanitizePublicUrl(project.liveUrl, '');

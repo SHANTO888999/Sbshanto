@@ -1,7 +1,12 @@
-import React, { useState } from 'react';
-import { ArrowUpRight, Check, Copy, Download, Mail, RotateCcw } from 'lucide-react';
+import React, { useEffect, useState } from 'react';
+import { ArrowUpRight, Check, Copy, Download, Mail, RotateCcw, X } from 'lucide-react';
 import { usePortfolioContent } from '../context/PortfolioContentContext';
-import { trackCvDownload } from '../firebaseViewer';
+import {
+  hasReportedVisitorAgeGroup,
+  trackCvDownload,
+  trackVisitorAgeGroup,
+  type VisitorAgeGroup,
+} from '../firebaseViewer';
 import { copyTextSafely } from '../utils/clipboard';
 import { downloadPortfolioCv } from '../utils/cvPdfGenerator';
 import { DesignBlock, TypedText, useDesignCanvas } from './DesignCursorSystem';
@@ -10,12 +15,34 @@ interface ContactSectionProps {
   onOpenInquiry: () => void;
 }
 
+const QUICK_AGE_OPTIONS: ReadonlyArray<{ id: VisitorAgeGroup; label: string }> = [
+  { id: 'under18', label: '<18' },
+  { id: '18-24', label: '18–24' },
+  { id: '25-34', label: '25–34' },
+  { id: '35-44', label: '35–44' },
+  { id: '45plus', label: '45+' },
+];
+
 export const ContactSection: React.FC<ContactSectionProps> = ({ onOpenInquiry }) => {
   const [copied, setCopied] = useState(false);
+  const [agePromptVisible, setAgePromptVisible] = useState(false);
+  const [ageThanks, setAgeThanks] = useState(false);
   const portfolioContent = usePortfolioContent();
   const { profile, viewerControls } = portfolioContent;
   const { triggerReplay } = useDesignCanvas();
   const email = profile.email;
+
+  useEffect(() => {
+    try {
+      const dismissed = window.localStorage.getItem('shanto_age_prompt_dismissed') === '1';
+      const alreadyReported = Boolean(hasReportedVisitorAgeGroup());
+      if (!dismissed && !alreadyReported) {
+        setAgePromptVisible(true);
+      }
+    } catch {
+      // ignore
+    }
+  }, []);
 
   const handleCopyEmail = async () => {
     const ok = await copyTextSafely(email);
@@ -27,6 +54,28 @@ export const ContactSection: React.FC<ContactSectionProps> = ({ onOpenInquiry })
 
   const handleReplayFromTop = () => {
     triggerReplay();
+  };
+
+  const handlePickAge = async (group: VisitorAgeGroup) => {
+    setAgeThanks(true);
+    try {
+      window.localStorage.setItem('shanto_age_prompt_dismissed', '1');
+    } catch {
+      // ignore
+    }
+    await trackVisitorAgeGroup(group);
+    window.setTimeout(() => {
+      setAgePromptVisible(false);
+    }, 1500);
+  };
+
+  const handleDismissAge = () => {
+    setAgePromptVisible(false);
+    try {
+      window.localStorage.setItem('shanto_age_prompt_dismissed', '1');
+    } catch {
+      // ignore
+    }
   };
 
   return (
@@ -180,9 +229,47 @@ export const ContactSection: React.FC<ContactSectionProps> = ({ onOpenInquiry })
           </DesignBlock>
         </div>
 
+        {/* Optional Anonymous Visitor Demographic Strip */}
+        {agePromptVisible && (
+          <div className="mt-10 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-white/10 bg-[#0C0D12] px-4 py-3 text-xs">
+            {ageThanks ? (
+              <p className="flex items-center gap-2 font-medium text-emerald-300">
+                <Check className="h-3.5 w-3.5" aria-hidden="true" />
+                Thanks! Anonymous visitor stats updated.
+              </p>
+            ) : (
+              <>
+                <span className="text-zinc-400">
+                  Quick optional check: What age group are you in?
+                </span>
+                <div className="flex flex-wrap items-center gap-1.5">
+                  {QUICK_AGE_OPTIONS.map((opt) => (
+                    <button
+                      key={opt.id}
+                      type="button"
+                      onClick={() => void handlePickAge(opt.id)}
+                      className="rounded border border-white/15 bg-[#121319] px-2.5 py-1 font-mono text-[11px] text-zinc-200 transition-colors hover:border-accent hover:bg-accent/15 hover:text-white"
+                    >
+                      {opt.label}
+                    </button>
+                  ))}
+                  <button
+                    type="button"
+                    onClick={handleDismissAge}
+                    aria-label="Dismiss age group question"
+                    className="ml-1 inline-flex h-7 w-7 items-center justify-center rounded text-zinc-500 hover:bg-white/5 hover:text-zinc-300"
+                  >
+                    <X className="h-3.5 w-3.5" />
+                  </button>
+                </div>
+              </>
+            )}
+          </div>
+        )}
+
         {/* Bottom Copyright Row */}
         <DesignBlock shape="row" slotIndex={2} label="Footer Bar">
-          <div className="mt-14 flex flex-col items-start justify-between gap-4 border-t border-white/10 pt-6 text-xs text-zinc-500 sm:flex-row sm:items-center">
+          <div className="mt-10 flex flex-col items-start justify-between gap-4 border-t border-white/10 pt-6 text-xs text-zinc-500 sm:flex-row sm:items-center">
             <p>
               &copy; {new Date().getFullYear()} <TypedText text={`${profile.backdropName}. All rights reserved.`} />
             </p>

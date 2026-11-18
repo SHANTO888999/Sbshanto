@@ -73,6 +73,25 @@ service cloud.firestore {
         || (data.coverMediaType is string && data.coverMediaType in ['image', 'video']);
     }
 
+    function isValidGalleryItem(val) {
+      return val is string
+        && val.size() >= 1
+        && val.size() <= 165000
+        && val.matches('^(https?://|/|data:image/(png|jpeg|jpg|webp|gif);base64,).*');
+    }
+
+    function isValidGalleryUrls(data) {
+      return !('galleryUrls' in data) || (
+        data.galleryUrls is list
+        && data.galleryUrls.size() <= 5
+        && (data.galleryUrls.size() < 1 || isValidGalleryItem(data.galleryUrls[0]))
+        && (data.galleryUrls.size() < 2 || isValidGalleryItem(data.galleryUrls[1]))
+        && (data.galleryUrls.size() < 3 || isValidGalleryItem(data.galleryUrls[2]))
+        && (data.galleryUrls.size() < 4 || isValidGalleryItem(data.galleryUrls[3]))
+        && (data.galleryUrls.size() < 5 || isValidGalleryItem(data.galleryUrls[4]))
+      );
+    }
+
     function isValidViewerControls(vc) {
       return vc is map
         && vc.keys().hasAll([
@@ -86,7 +105,7 @@ service cloud.firestore {
           'showHudCursors', 'showHudAutoScroll', 'showHudReplay',
           'showHudSound', 'showMultiBackBar',
           'enableCursorsByDefault', 'enableAutoScrollByDefault', 'enableSoundByDefault',
-          'cursorSpeed', 'accentColor', 'showCvDownloadOnViewer'
+          'cursorSpeed', 'accentColor', 'showCvDownloadOnViewer', 'showStarterDemoProjects'
         ])
         && vc.showTopScrollBar is bool
         && vc.showBottomHud is bool
@@ -101,7 +120,8 @@ service cloud.firestore {
         && vc.enableSoundByDefault is bool
         && (!('cursorSpeed' in vc) || (vc.cursorSpeed is string && vc.cursorSpeed in ['slow', 'normal', 'fast']))
         && (!('accentColor' in vc) || (vc.accentColor is string && vc.accentColor.size() == 7 && vc.accentColor.matches('^#[0-9A-Fa-f]{6}$')))
-        && (!('showCvDownloadOnViewer' in vc) || vc.showCvDownloadOnViewer is bool);
+        && (!('showCvDownloadOnViewer' in vc) || vc.showCvDownloadOnViewer is bool)
+        && (!('showStarterDemoProjects' in vc) || vc.showStarterDemoProjects is bool);
     }
 
     function isValidCvSettings(cv) {
@@ -177,7 +197,7 @@ service cloud.firestore {
         && data.keys().hasOnly([
           'index', 'title', 'category', 'year', 'platform', 'client', 'role',
           'stack', 'summary', 'architectureNotes', 'previewTheme', 'dimensions',
-          'coverImageUrl', 'coverMediaType', 'liveUrl', 'repoUrl', 'published', 'sortOrder', 'updatedAt'
+          'coverImageUrl', 'galleryUrls', 'coverMediaType', 'liveUrl', 'repoUrl', 'published', 'sortOrder', 'updatedAt'
         ])
         && data.index is string && data.index.size() >= 1 && data.index.size() <= 8
         && data.title is string && data.title.size() >= 1 && data.title.size() <= 80
@@ -193,6 +213,7 @@ service cloud.firestore {
         && data.previewTheme in ['web-commerce', 'app-workspace', 'game-rift', 'app-realtime', 'game-drift', 'ui-system']
         && data.dimensions is string && data.dimensions.size() >= 1 && data.dimensions.size() <= 24
         && isValidOptionalProjectMedia(data, 'coverImageUrl', 780000)
+        && isValidGalleryUrls(data)
         && isValidOptionalMediaType(data)
         && isValidOptionalUrl(data, 'liveUrl', 300)
         && isValidOptionalUrl(data, 'repoUrl', 300)
@@ -260,7 +281,7 @@ service cloud.firestore {
         && incoming().diff(existing()).affectedKeys().hasOnly([
           'index', 'title', 'category', 'year', 'platform', 'client', 'role',
           'stack', 'summary', 'architectureNotes', 'previewTheme', 'dimensions',
-          'coverImageUrl', 'coverMediaType', 'liveUrl', 'repoUrl', 'published', 'sortOrder', 'updatedAt'
+          'coverImageUrl', 'galleryUrls', 'coverMediaType', 'liveUrl', 'repoUrl', 'published', 'sortOrder', 'updatedAt'
         ]);
       allow delete: if isValidId(projectId) && isAdmin();
     }
@@ -367,6 +388,38 @@ service cloud.firestore {
         && data.updatedAt == request.time;
     }
 
+    function isValidPresence(data, sessionId) {
+      return data.keys().hasAll(['sessionId', 'countryCode', 'countryName', 'path', 'lastSeenAt'])
+        && data.keys().hasOnly(['sessionId', 'countryCode', 'countryName', 'path', 'lastSeenAt'])
+        && data.sessionId is string && data.sessionId == sessionId && data.sessionId.size() <= 80
+        && data.countryCode is string && data.countryCode.size() >= 2 && data.countryCode.size() <= 8 && data.countryCode.matches('^[A-Z0-9_\\-]+$')
+        && data.countryName is string && data.countryName.size() >= 1 && data.countryName.size() <= 60
+        && data.path is string && data.path.size() >= 1 && data.path.size() <= 64
+        && data.lastSeenAt == request.time;
+    }
+
+    function isValidDemographicCreate(data, bucketId) {
+      return data.keys().hasAll(['bucketId', 'bucketType', 'code', 'label', 'count', 'updatedAt'])
+        && data.keys().hasOnly(['bucketId', 'bucketType', 'code', 'label', 'count', 'updatedAt'])
+        && data.bucketId is string && data.bucketId == bucketId && data.bucketId.size() <= 48
+        && data.bucketType in ['country', 'age']
+        && data.code is string && data.code.size() >= 1 && data.code.size() <= 24
+        && data.label is string && data.label.size() >= 1 && data.label.size() <= 60
+        && data.count is int && data.count == 1
+        && data.updatedAt == request.time;
+    }
+
+    function isValidDemographicUpdate(data, prev) {
+      return data.keys().hasAll(['bucketId', 'bucketType', 'code', 'label', 'count', 'updatedAt'])
+        && data.keys().hasOnly(['bucketId', 'bucketType', 'code', 'label', 'count', 'updatedAt'])
+        && data.bucketId == prev.bucketId
+        && data.bucketType == prev.bucketType
+        && data.code == prev.code
+        && data.label is string && data.label.size() >= 1 && data.label.size() <= 60
+        && data.count is int && data.count >= prev.count && data.count <= prev.count + 1
+        && data.updatedAt == request.time;
+    }
+
     match /analytics_daily/{dateId} {
       allow get: if isValidDateId(dateId) && isAdmin();
       allow list: if isBootstrappedAdmin();
@@ -389,6 +442,31 @@ service cloud.firestore {
           'title', 'category', 'clicks', 'updatedAt'
         ]);
       allow delete: if isValidId(projectId) && isAdmin();
+    }
+
+    match /analytics_presence/{sessionId} {
+      allow get: if isValidId(sessionId) && isAdmin();
+      allow list: if isBootstrappedAdmin();
+      allow create: if isValidId(sessionId) && isValidPresence(incoming(), sessionId);
+      allow update: if isValidId(sessionId)
+        && isValidPresence(incoming(), sessionId)
+        && incoming().sessionId == existing().sessionId
+        && incoming().diff(existing()).affectedKeys().hasOnly([
+          'countryCode', 'countryName', 'path', 'lastSeenAt'
+        ]);
+      allow delete: if isValidId(sessionId) && isAdmin();
+    }
+
+    match /analytics_demographics/{bucketId} {
+      allow get: if isValidId(bucketId) && isAdmin();
+      allow list: if isBootstrappedAdmin();
+      allow create: if isValidId(bucketId) && isValidDemographicCreate(incoming(), bucketId);
+      allow update: if isValidId(bucketId)
+        && isValidDemographicUpdate(incoming(), existing())
+        && incoming().diff(existing()).affectedKeys().hasOnly([
+          'label', 'count', 'updatedAt'
+        ]);
+      allow delete: if isValidId(bucketId) && isAdmin();
     }
 
     match /admins/{adminUid} {
