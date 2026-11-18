@@ -15,7 +15,7 @@ import type {
   DailyAnalyticsRecord,
   InquiryRecord,
   ProjectAnalyticsRecord,
-} from '../../firebase';
+} from '../../firebaseAdmin';
 
 interface AdminAnalyticsPanelProps {
   dailyAnalytics: DailyAnalyticsRecord[];

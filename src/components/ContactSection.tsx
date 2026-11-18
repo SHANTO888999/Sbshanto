@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { ArrowUpRight, Check, Copy, Download, Mail, RotateCcw } from 'lucide-react';
 import { usePortfolioContent } from '../context/PortfolioContentContext';
-import { trackCvDownload } from '../firebase';
+import { trackCvDownload } from '../firebaseViewer';
 import { downloadPortfolioCv } from '../utils/cvPdfGenerator';
 import { DesignBlock, TypedText, useDesignCanvas } from './DesignCursorSystem';
 

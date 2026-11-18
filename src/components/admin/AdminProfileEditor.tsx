@@ -37,12 +37,11 @@ import {
   sanitizeHexColor,
   sanitizePublicUrl,
 } from '../../data/contentSchema';
-import { DEFAULT_PORTFOLIO_CONTENT } from '../../data/portfolioData';
+import { ADMIN_INITIAL_BUNDLE } from '../../data/adminDefaults';
 import { downloadPortfolioCv } from '../../utils/cvPdfGenerator';
 import { handleFormEnterToNext } from '../../utils/formKeyboardNav';
 import { processProjectPhotoFile } from '../../utils/mediaCompressor';
 import { ACCENT_PRESETS, applyDocumentAccentTheme } from '../../utils/themeAccent';
-import { ProductPreviewCanvas } from '../ProductPreviewCanvas';
 import { LimitedInput, LimitedTextarea, SafeUrlInput } from './FieldControls';
 
 export type ProfileSubTab = 'identity' | 'contact' | 'metrics' | 'process' | 'viewer' | 'cv';
@@ -300,12 +299,13 @@ export const AdminProfileEditor: React.FC<AdminProfileEditorProps> = ({
     }
     const rawPortrait = p.portraitUrl.trim();
     const isValidPortrait =
+      rawPortrait === '' ||
       (rawPortrait.startsWith('data:image/') && rawPortrait.length <= 320_000) ||
       Boolean(sanitizePublicUrl(rawPortrait, '', false));
     if (!isValidPortrait) {
       return {
         tab: 'identity',
-        message: 'Portrait URL must be a valid https:// link, /assets/... path, or picked image.',
+        message: 'Portrait URL must be empty, a valid https:// link, /assets/... path, or picked image.',
       };
     }
 
@@ -404,14 +404,14 @@ export const AdminProfileEditor: React.FC<AdminProfileEditorProps> = ({
               applyDocumentAccentTheme(DEFAULT_VIEWER_CONTROLS.accentColor);
               onChange({
                 ...draft,
-                profile: DEFAULT_PORTFOLIO_CONTENT.profile,
+                profile: ADMIN_INITIAL_BUNDLE.profile,
                 viewerControls: DEFAULT_VIEWER_CONTROLS,
                 cvSettings: DEFAULT_CV_SETTINGS,
-                heroMetrics: DEFAULT_PORTFOLIO_CONTENT.heroMetrics,
-                techStack: DEFAULT_PORTFOLIO_CONTENT.techStack,
-                services: DEFAULT_PORTFOLIO_CONTENT.services,
-                wireframeScenes: DEFAULT_PORTFOLIO_CONTENT.wireframeScenes,
-                techPartners: DEFAULT_PORTFOLIO_CONTENT.techPartners,
+                heroMetrics: ADMIN_INITIAL_BUNDLE.heroMetrics,
+                techStack: ADMIN_INITIAL_BUNDLE.techStack,
+                services: ADMIN_INITIAL_BUNDLE.services,
+                wireframeScenes: ADMIN_INITIAL_BUNDLE.wireframeScenes,
+                techPartners: ADMIN_INITIAL_BUNDLE.techPartners,
               });
             }}
             className="inline-flex min-h-[42px] items-center gap-2 rounded-md border border-white/15 px-3.5 py-2 text-xs font-medium text-zinc-300 transition-colors hover:bg-white/5 hover:text-white whitespace-nowrap shrink-0"
@@ -537,18 +537,18 @@ export const AdminProfileEditor: React.FC<AdminProfileEditorProps> = ({
             <div className="space-y-3 rounded-lg border border-white/10 bg-[#090A0F] p-4">
               <div className="flex flex-wrap items-center justify-between gap-2">
                 <span className="text-xs font-medium text-zinc-200">Hero Portrait Photo</span>
-                {p.portraitUrl !== DEFAULT_PORTFOLIO_CONTENT.profile.portraitUrl && (
+                {p.portraitUrl !== ADMIN_INITIAL_BUNDLE.profile.portraitUrl && (
                   <button
                     type="button"
                     onClick={() => {
-                      updateProfile('portraitUrl', DEFAULT_PORTFOLIO_CONTENT.profile.portraitUrl);
+                      updateProfile('portraitUrl', ADMIN_INITIAL_BUNDLE.profile.portraitUrl);
                       setPortraitNote(null);
                       setFormError(null);
                     }}
                     className="inline-flex items-center gap-1 rounded px-2 py-1 text-[11px] font-medium text-zinc-400 hover:bg-white/5 hover:text-white"
                   >
                     <X className="h-3 w-3" aria-hidden="true" />
-                    Reset Default Cutout
+                    Reset Portrait Path
                   </button>
                 )}
               </div>
@@ -586,12 +586,11 @@ export const AdminProfileEditor: React.FC<AdminProfileEditorProps> = ({
               {!isUploadedPortrait && (
                 <SafeUrlInput
                   id="prof-portrait"
-                  label="Or Paste Portrait Path / URL"
+                  label="Or Paste Portrait Path / URL (optional)"
                   value={p.portraitUrl}
                   maxLength={500}
-                  required
                   onChange={(v) => updateProfile('portraitUrl', v)}
-                  hint="Default cutout: /assets/shanto-cutout.png (or any public https:// transparent PNG)."
+                  hint="Leave blank for the default cutout or paste any public https:// transparent PNG."
                 />
               )}
             </div>
@@ -604,13 +603,13 @@ export const AdminProfileEditor: React.FC<AdminProfileEditorProps> = ({
               </p>
               <div className="mt-4 flex items-center gap-4 border-b border-white/10 pb-4">
                 <div className="flex h-20 w-16 shrink-0 items-center justify-center overflow-hidden rounded-lg border border-white/10 bg-[#12131A]">
-                  {portraitLoadFailed ? (
+                  {portraitLoadFailed || !p.portraitUrl ? (
                     <span className="font-display text-xl font-bold text-zinc-500">
                       {p.displayName.slice(0, 2)}
                     </span>
                   ) : (
                     <img
-                      src={p.portraitUrl || '/assets/shanto-cutout.png'}
+                      src={p.portraitUrl}
                       alt={p.displayName}
                       onError={() => setPortraitLoadFailed(true)}
                       className="h-full w-full object-cover object-top"

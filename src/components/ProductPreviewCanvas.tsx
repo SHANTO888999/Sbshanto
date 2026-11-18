@@ -1,16 +1,19 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { usePortfolioContent } from '../context/PortfolioContentContext';
-import { isVideoMediaSource } from '../data/contentSchema';
-import { ProjectItem } from '../data/portfolioData';
+import {
+  DEFAULT_ACCENT_COLOR,
+  isVideoMediaSource,
+  type PreviewTheme,
+} from '../data/contentSchema';
 import { computeAccentPalette } from '../utils/themeAccent';
 
 interface ProductPreviewCanvasProps {
-  theme: ProjectItem['previewTheme'];
+  theme: PreviewTheme;
   coverImageUrl?: string;
   coverMediaType?: 'image' | 'video';
   title?: string;
   isAnimating?: boolean;
   controlPlayback?: boolean;
+  accentColor?: string;
   className?: string;
 }
 
@@ -21,9 +24,15 @@ export const ProductPreviewCanvas: React.FC<ProductPreviewCanvasProps> = ({
   title = 'Project preview',
   isAnimating = false,
   controlPlayback = false,
+  accentColor,
   className = '',
 }) => {
-  const { viewerControls } = usePortfolioContent();
+  const effectiveAccentColor =
+    accentColor ??
+    (typeof document !== 'undefined'
+      ? getComputedStyle(document.documentElement).getPropertyValue('--accent-primary').trim() ||
+        DEFAULT_ACCENT_COLOR
+      : DEFAULT_ACCENT_COLOR);
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const [imageFailed, setImageFailed] = useState(false);
@@ -61,7 +70,7 @@ export const ProductPreviewCanvas: React.FC<ProductPreviewCanvasProps> = ({
     let animId = 0;
     let tick = 0;
     const prefersReduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-    const accent = computeAccentPalette(viewerControls.accentColor);
+    const accent = computeAccentPalette(effectiveAccentColor);
     const accentRgba = (alpha: number) => `rgba(${accent.r}, ${accent.g}, ${accent.b}, ${alpha})`;
 
     const draw = (t: number) => {
@@ -300,7 +309,7 @@ export const ProductPreviewCanvas: React.FC<ProductPreviewCanvasProps> = ({
     return () => {
       if (animId) cancelAnimationFrame(animId);
     };
-  }, [theme, isAnimating, showCustomCover, viewerControls.accentColor]);
+  }, [theme, isAnimating, showCustomCover, effectiveAccentColor]);
 
   return (
     <div className={`relative aspect-video overflow-hidden bg-[#0B0B0F] ${className}`}>

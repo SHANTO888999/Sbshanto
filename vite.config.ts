@@ -1,32 +1,105 @@
 import tailwindcss from '@tailwindcss/vite';
 import react from '@vitejs/plugin-react';
+import fs from 'fs';
 import path from 'path';
+import { fileURLToPath } from 'url';
 import { defineConfig, type Plugin } from 'vite';
 import { VitePWA } from 'vite-plugin-pwa';
+
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 function siteHtmlMetaPlugin(isAdminBuild: boolean): Plugin {
   return {
     name: 'site-html-meta-transform',
-    transformIndexHtml(html) {
-      if (isAdminBuild) {
-        return html
-          .replace(
-            '<title>SHANTO — Web Developer, App &amp; Game Creator</title>',
-            '<title>SHANTO Admin — Portfolio Studio</title>\n    <meta name="robots" content="noindex, nofollow" />'
-          )
-          .replace(/content="https:\/\/sbshanto\.web\.app\/"/g, 'content="https://sbadminshanto.web.app/"')
-          .replace(/href="https:\/\/sbshanto\.web\.app\/"/g, 'href="https://sbadminshanto.web.app/"')
-          .replace('/apple-touch-icon.png', '/apple-touch-icon-admin.png')
-          .replace('/icon.svg', '/icon-admin.svg')
-          .replace('content="SHANTO" />\n    <link rel="apple-touch-icon"', 'content="ShantoAdmin" />\n    <link rel="apple-touch-icon"');
+    transformIndexHtml: {
+      order: 'pre',
+      handler(html) {
+        if (!isAdminBuild) {
+          return html;
+        }
+
+        const adminHeadTags = `
+    <meta charset="UTF-8" />
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1.0, interactive-widget=resizes-content"
+    />
+    <meta name="robots" content="noindex, nofollow" />
+    <meta name="theme-color" content="#050507" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <meta name="apple-mobile-web-app-title" content="AdminStudio" />
+    <link rel="apple-touch-icon" href="/apple-touch-icon-admin.png" />
+    <link rel="icon" type="image/svg+xml" href="/icon-admin.svg" />
+    <title>Admin Studio Control</title>
+    <meta name="description" content="Private administration studio." />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600&family=Oswald:wght@500;600;700&family=Plus+Jakarta+Sans:ital,wght@0,400;0,500;0,600;0,700;1,400&display=swap"
+      rel="stylesheet"
+    />`;
+
+        return html.replace(/<head>[\s\S]*?<\/head>/, `<head>${adminHeadTags}\n  </head>`);
+      },
+    },
+  };
+}
+
+function isolateOutputAssetsPlugin(appMode: string | undefined): Plugin {
+  let outDir = 'dist';
+  return {
+    name: 'isolate-output-assets',
+    configResolved(config) {
+      outDir = path.resolve(config.root, config.build.outDir);
+    },
+    closeBundle() {
+      const rmIfExists = (relPath: string) => {
+        const target = path.join(outDir, relPath);
+        if (fs.existsSync(target)) {
+          fs.rmSync(target, { recursive: true, force: true });
+        }
+      };
+
+      // Always strip user upload attachments from deployable builds
+      rmIfExists('assets/aistudio');
+
+      if (appMode === 'viewer') {
+        rmIfExists('icon-admin.svg');
+        rmIfExists('apple-touch-icon-admin.png');
+        rmIfExists('pwa-admin-192.png');
+        rmIfExists('pwa-admin-512.png');
+        rmIfExists('pwa-admin-maskable-512.png');
+      } else if (appMode === 'admin') {
+        rmIfExists('icon.svg');
+        rmIfExists('apple-touch-icon.png');
+        rmIfExists('pwa-192x192.png');
+        rmIfExists('pwa-512x512.png');
+        rmIfExists('pwa-maskable-512x512.png');
+        rmIfExists('sitemap.xml');
+        rmIfExists('assets/og-card.jpg');
+        rmIfExists('assets/og-card.png');
+        rmIfExists('assets/shanto-cutout.png');
+        const robotsPath = path.join(outDir, 'robots.txt');
+        if (fs.existsSync(outDir)) {
+          fs.writeFileSync(robotsPath, 'User-agent: *\nDisallow: /\n', 'utf8');
+        }
       }
-      return html;
     },
   };
 }
 
 export default defineConfig(() => {
-  const isAdminBuild = process.env.VITE_APP_MODE === 'admin';
+  const appMode = process.env.VITE_APP_MODE;
+  const isAdminBuild = appMode === 'admin';
+  const isViewerBuild = appMode === 'viewer';
+
+  const appEntryPath = isAdminBuild
+    ? path.resolve(__dirname, 'src/AdminApp.tsx')
+    : isViewerBuild
+      ? path.resolve(__dirname, 'src/ViewerApp.tsx')
+      : path.resolve(__dirname, 'src/App.tsx');
 
   return {
     plugins: [
@@ -53,10 +126,9 @@ export default defineConfig(() => {
         manifest: isAdminBuild
           ? {
               id: '/',
-              name: 'SHANTO Admin — Portfolio Studio',
-              short_name: 'ShantoAdmin',
-              description:
-                'Mobile-ready admin control center for Shanto portfolio analytics, projects, CV, and client inquiries.',
+              name: 'Admin Studio Control',
+              short_name: 'AdminStudio',
+              description: 'Private administration control portal.',
               theme_color: '#050507',
               background_color: '#050507',
               display: 'standalone',
@@ -118,8 +190,12 @@ export default defineConfig(() => {
             },
         workbox: {
           maximumFileSizeToCacheInBytes: 6 * 1024 * 1024,
-          globPatterns: ['**/*.{js,css,html,ico,svg,woff,woff2}'],
-          globIgnores: ['**/aistudio/**'],
+          globPatterns: isAdminBuild
+            ? ['**/*.{js,css,html,woff,woff2}', 'pwa-admin-*.png', 'icon-admin.svg']
+            : ['**/*.{js,css,html,ico,svg,woff,woff2}'],
+          globIgnores: isAdminBuild
+            ? ['**/aistudio/**', '**/og-card.*', '**/shanto-cutout.*', '**/pwa-192*', '**/pwa-512*', '**/pwa-maskable*']
+            : ['**/aistudio/**', '**/pwa-admin-*', '**/icon-admin.svg', '**/apple-touch-icon-admin.png'],
           navigateFallback: '/index.html',
           runtimeCaching: [
             {
@@ -153,14 +229,15 @@ export default defineConfig(() => {
           ],
         },
         devOptions: {
-          enabled: true,
-          type: 'module',
+          enabled: false,
         },
       }),
+      isolateOutputAssetsPlugin(appMode),
     ],
     resolve: {
       alias: {
         '@': path.resolve(__dirname, '.'),
+        '@app-entry': appEntryPath,
       },
     },
     server: {

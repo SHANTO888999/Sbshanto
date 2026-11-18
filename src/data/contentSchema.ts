@@ -432,6 +432,9 @@ export function normalizePortfolioContent(
     name: clampText(t?.name, 40, 'TypeScript'),
     role: clampText(t?.role, 56, 'Core Engineering'),
   }));
+  if (techStack.length === 0) {
+    techStack.push(...defaults.techStack);
+  }
 
   const rawServices = Array.isArray(raw.services) ? raw.services : defaults.services;
   const services: ServiceItem[] = rawServices.slice(0, 6).map((s, idx) => ({
@@ -439,6 +442,9 @@ export function normalizePortfolioContent(
     title: clampText(s?.title, 48, 'Custom Engineering'),
     detail: clampText(s?.detail, 140, 'Full lifecycle design and build.'),
   }));
+  if (services.length === 0) {
+    services.push(...defaults.services);
+  }
 
   const rawExperience = Array.isArray(raw.experience) ? raw.experience : defaults.experience;
   const experience: ExperienceItem[] = rawExperience

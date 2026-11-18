@@ -27,7 +27,7 @@ service cloud.firestore {
         && request.auth.token.email_verified == true
         && (
           request.auth.uid == '7uGlVyZQVLSofZlGXTVceJnfCg23'
-          || ('email' in request.auth.token && request.auth.token.email == 'sbgang01recovery@gmail.com')
+          || ('email' in request.auth.token && request.auth.token.email.lower() == 'sbgang01recovery@gmail.com')
         );
     }
 
@@ -51,7 +51,8 @@ service cloud.firestore {
     function isValidPortraitMedia(val) {
       return val is string
         && (
-          (val.size() >= 1 && val.size() <= 500 && val.matches('^(https?://|/).*'))
+          val == ''
+          || (val.size() >= 1 && val.size() <= 500 && val.matches('^(https?://|/).*'))
           || (val.size() >= 1 && val.size() <= 320000 && val.matches('^data:image/(png|jpeg|jpg|webp|gif);base64,.*'))
         );
     }

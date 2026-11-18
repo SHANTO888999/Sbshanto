@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { ArrowLeft, Check, CheckCircle2, Copy, Mail, X } from 'lucide-react';
 import { usePortfolioContent } from '../context/PortfolioContentContext';
 import { isValidEmailAddress } from '../data/contentSchema';
-import { submitProjectInquiry, trackHireInquirySubmit } from '../firebase';
+import { submitProjectInquiry, trackHireInquirySubmit } from '../firebaseViewer';
 import { handleViewerFormEnterToSubmit } from '../utils/formKeyboardNav';
 
 interface InquiryModalProps {

@@ -1,0 +1,56 @@
+import {
+  DEFAULT_CV_SETTINGS,
+  DEFAULT_VIEWER_CONTROLS,
+  type PortfolioContentBundle,
+} from './contentSchema';
+
+export const ADMIN_INITIAL_BUNDLE: PortfolioContentBundle = {
+  profile: {
+    greeting: "Hello, I'm",
+    displayName: 'SHANTO.',
+    backdropName: 'SHANTO',
+    wordmark: 'SHANTO.',
+    role: 'Web, App & Game Developer',
+    bio: 'Independent developer crafting custom websites, applications, and interactive games.',
+    portraitUrl: '',
+    email: 'studio@example.com',
+    githubHandle: '@shanto',
+    githubUrl: 'https://github.com',
+    availability: 'Available',
+    disciplineSummary: 'Web · Apps · Games',
+    craftMetricValue: '10',
+    craftMetricSuffix: '+',
+    craftMetricLabel: 'Projects Delivered',
+    craftSummary: 'Structured architecture and responsive craft from wireframe to launch.',
+    quoteText: 'Built with clean geometry and responsive code.',
+    quoteAuthor: 'Shanto',
+    quoteRole: 'Developer & Designer',
+    manifestoLead: 'Structured architecture from concept to production.',
+    manifestoAvailability: 'Open for freelance and custom product builds.',
+    prototypeTurnaround: '3–5 DAYS',
+  },
+  viewerControls: { ...DEFAULT_VIEWER_CONTROLS },
+  cvSettings: { ...DEFAULT_CV_SETTINGS },
+  heroMetrics: [{ value: '10+', label: 'Delivered Builds' }],
+  projects: [],
+  milestones: [],
+  wireframeScenes: [
+    {
+      id: 'scene-1',
+      label: '01 · Blueprint → Live Build',
+      specs: 'Grid · Architecture · Production',
+      notes: 'Structured wireframe compiled into an interactive build.',
+      theme: 'web-build',
+    },
+  ],
+  techStack: [{ name: 'TypeScript', role: 'Application Architecture' }],
+  services: [
+    {
+      index: '01',
+      title: 'Custom Development',
+      detail: 'End-to-end design and engineering delivery.',
+    },
+  ],
+  experience: [],
+  techPartners: ['REACT'],
+};

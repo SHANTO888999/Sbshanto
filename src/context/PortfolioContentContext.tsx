@@ -11,7 +11,7 @@ import {
   normalizePortfolioContent,
 } from '../data/contentSchema';
 import { DEFAULT_PORTFOLIO_CONTENT } from '../data/portfolioData';
-import { fetchLivePortfolioContent } from '../firebase';
+import { fetchLivePortfolioContent } from '../firebaseViewer';
 
 const PortfolioContentContext = createContext<PortfolioContentBundle>(DEFAULT_PORTFOLIO_CONTENT);
 const PortfolioRefreshContext = createContext<() => Promise<void>>(async () => {});

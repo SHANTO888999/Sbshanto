@@ -1,10 +1,14 @@
-import { initializeApp } from 'firebase/app';
 import {
+  browserPopupRedirectResolver,
+  browserSessionPersistence,
   getAuth,
+  initializeAuth,
   onAuthStateChanged,
   sendEmailVerification,
+  setPersistence,
   signInWithEmailAndPassword,
   signOut,
+  type Auth,
   type User,
 } from 'firebase/auth';
 import {
@@ -12,22 +16,16 @@ import {
   deleteDoc,
   doc,
   getDoc,
-  getDocFromServer,
   getDocs,
-  getFirestore,
-  increment,
-  initializeFirestore,
   orderBy,
   query,
   serverTimestamp,
   setDoc,
   updateDoc,
-  where,
   writeBatch,
-  type Firestore,
   type Timestamp,
 } from 'firebase/firestore';
-import firebaseConfig from '../firebase-applet-config.json';
+import { ADMIN_INITIAL_BUNDLE } from './data/adminDefaults';
 import type {
   CvSettingsConfig,
   ExperienceItem,
@@ -49,59 +47,35 @@ import {
   sanitizeHexColor,
   sanitizePublicUrl,
 } from './data/contentSchema';
-import { DEFAULT_PORTFOLIO_CONTENT } from './data/portfolioData';
+import {
+  app,
+  db,
+  OperationType,
+  sanitizeFirestoreId,
+  type FirestoreErrorInfo,
+} from './firebaseClientBase';
 
 export const OWNER_ADMIN_EMAIL = 'sbgang01recovery@gmail.com';
 export const OWNER_ADMIN_UID = '7uGlVyZQVLSofZlGXTVceJnfCg23';
 
-const app = initializeApp(firebaseConfig);
-export const db: Firestore = (() => {
+// Strictly enforce browserSessionPersistence so closing browser tab/app locks Admin
+export const auth: Auth = (() => {
   if (typeof window === 'undefined') {
-    return getFirestore(app, firebaseConfig.firestoreDatabaseId);
+    return getAuth(app);
   }
   try {
-    return initializeFirestore(
-      app,
-      {
-        experimentalForceLongPolling: true,
-        experimentalLongPollingOptions: { timeoutSeconds: 15 },
-        ignoreUndefinedProperties: true,
-      },
-      firebaseConfig.firestoreDatabaseId
-    );
+    return initializeAuth(app, {
+      persistence: browserSessionPersistence,
+      popupRedirectResolver: browserPopupRedirectResolver,
+    });
   } catch {
-    return getFirestore(app, firebaseConfig.firestoreDatabaseId);
+    const existing = getAuth(app);
+    void setPersistence(existing, browserSessionPersistence).catch(() => {});
+    return existing;
   }
 })();
-export const auth = getAuth(app);
 
-export enum OperationType {
-  CREATE = 'create',
-  UPDATE = 'update',
-  DELETE = 'delete',
-  LIST = 'list',
-  GET = 'get',
-  WRITE = 'write',
-}
-
-export interface FirestoreErrorInfo {
-  error: string;
-  operationType: OperationType;
-  path: string | null;
-  authInfo: {
-    userId?: string | null;
-    email?: string | null;
-    emailVerified?: boolean | null;
-    isAnonymous?: boolean | null;
-    tenantId?: string | null;
-    providerInfo?: {
-      providerId?: string | null;
-      email?: string | null;
-    }[];
-  };
-}
-
-export function handleFirestoreError(
+function handleAdminFirestoreError(
   error: unknown,
   operationType: OperationType,
   path: string | null
@@ -126,37 +100,6 @@ export function handleFirestoreError(
   console.error('Firestore Error: ', JSON.stringify(errInfo));
   throw new Error(JSON.stringify(errInfo));
 }
-
-function isTransientOfflineError(error: unknown): boolean {
-  if (!error) return false;
-  const code =
-    typeof error === 'object' && 'code' in error ? String((error as { code?: unknown }).code) : '';
-  const msg = error instanceof Error ? error.message.toLowerCase() : String(error).toLowerCase();
-  return (
-    code === 'unavailable' ||
-    msg.includes('the client is offline') ||
-    msg.includes('could not reach cloud firestore backend')
-  );
-}
-
-async function waitMs(ms: number): Promise<void> {
-  await new Promise((resolve) => setTimeout(resolve, ms));
-}
-
-async function testConnection() {
-  if (typeof navigator !== 'undefined' && navigator.onLine === false) {
-    return;
-  }
-  try {
-    await getDocFromServer(doc(db, 'test', 'connection'));
-  } catch (error) {
-    if (error instanceof Error && error.message.includes('the client is offline')) {
-      console.error('Please check your Firebase configuration.');
-    }
-  }
-}
-
-void testConnection();
 
 export type InquiryStatus = 'new' | 'read' | 'replied' | 'archived';
 
@@ -214,17 +157,6 @@ export interface AdminDashboardSnapshot {
   projectAnalytics: ProjectAnalyticsRecord[];
 }
 
-export function sanitizeFirestoreId(raw: string, fallbackPrefix: string): string {
-  const cleaned = raw
-    .trim()
-    .toLowerCase()
-    .replace(/[^a-z0-9_-]+/g, '-')
-    .replace(/^-+|-+$/g, '')
-    .slice(0, 80);
-  if (cleaned) return cleaned;
-  return `${fallbackPrefix}-${Date.now().toString(36)}`;
-}
-
 function toMillis(val: unknown): number {
   if (!val) return Date.now();
   if (typeof val === 'number') return val;
@@ -238,12 +170,32 @@ function toMillis(val: unknown): number {
   return Date.now();
 }
 
+async function ensureFreshVerifiedToken(): Promise<void> {
+  const current = auth.currentUser;
+  if (!current) return;
+  try {
+    const tokenResult = await current.getIdTokenResult();
+    if (!tokenResult.claims.email_verified && current.emailVerified) {
+      await current.getIdToken(true);
+    }
+  } catch {
+    // Non-fatal
+  }
+}
+
 export function subscribeAdminAuth(callback: (user: User | null) => void): () => void {
   return onAuthStateChanged(auth, callback);
 }
 
 export async function signInAdminWithEmail(email: string, password: string): Promise<User> {
+  await setPersistence(auth, browserSessionPersistence);
   const cred = await signInWithEmailAndPassword(auth, email.trim(), password);
+  try {
+    await cred.user.reload();
+    await cred.user.getIdToken(true);
+  } catch {
+    // Proceed cleanly
+  }
   return cred.user;
 }
 
@@ -270,7 +222,7 @@ export async function verifyAdminAccess(user: User | null): Promise<boolean> {
       await user.getIdToken(true);
     }
   } catch {
-    // Proceed cleanly if token inspection fails
+    // Proceed cleanly
   }
   if (
     user.uid === OWNER_ADMIN_UID ||
@@ -286,168 +238,9 @@ export async function verifyAdminAccess(user: User | null): Promise<boolean> {
   }
 }
 
-export async function fetchLivePortfolioContent(): Promise<Partial<PortfolioContentBundle> | null> {
-  const override: Partial<PortfolioContentBundle> = {};
-  let hasRemoteData = false;
-
-  if (typeof navigator !== 'undefined' && navigator.onLine === false) {
-    return null;
-  }
-
-  const settingsPath = 'site_settings/main';
-  try {
-    let settingsSnap;
-    try {
-      settingsSnap = await getDoc(doc(db, 'site_settings', 'main'));
-    } catch (firstErr) {
-      if (!isTransientOfflineError(firstErr)) throw firstErr;
-      await waitMs(1000);
-      settingsSnap = await getDoc(doc(db, 'site_settings', 'main'));
-    }
-    if (settingsSnap.exists()) {
-      const data = settingsSnap.data();
-      hasRemoteData = true;
-      override.profile = {
-        greeting: data.greeting,
-        displayName: data.displayName,
-        backdropName: data.backdropName,
-        wordmark: data.wordmark,
-        role: data.role,
-        bio: data.bio,
-        portraitUrl: data.portraitUrl,
-        email: data.email,
-        githubHandle: data.githubHandle,
-        githubUrl: data.githubUrl,
-        availability: data.availability,
-        disciplineSummary: data.disciplineSummary,
-        craftMetricValue: data.craftMetricValue,
-        craftMetricSuffix: data.craftMetricSuffix,
-        craftMetricLabel: data.craftMetricLabel,
-        craftSummary: data.craftSummary,
-        quoteText: data.quoteText,
-        quoteAuthor: data.quoteAuthor,
-        quoteRole: data.quoteRole,
-        manifestoLead: data.manifestoLead,
-        manifestoAvailability: data.manifestoAvailability,
-        prototypeTurnaround: data.prototypeTurnaround,
-      } as SiteProfile;
-      if (Array.isArray(data.heroMetrics)) override.heroMetrics = data.heroMetrics;
-      if (Array.isArray(data.wireframeScenes)) override.wireframeScenes = data.wireframeScenes;
-      if (Array.isArray(data.techStack)) override.techStack = data.techStack;
-      if (Array.isArray(data.services)) override.services = data.services;
-      if (Array.isArray(data.techPartners)) override.techPartners = data.techPartners;
-      if (data.viewerControls && typeof data.viewerControls === 'object') {
-        override.viewerControls = data.viewerControls as ViewerControlsConfig;
-      }
-      if (data.cvSettings && typeof data.cvSettings === 'object') {
-        override.cvSettings = data.cvSettings as CvSettingsConfig;
-      }
-    }
-  } catch (error) {
-    handleFirestoreError(error, OperationType.GET, settingsPath);
-  }
-
-  const projectsPath = 'projects';
-  try {
-    const projSnap = await getDocs(
-      query(collection(db, projectsPath), where('published', '==', true))
-    );
-    if (!projSnap.empty) {
-      hasRemoteData = true;
-      const docsData: Array<Record<string, unknown> & { id: string }> = projSnap.docs.map((d) => ({
-        ...(d.data() as Record<string, unknown>),
-        id: d.id,
-      }));
-      const items: ProjectItem[] = docsData
-        .sort((a, b) => Number(a.sortOrder ?? 999) - Number(b.sortOrder ?? 999))
-        .map((d) => ({
-          id: d.id,
-          index: String(d.index ?? ''),
-          title: String(d.title ?? ''),
-          category: d.category as ProjectItem['category'],
-          year: String(d.year ?? ''),
-          platform: String(d.platform ?? ''),
-          client: String(d.client ?? ''),
-          role: String(d.role ?? ''),
-          stack: Array.isArray(d.stack) ? (d.stack as string[]) : [],
-          summary: String(d.summary ?? ''),
-          architectureNotes: String(d.architectureNotes ?? ''),
-          previewTheme: d.previewTheme as ProjectItem['previewTheme'],
-          dimensions: String(d.dimensions ?? '1440 × 900'),
-          coverImageUrl: sanitizePublicUrl(d.coverImageUrl, '', true) || undefined,
-          coverMediaType:
-            d.coverMediaType === 'video' || d.coverMediaType === 'image'
-              ? d.coverMediaType
-              : undefined,
-          liveUrl: sanitizePublicUrl(d.liveUrl, '') || undefined,
-          repoUrl: sanitizePublicUrl(d.repoUrl, '') || undefined,
-          published: true,
-        }));
-      override.projects = items;
-    }
-  } catch (error) {
-    handleFirestoreError(error, OperationType.LIST, projectsPath);
-  }
-
-  const milestonesPath = 'milestones';
-  try {
-    const msSnap = await getDocs(
-      query(collection(db, milestonesPath), where('published', '==', true))
-    );
-    if (!msSnap.empty) {
-      hasRemoteData = true;
-      const docsData: Array<Record<string, unknown> & { id: string }> = msSnap.docs.map((d) => ({
-        ...(d.data() as Record<string, unknown>),
-        id: d.id,
-      }));
-      const items: MilestoneItem[] = docsData
-        .sort((a, b) => Number(a.sortOrder ?? 999) - Number(b.sortOrder ?? 999))
-        .map((d) => ({
-          id: d.id,
-          title: String(d.title ?? ''),
-          context: String(d.context ?? ''),
-          project: String(d.project ?? ''),
-          year: String(d.year ?? ''),
-          outcome: String(d.outcome ?? ''),
-          published: true,
-        }));
-      override.milestones = items;
-    }
-  } catch (error) {
-    handleFirestoreError(error, OperationType.LIST, milestonesPath);
-  }
-
-  const experiencePath = 'experience';
-  try {
-    const expSnap = await getDocs(
-      query(collection(db, experiencePath), where('published', '==', true))
-    );
-    if (!expSnap.empty) {
-      hasRemoteData = true;
-      const docsData: Array<Record<string, unknown> & { id: string }> = expSnap.docs.map((d) => ({
-        ...(d.data() as Record<string, unknown>),
-        id: d.id,
-      }));
-      const items: ExperienceItem[] = docsData
-        .sort((a, b) => Number(a.sortOrder ?? 999) - Number(b.sortOrder ?? 999))
-        .map((d) => ({
-          id: d.id,
-          period: String(d.period ?? ''),
-          role: String(d.role ?? ''),
-          org: String(d.org ?? ''),
-          description: String(d.description ?? ''),
-          published: true,
-        }));
-      override.experience = items;
-    }
-  } catch (error) {
-    handleFirestoreError(error, OperationType.LIST, experiencePath);
-  }
-
-  return hasRemoteData ? override : null;
-}
-
 export async function fetchAdminDashboardSnapshot(): Promise<AdminDashboardSnapshot> {
+  await ensureFreshVerifiedToken();
+
   let hasRemoteSettings = false;
   const partial: Partial<PortfolioContentBundle> = {};
 
@@ -471,10 +264,10 @@ export async function fetchAdminDashboardSnapshot(): Promise<AdminDashboardSnaps
       }
     }
   } catch (error) {
-    handleFirestoreError(error, OperationType.GET, settingsPath);
+    handleAdminFirestoreError(error, OperationType.GET, settingsPath);
   }
 
-  const settingsBundle = normalizePortfolioContent(partial, DEFAULT_PORTFOLIO_CONTENT);
+  const settingsBundle = normalizePortfolioContent(partial, ADMIN_INITIAL_BUNDLE);
 
   let projects: AdminProjectRecord[] = [];
   try {
@@ -510,7 +303,7 @@ export async function fetchAdminDashboardSnapshot(): Promise<AdminDashboardSnaps
         sortOrder: Number.isFinite(Number(d.sortOrder)) ? Math.trunc(Number(d.sortOrder)) : idx,
       }));
   } catch (error) {
-    handleFirestoreError(error, OperationType.LIST, 'projects');
+    handleAdminFirestoreError(error, OperationType.LIST, 'projects');
   }
 
   let milestones: AdminMilestoneRecord[] = [];
@@ -533,7 +326,7 @@ export async function fetchAdminDashboardSnapshot(): Promise<AdminDashboardSnaps
         sortOrder: Number.isFinite(Number(d.sortOrder)) ? Math.trunc(Number(d.sortOrder)) : idx,
       }));
   } catch (error) {
-    handleFirestoreError(error, OperationType.LIST, 'milestones');
+    handleAdminFirestoreError(error, OperationType.LIST, 'milestones');
   }
 
   let experience: AdminExperienceRecord[] = [];
@@ -555,7 +348,7 @@ export async function fetchAdminDashboardSnapshot(): Promise<AdminDashboardSnaps
         sortOrder: Number.isFinite(Number(d.sortOrder)) ? Math.trunc(Number(d.sortOrder)) : idx,
       }));
   } catch (error) {
-    handleFirestoreError(error, OperationType.LIST, 'experience');
+    handleAdminFirestoreError(error, OperationType.LIST, 'experience');
   }
 
   let inquiries: InquiryRecord[] = [];
@@ -577,7 +370,7 @@ export async function fetchAdminDashboardSnapshot(): Promise<AdminDashboardSnaps
       createdAtMs: toMillis(d.createdAt),
     }));
   } catch (error) {
-    handleFirestoreError(error, OperationType.LIST, 'inquiries');
+    handleAdminFirestoreError(error, OperationType.LIST, 'inquiries');
   }
 
   let dailyAnalytics: DailyAnalyticsRecord[] = [];
@@ -634,15 +427,15 @@ export async function fetchAdminDashboardSnapshot(): Promise<AdminDashboardSnaps
 }
 
 function buildSettingsPayload(bundle: PortfolioContentBundle) {
-  const safe = normalizePortfolioContent(bundle, DEFAULT_PORTFOLIO_CONTENT);
+  const dp = ADMIN_INITIAL_BUNDLE.profile;
+  const safe = normalizePortfolioContent(bundle, ADMIN_INITIAL_BUNDLE);
   const p = safe.profile;
-  const dp = DEFAULT_PORTFOLIO_CONTENT.profile;
 
-  const sanitizedPortrait = sanitizePublicUrl(p.portraitUrl, dp.portraitUrl, true);
+  const portraitCandidate = sanitizePublicUrl(p.portraitUrl, '', true);
   const portraitPayload =
-    sanitizedPortrait.startsWith('data:image/') && sanitizedPortrait.length <= 320_000
-      ? sanitizedPortrait
-      : clampExact(sanitizePublicUrl(p.portraitUrl, dp.portraitUrl), 500, dp.portraitUrl);
+    portraitCandidate.startsWith('data:image/') && portraitCandidate.length <= 320_000
+      ? portraitCandidate
+      : sanitizePublicUrl(p.portraitUrl, '', false).slice(0, 500);
 
   return {
     greeting: clampText(p.greeting, 40, dp.greeting),
@@ -718,10 +511,11 @@ function buildSettingsPayload(bundle: PortfolioContentBundle) {
 
 export async function savePortfolioSettings(bundle: PortfolioContentBundle): Promise<void> {
   const path = 'site_settings/main';
+  await ensureFreshVerifiedToken();
   try {
     await setDoc(doc(db, 'site_settings', 'main'), buildSettingsPayload(bundle));
   } catch (error) {
-    handleFirestoreError(error, OperationType.WRITE, path);
+    handleAdminFirestoreError(error, OperationType.WRITE, path);
   }
 }
 
@@ -773,20 +567,22 @@ function buildProjectPayload(project: AdminProjectRecord) {
 export async function saveAdminProject(project: AdminProjectRecord): Promise<string> {
   const safeId = sanitizeFirestoreId(project.id || project.title, 'proj');
   const path = `projects/${safeId}`;
+  await ensureFreshVerifiedToken();
   try {
     await setDoc(doc(db, 'projects', safeId), buildProjectPayload(project));
     return safeId;
   } catch (error) {
-    handleFirestoreError(error, OperationType.WRITE, path);
+    handleAdminFirestoreError(error, OperationType.WRITE, path);
   }
 }
 
 export async function deleteAdminProject(projectId: string): Promise<void> {
   const path = `projects/${projectId}`;
+  await ensureFreshVerifiedToken();
   try {
     await deleteDoc(doc(db, 'projects', projectId));
   } catch (error) {
-    handleFirestoreError(error, OperationType.DELETE, path);
+    handleAdminFirestoreError(error, OperationType.DELETE, path);
   }
 }
 
@@ -806,20 +602,22 @@ function buildMilestonePayload(item: AdminMilestoneRecord) {
 export async function saveAdminMilestone(item: AdminMilestoneRecord): Promise<string> {
   const safeId = sanitizeFirestoreId(item.id || item.title, 'ms');
   const path = `milestones/${safeId}`;
+  await ensureFreshVerifiedToken();
   try {
     await setDoc(doc(db, 'milestones', safeId), buildMilestonePayload(item));
     return safeId;
   } catch (error) {
-    handleFirestoreError(error, OperationType.WRITE, path);
+    handleAdminFirestoreError(error, OperationType.WRITE, path);
   }
 }
 
 export async function deleteAdminMilestone(milestoneId: string): Promise<void> {
   const path = `milestones/${milestoneId}`;
+  await ensureFreshVerifiedToken();
   try {
     await deleteDoc(doc(db, 'milestones', milestoneId));
   } catch (error) {
-    handleFirestoreError(error, OperationType.DELETE, path);
+    handleAdminFirestoreError(error, OperationType.DELETE, path);
   }
 }
 
@@ -838,20 +636,22 @@ function buildExperiencePayload(item: AdminExperienceRecord) {
 export async function saveAdminExperience(item: AdminExperienceRecord): Promise<string> {
   const safeId = sanitizeFirestoreId(item.id || item.role, 'exp');
   const path = `experience/${safeId}`;
+  await ensureFreshVerifiedToken();
   try {
     await setDoc(doc(db, 'experience', safeId), buildExperiencePayload(item));
     return safeId;
   } catch (error) {
-    handleFirestoreError(error, OperationType.WRITE, path);
+    handleAdminFirestoreError(error, OperationType.WRITE, path);
   }
 }
 
 export async function deleteAdminExperience(expId: string): Promise<void> {
   const path = `experience/${expId}`;
+  await ensureFreshVerifiedToken();
   try {
     await deleteDoc(doc(db, 'experience', expId));
   } catch (error) {
-    handleFirestoreError(error, OperationType.DELETE, path);
+    handleAdminFirestoreError(error, OperationType.DELETE, path);
   }
 }
 
@@ -860,28 +660,31 @@ export async function updateAdminInquiryStatus(
   status: InquiryStatus
 ): Promise<void> {
   const path = `inquiries/${inquiryId}`;
+  await ensureFreshVerifiedToken();
   try {
     await updateDoc(doc(db, 'inquiries', inquiryId), {
       status,
       updatedAt: serverTimestamp(),
     });
   } catch (error) {
-    handleFirestoreError(error, OperationType.UPDATE, path);
+    handleAdminFirestoreError(error, OperationType.UPDATE, path);
   }
 }
 
 export async function deleteAdminInquiry(inquiryId: string): Promise<void> {
   const path = `inquiries/${inquiryId}`;
+  await ensureFreshVerifiedToken();
   try {
     await deleteDoc(doc(db, 'inquiries', inquiryId));
   } catch (error) {
-    handleFirestoreError(error, OperationType.DELETE, path);
+    handleAdminFirestoreError(error, OperationType.DELETE, path);
   }
 }
 
 export async function seedDefaultPortfolioToFirestore(
-  bundle: PortfolioContentBundle = DEFAULT_PORTFOLIO_CONTENT
+  bundle: PortfolioContentBundle = ADMIN_INITIAL_BUNDLE
 ): Promise<void> {
+  await ensureFreshVerifiedToken();
   try {
     const batch = writeBatch(db);
     batch.set(doc(db, 'site_settings', 'main'), buildSettingsPayload(bundle));
@@ -927,172 +730,6 @@ export async function seedDefaultPortfolioToFirestore(
 
     await batch.commit();
   } catch (error) {
-    handleFirestoreError(error, OperationType.WRITE, 'batch_seed');
+    handleAdminFirestoreError(error, OperationType.WRITE, 'batch_seed');
   }
-}
-
-export async function submitProjectInquiry(payload: {
-  name: string;
-  email: string;
-  scope: string;
-  brief: string;
-}): Promise<void> {
-  const safeId = `inq_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
-  const path = `inquiries/${safeId}`;
-  try {
-    await setDoc(doc(db, 'inquiries', safeId), {
-      name: clampText(payload.name, 80, 'Visitor'),
-      email: clampText(payload.email, 120, ''),
-      scope: clampText(payload.scope, 80, 'Website Design & Development'),
-      brief: clampText(payload.brief, 2000, ''),
-      status: 'new',
-      createdAt: serverTimestamp(),
-    });
-  } catch (error) {
-    handleFirestoreError(error, OperationType.CREATE, path);
-  }
-}
-
-function getLocalDateKey(): { date: string; month: string } {
-  const now = new Date();
-  const y = now.getFullYear();
-  const m = String(now.getMonth() + 1).padStart(2, '0');
-  const d = String(now.getDate()).padStart(2, '0');
-  const date = `${y}-${m}-${d}`;
-  return { date, month: `${y}-${m}` };
-}
-
-type DailyAnalyticsCounter =
-  | 'visitors'
-  | 'pageViews'
-  | 'projectClicks'
-  | 'hireOpens'
-  | 'hireSubmits'
-  | 'cvDownloads';
-
-async function incrementDailyMetric(deltas: Partial<Record<DailyAnalyticsCounter, 1>>): Promise<void> {
-  if (typeof navigator !== 'undefined' && navigator.onLine === false) return;
-  const { date, month } = getLocalDateKey();
-  const ref = doc(db, 'analytics_daily', date);
-
-  const updatePayload: Record<string, unknown> = { updatedAt: serverTimestamp() };
-  const counters: DailyAnalyticsCounter[] = [
-    'visitors',
-    'pageViews',
-    'projectClicks',
-    'hireOpens',
-    'hireSubmits',
-    'cvDownloads',
-  ];
-
-  let hasDelta = false;
-  counters.forEach((key) => {
-    if (deltas[key] === 1) {
-      updatePayload[key] = increment(1);
-      hasDelta = true;
-    }
-  });
-  if (!hasDelta) return;
-
-  try {
-    await updateDoc(ref, updatePayload);
-  } catch (err) {
-    const code = typeof err === 'object' && err && 'code' in err ? String((err as { code?: unknown }).code) : '';
-    const msg = err instanceof Error ? err.message.toLowerCase() : '';
-    if (code === 'not-found' || msg.includes('no document to update')) {
-      try {
-        await setDoc(ref, {
-          date,
-          month,
-          visitors: deltas.visitors ?? 0,
-          pageViews: deltas.pageViews ?? 0,
-          projectClicks: deltas.projectClicks ?? 0,
-          hireOpens: deltas.hireOpens ?? 0,
-          hireSubmits: deltas.hireSubmits ?? 0,
-          cvDownloads: deltas.cvDownloads ?? 0,
-          updatedAt: serverTimestamp(),
-        });
-      } catch {
-        // Retry update cleanly if another visitor created today's document simultaneously
-        try {
-          await updateDoc(ref, updatePayload);
-        } catch {
-          // Silent fallback: analytics must never disrupt browsing
-        }
-      }
-    }
-  }
-}
-
-export async function trackVisitorSession(): Promise<void> {
-  if (typeof window === 'undefined') return;
-  const { date } = getLocalDateKey();
-  const visitKey = `shanto_uv_${date}`;
-  const sessionKey = `shanto_pv_${date}`;
-
-  try {
-    if (window.sessionStorage.getItem(sessionKey) === '1') return;
-    window.sessionStorage.setItem(sessionKey, '1');
-    const isNewDailyVisitor = window.localStorage.getItem(visitKey) !== '1';
-    if (isNewDailyVisitor) {
-      window.localStorage.setItem(visitKey, '1');
-    }
-    await incrementDailyMetric({
-      visitors: isNewDailyVisitor ? 1 : undefined,
-      pageViews: 1,
-    });
-  } catch {
-    // Ignore storage/privacy restrictions
-  }
-}
-
-export async function trackProjectCardClick(project: {
-  id: string;
-  title: string;
-  category: string;
-}): Promise<void> {
-  void incrementDailyMetric({ projectClicks: 1 });
-  const safeId = sanitizeFirestoreId(project.id, 'proj');
-  const safeCategory = ['Websites', 'Apps', 'Games', 'UI/UX Design'].includes(project.category)
-    ? project.category
-    : 'Websites';
-  const safeTitle = clampText(project.title, 80, 'Portfolio Project');
-  const ref = doc(db, 'analytics_projects', safeId);
-
-  try {
-    await updateDoc(ref, {
-      title: safeTitle,
-      category: safeCategory,
-      clicks: increment(1),
-      updatedAt: serverTimestamp(),
-    });
-  } catch (err) {
-    const code = typeof err === 'object' && err && 'code' in err ? String((err as { code?: unknown }).code) : '';
-    const msg = err instanceof Error ? err.message.toLowerCase() : '';
-    if (code === 'not-found' || msg.includes('no document to update')) {
-      try {
-        await setDoc(ref, {
-          projectId: safeId,
-          title: safeTitle,
-          category: safeCategory,
-          clicks: 1,
-          updatedAt: serverTimestamp(),
-        });
-      } catch {
-        // Silent race/network fallback
-      }
-    }
-  }
-}
-
-export async function trackHireModalOpen(): Promise<void> {
-  await incrementDailyMetric({ hireOpens: 1 });
-}
-
-export async function trackHireInquirySubmit(): Promise<void> {
-  await incrementDailyMetric({ hireSubmits: 1 });
-}
-
-export async function trackCvDownload(): Promise<void> {
-  await incrementDailyMetric({ cvDownloads: 1 });
 }

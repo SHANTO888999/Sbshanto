@@ -23,9 +23,8 @@ import {
   RefreshCw,
   UserCog,
 } from 'lucide-react';
-import { useRefreshPortfolioContent } from '../../context/PortfolioContentContext';
+import { ADMIN_INITIAL_BUNDLE } from '../../data/adminDefaults';
 import type { PortfolioContentBundle } from '../../data/contentSchema';
-import { DEFAULT_PORTFOLIO_CONTENT } from '../../data/portfolioData';
 import {
   deleteAdminExperience,
   deleteAdminInquiry,
@@ -51,9 +50,10 @@ import {
   type AdminMilestoneRecord,
   type AdminProjectRecord,
   type InquiryStatus,
-} from '../../firebase';
+} from '../../firebaseAdmin';
 import { downloadPortfolioCv } from '../../utils/cvPdfGenerator';
 import { handleFormEnterToNext } from '../../utils/formKeyboardNav';
+import { applyDocumentAccentTheme } from '../../utils/themeAccent';
 import { OfflineIndicator, PWAInstallButton } from '../PWAInstallButton';
 import { AdminAnalyticsPanel } from './AdminAnalyticsPanel';
 import { AdminCareerEditor } from './AdminCareerEditor';
@@ -79,7 +79,8 @@ const CAREER_SUB_LABELS: Record<'milestones' | 'experience', string> = {
 };
 
 interface AdminDashboardProps {
-  onOpenViewerPreview: () => void;
+  onOpenViewerPreview?: () => void;
+  onContentSaved?: () => Promise<void> | void;
 }
 
 function formatDashboardError(err: unknown): string {
@@ -123,8 +124,10 @@ function formatAuthError(err: unknown): string {
   return raw;
 }
 
-export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onOpenViewerPreview }) => {
-  const refreshPublicPortfolio = useRefreshPortfolioContent();
+export const AdminDashboard: React.FC<AdminDashboardProps> = ({
+  onOpenViewerPreview,
+  onContentSaved,
+}) => {
 
   const [authReady, setAuthReady] = useState(false);
   const [user, setUser] = useState<User | null>(null);
@@ -169,7 +172,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onOpenViewerPrev
 
   const [snapshot, setSnapshot] = useState<AdminDashboardSnapshot>({
     hasRemoteSettings: false,
-    settingsBundle: DEFAULT_PORTFOLIO_CONTENT,
+    settingsBundle: ADMIN_INITIAL_BUNDLE,
     projects: [],
     milestones: [],
     experience: [],
@@ -178,7 +181,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onOpenViewerPrev
     projectAnalytics: [],
   });
 
-  const [profileDraft, setProfileDraft] = useState<PortfolioContentBundle>(DEFAULT_PORTFOLIO_CONTENT);
+  const [profileDraft, setProfileDraft] = useState<PortfolioContentBundle>(ADMIN_INITIAL_BUNDLE);
 
   useEffect(() => {
     const prevTitle = document.title;
@@ -395,6 +398,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onOpenViewerPrev
       const data = await fetchAdminDashboardSnapshot();
       setSnapshot(data);
       setProfileDraft(data.settingsBundle);
+      applyDocumentAccentTheme(data.settingsBundle.viewerControls.accentColor);
     } catch (err) {
       const rawMsg = err instanceof Error ? err.message : '';
       if (rawMsg.includes('Missing or insufficient permissions')) {
@@ -403,6 +407,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onOpenViewerPrev
           const retryData = await fetchAdminDashboardSnapshot();
           setSnapshot(retryData);
           setProfileDraft(retryData.settingsBundle);
+          applyDocumentAccentTheme(retryData.settingsBundle.viewerControls.accentColor);
           return;
         } catch (retryErr) {
           setNotice({ type: 'error', text: formatDashboardError(retryErr) });
@@ -430,7 +435,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onOpenViewerPrev
         setCareerSubHistory(['milestones']);
         setSnapshot({
           hasRemoteSettings: false,
-          settingsBundle: DEFAULT_PORTFOLIO_CONTENT,
+          settingsBundle: ADMIN_INITIAL_BUNDLE,
           projects: [],
           milestones: [],
           experience: [],
@@ -438,7 +443,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onOpenViewerPrev
           dailyAnalytics: [],
           projectAnalytics: [],
         });
-        setProfileDraft(DEFAULT_PORTFOLIO_CONTENT);
+        setProfileDraft(ADMIN_INITIAL_BUNDLE);
         clearHistorySteps();
         return;
       }
@@ -519,7 +524,9 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onOpenViewerPrev
     try {
       await fn();
       await loadDashboard();
-      await refreshPublicPortfolio();
+      if (onContentSaved) {
+        await onContentSaved();
+      }
       setNotice({ type: 'success', text: successText });
       return true;
     } catch (err) {
@@ -581,14 +588,26 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onOpenViewerPrev
           </span>
           <div className="flex items-center gap-2">
             <PWAInstallButton label="Install App" />
-            <button
-              type="button"
-              onClick={onOpenViewerPreview}
-              className="inline-flex min-h-[40px] items-center gap-2 rounded-md border border-white/15 px-3.5 py-2 text-xs font-medium text-zinc-300 hover:bg-white/5 hover:text-white"
-            >
-              <ExternalLink className="h-3.5 w-3.5" aria-hidden="true" />
-              View Public Portfolio
-            </button>
+            {onOpenViewerPreview ? (
+              <button
+                type="button"
+                onClick={onOpenViewerPreview}
+                className="inline-flex min-h-[40px] items-center gap-2 rounded-md border border-white/15 px-3.5 py-2 text-xs font-medium text-zinc-300 hover:bg-white/5 hover:text-white"
+              >
+                <ExternalLink className="h-3.5 w-3.5" aria-hidden="true" />
+                Live Site
+              </button>
+            ) : (
+              <a
+                href="https://sbshanto.web.app/"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex min-h-[40px] items-center gap-2 rounded-md border border-white/15 px-3.5 py-2 text-xs font-medium text-zinc-300 hover:bg-white/5 hover:text-white"
+              >
+                <ExternalLink className="h-3.5 w-3.5" aria-hidden="true" />
+                Live Site
+              </a>
+            )}
           </div>
         </header>
 
@@ -753,7 +772,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onOpenViewerPrev
         </main>
 
         <footer className="mx-auto w-full max-w-4xl text-center text-xs text-zinc-500">
-          Protected by Firebase Authentication &amp; Zero-Trust Firestore Security Rules
+          Session-Only Security · Closing browser or app automatically locks Admin access
         </footer>
       </div>
     );
@@ -823,14 +842,26 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onOpenViewerPrev
 
         <div className="space-y-2 border-t border-white/10 pt-4">
           <PWAInstallButton label="Install Admin App" className="min-h-[40px] w-full" />
-          <button
-            type="button"
-            onClick={onOpenViewerPreview}
-            className="flex min-h-[42px] w-full items-center justify-center gap-2 rounded-md border border-white/15 px-3 py-2 text-xs font-medium text-zinc-200 hover:bg-white/5"
-          >
-            <ExternalLink className="h-3.5 w-3.5" aria-hidden="true" />
-            Preview Live Site
-          </button>
+          {onOpenViewerPreview ? (
+            <button
+              type="button"
+              onClick={onOpenViewerPreview}
+              className="flex min-h-[42px] w-full items-center justify-center gap-2 rounded-md border border-white/15 px-3 py-2 text-xs font-medium text-zinc-200 hover:bg-white/5"
+            >
+              <ExternalLink className="h-3.5 w-3.5" aria-hidden="true" />
+              Preview Live Site
+            </button>
+          ) : (
+            <a
+              href="https://sbshanto.web.app/"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="flex min-h-[42px] w-full items-center justify-center gap-2 rounded-md border border-white/15 px-3 py-2 text-xs font-medium text-zinc-200 hover:bg-white/5"
+            >
+              <ExternalLink className="h-3.5 w-3.5" aria-hidden="true" />
+              Open Live Site
+            </a>
+          )}
           <button
             type="button"
             onClick={() => void signOutAdmin()}
@@ -898,14 +929,26 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onOpenViewerPrev
                 <span className="hidden sm:inline">Refresh</span>
               </button>
 
-              <button
-                type="button"
-                onClick={onOpenViewerPreview}
-                className="inline-flex min-h-[38px] items-center gap-1.5 rounded-md border border-white/15 px-3 py-1.5 text-xs font-medium text-zinc-200 hover:bg-white/5 lg:hidden whitespace-nowrap shrink-0"
-              >
-                <ExternalLink className="h-3.5 w-3.5" aria-hidden="true" />
-                Live Site
-              </button>
+              {onOpenViewerPreview ? (
+                <button
+                  type="button"
+                  onClick={onOpenViewerPreview}
+                  className="inline-flex min-h-[38px] items-center gap-1.5 rounded-md border border-white/15 px-3 py-1.5 text-xs font-medium text-zinc-200 hover:bg-white/5 lg:hidden whitespace-nowrap shrink-0"
+                >
+                  <ExternalLink className="h-3.5 w-3.5" aria-hidden="true" />
+                  Live Site
+                </button>
+              ) : (
+                <a
+                  href="https://sbshanto.web.app/"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex min-h-[38px] items-center gap-1.5 rounded-md border border-white/15 px-3 py-1.5 text-xs font-medium text-zinc-200 hover:bg-white/5 lg:hidden whitespace-nowrap shrink-0"
+                >
+                  <ExternalLink className="h-3.5 w-3.5" aria-hidden="true" />
+                  Live Site
+                </a>
+              )}
 
               <button
                 type="button"
@@ -1306,15 +1349,15 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onOpenViewerPrev
 
       <ConfirmDialog
         open={seedConfirmOpen}
-        title="Sync Default Portfolio to Cloud"
-        description="This writes your current default profile, 6 projects, 6 milestones, and 4 timeline entries into Cloud Firestore so you can customize or toggle them anytime."
-        confirmLabel="Sync to Firestore"
+        title="Initialize Cloud Settings Document"
+        description="Creates the starter cloud settings record in Firestore so your site profile, theme controls, and analytics can be customized anytime."
+        confirmLabel="Initialize Cloud"
         busy={saving}
         onCancel={() => setSeedConfirmOpen(false)}
         onConfirm={async () => {
           await runMutation(
-            () => seedDefaultPortfolioToFirestore(DEFAULT_PORTFOLIO_CONTENT),
-            'Default portfolio synced to Firestore. Everything is now live-editable!'
+            () => seedDefaultPortfolioToFirestore(profileDraft),
+            'Cloud settings initialized cleanly in Firestore!'
           );
           setSeedConfirmOpen(false);
         }}

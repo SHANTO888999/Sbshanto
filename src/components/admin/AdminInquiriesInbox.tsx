@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { ArrowLeft, Check, Copy, Mail, Trash2 } from 'lucide-react';
-import type { InquiryRecord, InquiryStatus } from '../../firebase';
+import type { InquiryRecord, InquiryStatus } from '../../firebaseAdmin';
 import { ConfirmDialog } from './FieldControls';
 
 interface AdminInquiriesInboxProps {

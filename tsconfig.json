@@ -20,6 +20,9 @@
     "paths": {
       "@/*": [
         "./*"
+      ],
+      "@app-entry": [
+        "./src/App.tsx"
       ]
     },
     "allowImportingTsExtensions": true,

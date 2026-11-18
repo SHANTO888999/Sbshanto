@@ -5,8 +5,8 @@
   "type": "module",
   "scripts": {
     "dev": "vite --port=3000 --host=0.0.0.0",
-    "build": "vite build",
-    "build:sites": "VITE_APP_MODE=viewer vite build --outDir dist-viewer && VITE_APP_MODE=admin vite build --outDir dist-admin",
+    "build": "NODE_ENV=production vite build --mode production",
+    "build:sites": "NODE_ENV=production VITE_APP_MODE=viewer vite build --mode production --outDir dist-viewer && NODE_ENV=production VITE_APP_MODE=admin vite build --mode production --outDir dist-admin",
     "preview": "vite preview",
     "clean": "rm -rf dist dist-viewer dist-admin server.js",
     "lint": "tsc --noEmit"

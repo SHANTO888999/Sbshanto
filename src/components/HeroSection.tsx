@@ -2,7 +2,7 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { ArrowUpRight, Download } from 'lucide-react';
 import { motion } from 'motion/react';
 import { usePortfolioContent } from '../context/PortfolioContentContext';
-import { trackCvDownload } from '../firebase';
+import { trackCvDownload } from '../firebaseViewer';
 import { downloadPortfolioCv } from '../utils/cvPdfGenerator';
 import { ResizeDimensionBadge, useDesignCanvas } from './DesignCursorSystem';
 import { cursorAudio } from '../utils/cursorAudio';
@@ -44,7 +44,9 @@ export const HeroSection: React.FC<HeroSectionProps> = ({
   const [kpiEditChars, setKpiEditChars] = useState(0);
   const [kpiDragOrigins, setKpiDragOrigins] = useState<Record<number, { x: number; y: number }>>({});
   const [kpiDragStep, setKpiDragStep] = useState<'idle' | 'at-source' | 'pulling'>('idle');
-  const [portraitSrc, setPortraitSrc] = useState(profile.portraitUrl);
+  const [portraitSrc, setPortraitSrc] = useState(
+    () => profile.portraitUrl.trim() || '/assets/shanto-cutout.png'
+  );
   const titleBoxRef = useRef<HTMLDivElement | null>(null);
   const shantoBackdropRef = useRef<HTMLDivElement | null>(null);
   const kpiSlotRefs = useRef<Array<HTMLDivElement | null>>([]);
@@ -53,7 +55,7 @@ export const HeroSection: React.FC<HeroSectionProps> = ({
   );
 
   useEffect(() => {
-    setPortraitSrc(profile.portraitUrl);
+    setPortraitSrc(profile.portraitUrl.trim() || '/assets/shanto-cutout.png');
   }, [profile.portraitUrl]);
 
   useEffect(() => {

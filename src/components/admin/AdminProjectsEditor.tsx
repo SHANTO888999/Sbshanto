@@ -15,7 +15,7 @@ import {
 } from 'lucide-react';
 import type { PreviewTheme, ProjectCategory } from '../../data/contentSchema';
 import { isVideoMediaSource, sanitizePublicUrl } from '../../data/contentSchema';
-import type { AdminProjectRecord } from '../../firebase';
+import type { AdminProjectRecord } from '../../firebaseAdmin';
 import { handleFormEnterToNext } from '../../utils/formKeyboardNav';
 import { processProjectPhotoFile, processProjectVideoFile } from '../../utils/mediaCompressor';
 import { ProductPreviewCanvas } from '../ProductPreviewCanvas';

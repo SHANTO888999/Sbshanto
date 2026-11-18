@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { ArrowLeft, Eye, EyeOff, Pencil, Plus, Save, Trash2, X } from 'lucide-react';
-import type { AdminExperienceRecord, AdminMilestoneRecord } from '../../firebase';
+import type { AdminExperienceRecord, AdminMilestoneRecord } from '../../firebaseAdmin';
 import { handleFormEnterToNext } from '../../utils/formKeyboardNav';
 import { ConfirmDialog, LimitedInput, LimitedTextarea } from './FieldControls';
 
