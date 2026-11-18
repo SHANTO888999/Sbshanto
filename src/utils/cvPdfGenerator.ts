@@ -10,7 +10,41 @@ function buildSafePdfFilename(displayName: string): string {
   return `${clean || 'SHANTO'}-Resume.pdf`;
 }
 
+function dataUrlToBlob(dataUrl: string): Blob | null {
+  try {
+    const commaIdx = dataUrl.indexOf(',');
+    if (commaIdx === -1) return null;
+    const header = dataUrl.slice(0, commaIdx);
+    const base64 = dataUrl.slice(commaIdx + 1);
+    const mimeMatch = /^data:([^;]+);base64$/i.exec(header);
+    const mime = mimeMatch?.[1] || 'application/pdf';
+    const binary = window.atob(base64);
+    const bytes = new Uint8Array(binary.length);
+    for (let i = 0; i < binary.length; i += 1) {
+      bytes[i] = binary.charCodeAt(i);
+    }
+    return new Blob([bytes], { type: mime });
+  } catch {
+    return null;
+  }
+}
+
 function triggerUrlDownload(url: string, filename: string): void {
+  if (url.startsWith('data:')) {
+    const blob = dataUrlToBlob(url);
+    if (blob) {
+      const objectUrl = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = objectUrl;
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      window.setTimeout(() => URL.revokeObjectURL(objectUrl), 10_000);
+      return;
+    }
+  }
+
   const a = document.createElement('a');
   a.href = url;
   if (url.startsWith('data:')) {
@@ -62,12 +96,12 @@ export function generatePortfolioCvPdf(bundle: PortfolioContentBundle): void {
   doc.setTextColor(255, 255, 255);
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(26);
-  doc.text(cleanName, marginX, 48);
+  doc.text(cleanName, marginX, 48, { maxWidth: contentWidth });
 
   doc.setTextColor(accent.r, accent.g, accent.b);
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(10.5);
-  doc.text(profile.role.toUpperCase(), marginX, 66);
+  doc.text(profile.role.toUpperCase(), marginX, 66, { maxWidth: contentWidth });
 
   doc.setTextColor(200, 204, 214);
   doc.setFont('helvetica', 'normal');
@@ -108,6 +142,7 @@ export function generatePortfolioCvPdf(bundle: PortfolioContentBundle): void {
   doc.setFontSize(10);
   doc.setTextColor(39, 39, 42);
   const bioLines = doc.splitTextToSize(profile.bio, contentWidth) as string[];
+  ensureSpace(bioLines.length * 14 + 8);
   doc.text(bioLines, marginX, y);
   y += bioLines.length * 14 + 8;
 
@@ -122,7 +157,7 @@ export function generatePortfolioCvPdf(bundle: PortfolioContentBundle): void {
       doc.setFont('helvetica', 'bold');
       doc.setFontSize(12);
       doc.setTextColor(24, 24, 27);
-      doc.text(m.value, cx + 8, y + 15);
+      doc.text(m.value, cx + 8, y + 15, { maxWidth: colW - 18 });
       doc.setFont('helvetica', 'normal');
       doc.setFontSize(7.5);
       doc.setTextColor(82, 82, 91);
@@ -135,19 +170,30 @@ export function generatePortfolioCvPdf(bundle: PortfolioContentBundle): void {
   if (experience.length > 0) {
     drawSectionHeading('Experience & Studio Roles');
     experience.slice(0, 8).forEach((exp) => {
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(9);
+      const periodWidth = doc.getTextWidth(exp.period);
+      const leftMaxW = Math.max(180, contentWidth - periodWidth - 16);
+
+      doc.setFontSize(10.5);
+      const titleLines = doc.splitTextToSize(`${exp.role} — ${exp.org}`, leftMaxW) as string[];
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(9.5);
       const descLines = doc.splitTextToSize(exp.description, contentWidth) as string[];
-      ensureSpace(34 + descLines.length * 13);
+
+      ensureSpace(titleLines.length * 13 + descLines.length * 13 + 16);
+
       doc.setFont('helvetica', 'bold');
       doc.setFontSize(10.5);
       doc.setTextColor(24, 24, 27);
-      doc.text(`${exp.role} — ${exp.org}`, marginX, y);
+      doc.text(titleLines, marginX, y);
 
       doc.setFont('helvetica', 'bold');
       doc.setFontSize(9);
       doc.setTextColor(accent.r, accent.g, accent.b);
       doc.text(exp.period, pageWidth - marginX, y, { align: 'right' });
 
-      y += 14;
+      y += titleLines.length * 13 + 2;
       doc.setFont('helvetica', 'normal');
       doc.setFontSize(9.5);
       doc.setTextColor(63, 63, 70);
@@ -161,27 +207,27 @@ export function generatePortfolioCvPdf(bundle: PortfolioContentBundle): void {
     drawSectionHeading('Technical Stack & Capabilities');
     const colW = contentWidth / 2;
     for (let i = 0; i < techStack.length; i += 2) {
-      ensureSpace(24);
+      ensureSpace(28);
       const left = techStack[i];
       const right = techStack[i + 1];
       doc.setFont('helvetica', 'bold');
       doc.setFontSize(9.5);
       doc.setTextColor(24, 24, 27);
-      doc.text(`• ${left.name}`, marginX, y);
+      doc.text(`• ${left.name}`, marginX, y, { maxWidth: colW - 12 });
       doc.setFont('helvetica', 'normal');
       doc.setFontSize(8.5);
       doc.setTextColor(82, 82, 91);
-      doc.text(left.role, marginX + 10, y + 11, { maxWidth: colW - 16 });
+      doc.text(left.role, marginX + 10, y + 11, { maxWidth: colW - 18 });
 
       if (right) {
         doc.setFont('helvetica', 'bold');
         doc.setFontSize(9.5);
         doc.setTextColor(24, 24, 27);
-        doc.text(`• ${right.name}`, marginX + colW, y);
+        doc.text(`• ${right.name}`, marginX + colW, y, { maxWidth: colW - 12 });
         doc.setFont('helvetica', 'normal');
         doc.setFontSize(8.5);
         doc.setTextColor(82, 82, 91);
-        doc.text(right.role, marginX + colW + 10, y + 11, { maxWidth: colW - 16 });
+        doc.text(right.role, marginX + colW + 10, y + 11, { maxWidth: colW - 18 });
       }
       y += 28;
     }
@@ -192,19 +238,35 @@ export function generatePortfolioCvPdf(bundle: PortfolioContentBundle): void {
   if (projects.length > 0) {
     drawSectionHeading('Selected Shipped Builds');
     projects.slice(0, 6).forEach((proj) => {
+      const stackText = proj.stack.slice(0, 4).join(' · ');
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(8.5);
+      const stackW = Math.min(contentWidth * 0.42, doc.getTextWidth(stackText));
+      const titleMaxW = Math.max(160, contentWidth - stackW - 16);
+
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(10);
+      const titleLines = doc.splitTextToSize(
+        `${proj.title} (${proj.category} · ${proj.year})`,
+        titleMaxW
+      ) as string[];
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(9);
       const sumLines = doc.splitTextToSize(proj.summary, contentWidth) as string[];
-      ensureSpace(34 + sumLines.length * 12);
+
+      ensureSpace(titleLines.length * 13 + sumLines.length * 12 + 16);
+
       doc.setFont('helvetica', 'bold');
       doc.setFontSize(10);
       doc.setTextColor(24, 24, 27);
-      doc.text(`${proj.title} (${proj.category} · ${proj.year})`, marginX, y);
+      doc.text(titleLines, marginX, y);
 
       doc.setFont('helvetica', 'normal');
       doc.setFontSize(8.5);
       doc.setTextColor(accent.r, accent.g, accent.b);
-      doc.text(proj.stack.slice(0, 4).join(' · '), pageWidth - marginX, y, { align: 'right' });
+      doc.text(stackText, pageWidth - marginX, y, { align: 'right', maxWidth: contentWidth * 0.42 });
 
-      y += 13;
+      y += titleLines.length * 13 + 1;
       doc.setFont('helvetica', 'normal');
       doc.setFontSize(9);
       doc.setTextColor(63, 63, 70);
@@ -217,16 +279,27 @@ export function generatePortfolioCvPdf(bundle: PortfolioContentBundle): void {
   if (milestones.length > 0) {
     drawSectionHeading('Key Milestones & Impact');
     milestones.slice(0, 5).forEach((ms) => {
-      ensureSpace(28);
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(9.5);
+      const headingLines = doc.splitTextToSize(`• ${ms.title} (${ms.year})`, contentWidth) as string[];
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(8.5);
+      const outLines = doc.splitTextToSize(
+        `${ms.context} — ${ms.outcome}`,
+        contentWidth - 10
+      ) as string[];
+
+      ensureSpace(headingLines.length * 12 + outLines.length * 11 + 10);
+
       doc.setFont('helvetica', 'bold');
       doc.setFontSize(9.5);
       doc.setTextColor(24, 24, 27);
-      doc.text(`• ${ms.title} (${ms.year})`, marginX, y);
-      y += 12;
+      doc.text(headingLines, marginX, y);
+      y += headingLines.length * 12;
+
       doc.setFont('helvetica', 'normal');
       doc.setFontSize(8.5);
       doc.setTextColor(82, 82, 91);
-      const outLines = doc.splitTextToSize(`${ms.context} — ${ms.outcome}`, contentWidth - 10) as string[];
       doc.text(outLines, marginX + 10, y);
       y += outLines.length * 11 + 6;
     });

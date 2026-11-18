@@ -17,6 +17,23 @@
           "source": "**",
           "destination": "/index.html"
         }
+      ],
+      "headers": [
+        {
+          "source": "/index.html",
+          "headers": [{ "key": "Cache-Control", "value": "no-cache, no-store, must-revalidate" }]
+        },
+        {
+          "source": "/sw.js",
+          "headers": [{ "key": "Cache-Control", "value": "no-cache, no-store, must-revalidate" }]
+        },
+        {
+          "source": "/assets/og-card.jpg",
+          "headers": [
+            { "key": "Cache-Control", "value": "public, max-age=3600" },
+            { "key": "Access-Control-Allow-Origin", "value": "*" }
+          ]
+        }
       ]
     },
     {
@@ -31,6 +48,16 @@
         {
           "source": "**",
           "destination": "/index.html"
+        }
+      ],
+      "headers": [
+        {
+          "source": "/index.html",
+          "headers": [{ "key": "Cache-Control", "value": "no-cache, no-store, must-revalidate" }]
+        },
+        {
+          "source": "/sw.js",
+          "headers": [{ "key": "Cache-Control", "value": "no-cache, no-store, must-revalidate" }]
         }
       ]
     }

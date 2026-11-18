@@ -189,6 +189,9 @@ export default defineConfig(() => {
               ],
             },
         workbox: {
+          skipWaiting: true,
+          clientsClaim: true,
+          cleanupOutdatedCaches: true,
           maximumFileSizeToCacheInBytes: 6 * 1024 * 1024,
           globPatterns: isAdminBuild
             ? ['**/*.{js,css,html,woff,woff2}', 'pwa-admin-*.png', 'icon-admin.svg']

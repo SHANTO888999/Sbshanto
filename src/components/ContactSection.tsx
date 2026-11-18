@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { ArrowUpRight, Check, Copy, Download, Mail, RotateCcw } from 'lucide-react';
 import { usePortfolioContent } from '../context/PortfolioContentContext';
 import { trackCvDownload } from '../firebaseViewer';
+import { copyTextSafely } from '../utils/clipboard';
 import { downloadPortfolioCv } from '../utils/cvPdfGenerator';
 import { DesignBlock, TypedText, useDesignCanvas } from './DesignCursorSystem';
 
@@ -17,11 +18,8 @@ export const ContactSection: React.FC<ContactSectionProps> = ({ onOpenInquiry })
   const email = profile.email;
 
   const handleCopyEmail = async () => {
-    try {
-      await navigator.clipboard.writeText(email);
-      setCopied(true);
-      window.setTimeout(() => setCopied(false), 2200);
-    } catch {
+    const ok = await copyTextSafely(email);
+    if (ok) {
       setCopied(true);
       window.setTimeout(() => setCopied(false), 2200);
     }

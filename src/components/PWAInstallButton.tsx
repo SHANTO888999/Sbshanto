@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { Download, Smartphone, WifiOff, X } from 'lucide-react';
 import { useOnlineStatus, usePWAInstall } from '../hooks/usePWAInstall';
 
@@ -15,6 +15,15 @@ export const PWAInstallButton: React.FC<PWAInstallButtonProps> = ({
 }) => {
   const { isInstallable, isInstalled, isIOS, install } = usePWAInstall();
   const [showIOSGuide, setShowIOSGuide] = useState(false);
+
+  useEffect(() => {
+    if (!showIOSGuide) return;
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setShowIOSGuide(false);
+    };
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, [showIOSGuide]);
 
   if (isInstalled) {
     return null;
@@ -54,7 +63,7 @@ export const PWAInstallButton: React.FC<PWAInstallButtonProps> = ({
             onClick={() => setShowIOSGuide(false)}
           >
             <div
-              className="w-full max-w-sm rounded-2xl border border-white/15 bg-[#0D0E12] p-6 text-left shadow-2xl"
+              className="max-h-[90dvh] w-full max-w-sm overflow-y-auto rounded-2xl border border-white/15 bg-[#0D0E12] p-6 text-left shadow-2xl"
               onClick={(e) => e.stopPropagation()}
             >
               <div className="flex items-center justify-between gap-3">
@@ -100,10 +109,10 @@ export const OfflineIndicator: React.FC = () => {
     <div
       role="status"
       aria-live="polite"
-      className="fixed bottom-4 left-4 z-50 flex items-center gap-2 rounded-lg border border-amber-500/40 bg-amber-950/90 px-3 py-2 text-xs font-medium text-amber-100 shadow-xl backdrop-blur-md"
+      className="fixed top-16 left-1/2 z-50 flex w-max max-w-[calc(100vw-24px)] -translate-x-1/2 items-center gap-2 rounded-lg border border-amber-500/40 bg-amber-950/90 px-3 py-2 text-xs font-medium text-amber-100 shadow-xl backdrop-blur-md"
     >
-      <WifiOff className="h-3.5 w-3.5 text-amber-400" aria-hidden="true" />
-      <span>Offline Mode — Cached view active</span>
+      <WifiOff className="h-3.5 w-3.5 shrink-0 text-amber-400" aria-hidden="true" />
+      <span className="truncate">Offline Mode — Cached view active</span>
     </div>
   );
 };

@@ -119,6 +119,7 @@ const VIEWER_DEFAULT_BEHAVIOR_TOGGLES: ReadonlyArray<ViewerToggleDef> = [
 interface AdminProfileEditorProps {
   draft: PortfolioContentBundle;
   saving: boolean;
+  hasUnsavedChanges?: boolean;
   subTab?: ProfileSubTab;
   onChangeSubTab?: (tab: ProfileSubTab) => void;
   onBack?: () => void;
@@ -129,6 +130,7 @@ interface AdminProfileEditorProps {
 export const AdminProfileEditor: React.FC<AdminProfileEditorProps> = ({
   draft,
   saving,
+  hasUnsavedChanges = false,
   subTab: controlledSubTab,
   onChangeSubTab,
   onBack,
@@ -387,9 +389,16 @@ export const AdminProfileEditor: React.FC<AdminProfileEditorProps> = ({
     >
       <div className="flex flex-col gap-4 border-b border-white/10 pb-5 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h2 className="font-display text-2xl font-bold tracking-tight text-white">
-            PROFILE &amp; SITE COPY
-          </h2>
+          <div className="flex flex-wrap items-center gap-2.5">
+            <h2 className="font-display text-2xl font-bold tracking-tight text-white">
+              PROFILE &amp; SITE COPY
+            </h2>
+            {hasUnsavedChanges && (
+              <span className="rounded border border-amber-500/40 bg-amber-500/15 px-2 py-0.5 font-mono text-[10px] font-semibold uppercase tracking-wide text-amber-300">
+                Unsaved changes
+              </span>
+            )}
+          </div>
           <p className="mt-1 text-sm text-zinc-400">
             Edit personal identity, contact links, hero counters, services, and stack. Every field
             has safe layout limits.
@@ -486,7 +495,7 @@ export const AdminProfileEditor: React.FC<AdminProfileEditorProps> = ({
                 maxLength={16}
                 required
                 onChange={(v) => updateProfile('wordmark', v)}
-                hint="Shown top-left in navbar (trailing dot turns red)."
+                hint="Shown top-left in navbar (trailing dot uses brand accent)."
               />
               <LimitedInput
                 id="prof-greeting"
@@ -566,12 +575,12 @@ export const AdminProfileEditor: React.FC<AdminProfileEditorProps> = ({
                   type="button"
                   disabled={portraitBusy || saving}
                   onClick={() => portraitInputRef.current?.click()}
-                  className="inline-flex min-h-[42px] items-center gap-2 rounded-md border border-white/15 bg-[#101218] px-3.5 py-2 text-xs font-medium text-white hover:border-[#DC2626]/60 hover:bg-[#161922] disabled:opacity-50"
+                  className="inline-flex min-h-[42px] items-center gap-2 rounded-md border border-white/15 bg-[#101218] px-3.5 py-2 text-xs font-medium text-white hover:border-accent/60 hover:bg-[#161922] disabled:opacity-50"
                 >
                   {portraitBusy ? (
-                    <Loader2 className="h-4 w-4 animate-spin text-[#EF4444]" aria-hidden="true" />
+                    <Loader2 className="h-4 w-4 animate-spin text-accent-light" aria-hidden="true" />
                   ) : (
-                    <ImagePlus className="h-4 w-4 text-[#EF4444]" aria-hidden="true" />
+                    <ImagePlus className="h-4 w-4 text-accent-light" aria-hidden="true" />
                   )}
                   {portraitBusy ? 'Optimizing Photo...' : 'Pick Portrait From Device'}
                 </button>
@@ -621,7 +630,7 @@ export const AdminProfileEditor: React.FC<AdminProfileEditorProps> = ({
                   <p className="truncate font-display text-3xl font-bold tracking-tight text-white">
                     {p.displayName || 'SHANTO.'}
                   </p>
-                  <p className="mt-0.5 truncate font-mono text-[11px] text-[#EF4444]">
+                  <p className="mt-0.5 truncate font-mono text-[11px] text-accent-light">
                     {p.role || 'WEB DEVELOPER'}
                   </p>
                 </div>
@@ -1120,7 +1129,7 @@ export const AdminProfileEditor: React.FC<AdminProfileEditorProps> = ({
                             theme: e.target.value as WireframeRealScene['theme'],
                           })
                         }
-                        className="mt-1.5 min-h-[44px] w-full rounded-md border border-white/15 bg-[#070709] px-3 py-2 text-sm text-white focus:border-[#DC2626] focus:outline-none"
+                        className="mt-1.5 min-h-[44px] w-full rounded-md border border-white/15 bg-[#070709] px-3 py-2 text-sm text-white focus:border-accent focus:outline-none"
                       >
                         <option value="web-build">Website Wireframe vs Live</option>
                         <option value="app-ui">App Wireframe vs Live</option>

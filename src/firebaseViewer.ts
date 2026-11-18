@@ -55,154 +55,173 @@ export async function fetchLivePortfolioContent(): Promise<Partial<PortfolioCont
   }
 
   const settingsPath = 'site_settings/main';
-  try {
-    let settingsSnap;
-    try {
-      settingsSnap = await getDoc(doc(db, 'site_settings', 'main'));
-    } catch (firstErr) {
-      if (!isTransientOfflineError(firstErr)) throw firstErr;
-      await waitMs(1000);
-      settingsSnap = await getDoc(doc(db, 'site_settings', 'main'));
-    }
-    if (settingsSnap.exists()) {
-      const data = settingsSnap.data();
-      hasRemoteData = true;
-      override.profile = {
-        greeting: data.greeting,
-        displayName: data.displayName,
-        backdropName: data.backdropName,
-        wordmark: data.wordmark,
-        role: data.role,
-        bio: data.bio,
-        portraitUrl: data.portraitUrl,
-        email: data.email,
-        githubHandle: data.githubHandle,
-        githubUrl: data.githubUrl,
-        availability: data.availability,
-        disciplineSummary: data.disciplineSummary,
-        craftMetricValue: data.craftMetricValue,
-        craftMetricSuffix: data.craftMetricSuffix,
-        craftMetricLabel: data.craftMetricLabel,
-        craftSummary: data.craftSummary,
-        quoteText: data.quoteText,
-        quoteAuthor: data.quoteAuthor,
-        quoteRole: data.quoteRole,
-        manifestoLead: data.manifestoLead,
-        manifestoAvailability: data.manifestoAvailability,
-        prototypeTurnaround: data.prototypeTurnaround,
-      } as SiteProfile;
-      if (Array.isArray(data.heroMetrics)) override.heroMetrics = data.heroMetrics;
-      if (Array.isArray(data.wireframeScenes)) override.wireframeScenes = data.wireframeScenes;
-      if (Array.isArray(data.techStack)) override.techStack = data.techStack;
-      if (Array.isArray(data.services)) override.services = data.services;
-      if (Array.isArray(data.techPartners)) override.techPartners = data.techPartners;
-      if (data.viewerControls && typeof data.viewerControls === 'object') {
-        override.viewerControls = data.viewerControls as ViewerControlsConfig;
-      }
-      if (data.cvSettings && typeof data.cvSettings === 'object') {
-        override.cvSettings = data.cvSettings as CvSettingsConfig;
-      }
-    }
-  } catch (error) {
-    handleViewerFirestoreError(error, OperationType.GET, settingsPath);
-  }
-
   const projectsPath = 'projects';
-  try {
-    const projSnap = await getDocs(
-      query(collection(db, projectsPath), where('published', '==', true))
-    );
-    if (!projSnap.empty) {
-      hasRemoteData = true;
-      const docsData: Array<Record<string, unknown> & { id: string }> = projSnap.docs.map((d) => ({
-        ...(d.data() as Record<string, unknown>),
-        id: d.id,
-      }));
-      const items: ProjectItem[] = docsData
-        .sort((a, b) => Number(a.sortOrder ?? 999) - Number(b.sortOrder ?? 999))
-        .map((d) => ({
-          id: d.id,
-          index: String(d.index ?? ''),
-          title: String(d.title ?? ''),
-          category: d.category as ProjectItem['category'],
-          year: String(d.year ?? ''),
-          platform: String(d.platform ?? ''),
-          client: String(d.client ?? ''),
-          role: String(d.role ?? ''),
-          stack: Array.isArray(d.stack) ? (d.stack as string[]) : [],
-          summary: String(d.summary ?? ''),
-          architectureNotes: String(d.architectureNotes ?? ''),
-          previewTheme: d.previewTheme as ProjectItem['previewTheme'],
-          dimensions: String(d.dimensions ?? '1440 × 900'),
-          coverImageUrl: sanitizePublicUrl(d.coverImageUrl, '', true) || undefined,
-          coverMediaType:
-            d.coverMediaType === 'video' || d.coverMediaType === 'image'
-              ? d.coverMediaType
-              : undefined,
-          liveUrl: sanitizePublicUrl(d.liveUrl, '') || undefined,
-          repoUrl: sanitizePublicUrl(d.repoUrl, '') || undefined,
-          published: true,
-        }));
-      override.projects = items;
-    }
-  } catch (error) {
-    handleViewerFirestoreError(error, OperationType.LIST, projectsPath);
-  }
-
   const milestonesPath = 'milestones';
-  try {
-    const msSnap = await getDocs(
-      query(collection(db, milestonesPath), where('published', '==', true))
-    );
-    if (!msSnap.empty) {
-      hasRemoteData = true;
-      const docsData: Array<Record<string, unknown> & { id: string }> = msSnap.docs.map((d) => ({
-        ...(d.data() as Record<string, unknown>),
-        id: d.id,
-      }));
-      const items: MilestoneItem[] = docsData
-        .sort((a, b) => Number(a.sortOrder ?? 999) - Number(b.sortOrder ?? 999))
-        .map((d) => ({
-          id: d.id,
-          title: String(d.title ?? ''),
-          context: String(d.context ?? ''),
-          project: String(d.project ?? ''),
-          year: String(d.year ?? ''),
-          outcome: String(d.outcome ?? ''),
-          published: true,
-        }));
-      override.milestones = items;
-    }
-  } catch (error) {
-    handleViewerFirestoreError(error, OperationType.LIST, milestonesPath);
-  }
-
   const experiencePath = 'experience';
-  try {
-    const expSnap = await getDocs(
-      query(collection(db, experiencePath), where('published', '==', true))
-    );
-    if (!expSnap.empty) {
-      hasRemoteData = true;
-      const docsData: Array<Record<string, unknown> & { id: string }> = expSnap.docs.map((d) => ({
-        ...(d.data() as Record<string, unknown>),
-        id: d.id,
-      }));
-      const items: ExperienceItem[] = docsData
-        .sort((a, b) => Number(a.sortOrder ?? 999) - Number(b.sortOrder ?? 999))
-        .map((d) => ({
-          id: d.id,
-          period: String(d.period ?? ''),
-          role: String(d.role ?? ''),
-          org: String(d.org ?? ''),
-          description: String(d.description ?? ''),
-          published: true,
-        }));
-      override.experience = items;
+
+  const loadSettings = async () => {
+    try {
+      let settingsSnap;
+      try {
+        settingsSnap = await getDoc(doc(db, 'site_settings', 'main'));
+      } catch (firstErr) {
+        if (!isTransientOfflineError(firstErr)) throw firstErr;
+        await waitMs(1000);
+        settingsSnap = await getDoc(doc(db, 'site_settings', 'main'));
+      }
+      if (settingsSnap.exists()) {
+        const data = settingsSnap.data();
+        hasRemoteData = true;
+        override.profile = {
+          greeting: data.greeting,
+          displayName: data.displayName,
+          backdropName: data.backdropName,
+          wordmark: data.wordmark,
+          role: data.role,
+          bio: data.bio,
+          portraitUrl: data.portraitUrl,
+          email: data.email,
+          githubHandle: data.githubHandle,
+          githubUrl: data.githubUrl,
+          availability: data.availability,
+          disciplineSummary: data.disciplineSummary,
+          craftMetricValue: data.craftMetricValue,
+          craftMetricSuffix: data.craftMetricSuffix,
+          craftMetricLabel: data.craftMetricLabel,
+          craftSummary: data.craftSummary,
+          quoteText: data.quoteText,
+          quoteAuthor: data.quoteAuthor,
+          quoteRole: data.quoteRole,
+          manifestoLead: data.manifestoLead,
+          manifestoAvailability: data.manifestoAvailability,
+          prototypeTurnaround: data.prototypeTurnaround,
+        } as SiteProfile;
+        if (Array.isArray(data.heroMetrics)) override.heroMetrics = data.heroMetrics;
+        if (Array.isArray(data.wireframeScenes)) override.wireframeScenes = data.wireframeScenes;
+        if (Array.isArray(data.techStack)) override.techStack = data.techStack;
+        if (Array.isArray(data.services)) override.services = data.services;
+        if (Array.isArray(data.techPartners)) override.techPartners = data.techPartners;
+        if (data.viewerControls && typeof data.viewerControls === 'object') {
+          override.viewerControls = data.viewerControls as ViewerControlsConfig;
+        }
+        if (data.cvSettings && typeof data.cvSettings === 'object') {
+          override.cvSettings = data.cvSettings as CvSettingsConfig;
+        }
+      }
+    } catch (error) {
+      if (!isTransientOfflineError(error)) {
+        handleViewerFirestoreError(error, OperationType.GET, settingsPath);
+      }
     }
-  } catch (error) {
-    handleViewerFirestoreError(error, OperationType.LIST, experiencePath);
-  }
+  };
+
+  const loadProjects = async () => {
+    try {
+      const projSnap = await getDocs(
+        query(collection(db, projectsPath), where('published', '==', true))
+      );
+      if (!projSnap.empty) {
+        hasRemoteData = true;
+        const docsData: Array<Record<string, unknown> & { id: string }> = projSnap.docs.map((d) => ({
+          ...(d.data() as Record<string, unknown>),
+          id: d.id,
+        }));
+        const items: ProjectItem[] = docsData
+          .sort((a, b) => Number(a.sortOrder ?? 999) - Number(b.sortOrder ?? 999))
+          .map((d) => ({
+            id: d.id,
+            index: String(d.index ?? ''),
+            title: String(d.title ?? ''),
+            category: d.category as ProjectItem['category'],
+            year: String(d.year ?? ''),
+            platform: String(d.platform ?? ''),
+            client: String(d.client ?? ''),
+            role: String(d.role ?? ''),
+            stack: Array.isArray(d.stack) ? (d.stack as string[]) : [],
+            summary: String(d.summary ?? ''),
+            architectureNotes: String(d.architectureNotes ?? ''),
+            previewTheme: d.previewTheme as ProjectItem['previewTheme'],
+            dimensions: String(d.dimensions ?? '1440 × 900'),
+            coverImageUrl: sanitizePublicUrl(d.coverImageUrl, '', true) || undefined,
+            coverMediaType:
+              d.coverMediaType === 'video' || d.coverMediaType === 'image'
+                ? d.coverMediaType
+                : undefined,
+            liveUrl: sanitizePublicUrl(d.liveUrl, '') || undefined,
+            repoUrl: sanitizePublicUrl(d.repoUrl, '') || undefined,
+            published: true,
+          }));
+        override.projects = items;
+      }
+    } catch (error) {
+      if (!isTransientOfflineError(error)) {
+        handleViewerFirestoreError(error, OperationType.LIST, projectsPath);
+      }
+    }
+  };
+
+  const loadMilestones = async () => {
+    try {
+      const msSnap = await getDocs(
+        query(collection(db, milestonesPath), where('published', '==', true))
+      );
+      if (!msSnap.empty) {
+        hasRemoteData = true;
+        const docsData: Array<Record<string, unknown> & { id: string }> = msSnap.docs.map((d) => ({
+          ...(d.data() as Record<string, unknown>),
+          id: d.id,
+        }));
+        const items: MilestoneItem[] = docsData
+          .sort((a, b) => Number(a.sortOrder ?? 999) - Number(b.sortOrder ?? 999))
+          .map((d) => ({
+            id: d.id,
+            title: String(d.title ?? ''),
+            context: String(d.context ?? ''),
+            project: String(d.project ?? ''),
+            year: String(d.year ?? ''),
+            outcome: String(d.outcome ?? ''),
+            published: true,
+          }));
+        override.milestones = items;
+      }
+    } catch (error) {
+      if (!isTransientOfflineError(error)) {
+        handleViewerFirestoreError(error, OperationType.LIST, milestonesPath);
+      }
+    }
+  };
+
+  const loadExperience = async () => {
+    try {
+      const expSnap = await getDocs(
+        query(collection(db, experiencePath), where('published', '==', true))
+      );
+      if (!expSnap.empty) {
+        hasRemoteData = true;
+        const docsData: Array<Record<string, unknown> & { id: string }> = expSnap.docs.map((d) => ({
+          ...(d.data() as Record<string, unknown>),
+          id: d.id,
+        }));
+        const items: ExperienceItem[] = docsData
+          .sort((a, b) => Number(a.sortOrder ?? 999) - Number(b.sortOrder ?? 999))
+          .map((d) => ({
+            id: d.id,
+            period: String(d.period ?? ''),
+            role: String(d.role ?? ''),
+            org: String(d.org ?? ''),
+            description: String(d.description ?? ''),
+            published: true,
+          }));
+        override.experience = items;
+      }
+    } catch (error) {
+      if (!isTransientOfflineError(error)) {
+        handleViewerFirestoreError(error, OperationType.LIST, experiencePath);
+      }
+    }
+  };
+
+  await Promise.all([loadSettings(), loadProjects(), loadMilestones(), loadExperience()]);
 
   return hasRemoteData ? override : null;
 }
@@ -259,10 +278,30 @@ function isMissingDocOrRuleEvalError(err: unknown): boolean {
   );
 }
 
-async function incrementDailyMetric(
+function safeGetStorage(storage: 'local' | 'session', key: string): string | null {
+  try {
+    if (typeof window === 'undefined') return null;
+    const store = storage === 'local' ? window.localStorage : window.sessionStorage;
+    return store.getItem(key);
+  } catch {
+    return null;
+  }
+}
+
+function safeSetStorage(storage: 'local' | 'session', key: string, value: string): void {
+  try {
+    if (typeof window === 'undefined') return;
+    const store = storage === 'local' ? window.localStorage : window.sessionStorage;
+    store.setItem(key, value);
+  } catch {
+    // Ignore storage/privacy restrictions
+  }
+}
+
+async function incrementDailyMetricOnce(
   deltas: Partial<Record<DailyAnalyticsCounter, 1>>
-): Promise<boolean> {
-  if (typeof navigator !== 'undefined' && navigator.onLine === false) return false;
+): Promise<'ok' | 'retry' | 'fail'> {
+  if (typeof navigator !== 'undefined' && navigator.onLine === false) return 'retry';
   const { date, month } = getLocalDateKey();
   const ref = doc(db, 'analytics_daily', date);
 
@@ -283,15 +322,15 @@ async function incrementDailyMetric(
       hasDelta = true;
     }
   });
-  if (!hasDelta) return false;
+  if (!hasDelta) return 'fail';
 
   try {
     await updateDoc(ref, updatePayload);
-    return true;
+    return 'ok';
   } catch (err) {
-    if (!isMissingDocOrRuleEvalError(err)) {
-      return false;
-    }
+    if (isTransientOfflineError(err)) return 'retry';
+    if (!isMissingDocOrRuleEvalError(err)) return 'fail';
+
     try {
       await setDoc(ref, {
         date,
@@ -304,17 +343,31 @@ async function incrementDailyMetric(
         cvDownloads: deltas.cvDownloads ?? 0,
         updatedAt: serverTimestamp(),
       });
-      return true;
-    } catch {
+      return 'ok';
+    } catch (setErr) {
+      if (isTransientOfflineError(setErr)) return 'retry';
       // Another concurrent visitor may have just created today's doc; retry atomic increment
       try {
         await updateDoc(ref, updatePayload);
-        return true;
-      } catch {
-        return false;
+        return 'ok';
+      } catch (retryErr) {
+        return isTransientOfflineError(retryErr) ? 'retry' : 'fail';
       }
     }
   }
+}
+
+async function incrementDailyMetric(
+  deltas: Partial<Record<DailyAnalyticsCounter, 1>>
+): Promise<boolean> {
+  const first = await incrementDailyMetricOnce(deltas);
+  if (first === 'ok') return true;
+  if (first === 'retry') {
+    await waitMs(1200);
+    const second = await incrementDailyMetricOnce(deltas);
+    return second === 'ok';
+  }
+  return false;
 }
 
 export async function trackVisitorSession(): Promise<void> {
@@ -323,21 +376,17 @@ export async function trackVisitorSession(): Promise<void> {
   const visitKey = `shanto_uv_${date}`;
   const sessionKey = `shanto_pv_${date}`;
 
-  try {
-    if (window.sessionStorage.getItem(sessionKey) === '1') return;
-    const isNewDailyVisitor = window.localStorage.getItem(visitKey) !== '1';
-    const recorded = await incrementDailyMetric({
-      visitors: isNewDailyVisitor ? 1 : undefined,
-      pageViews: 1,
-    });
-    if (recorded) {
-      window.sessionStorage.setItem(sessionKey, '1');
-      if (isNewDailyVisitor) {
-        window.localStorage.setItem(visitKey, '1');
-      }
+  if (safeGetStorage('session', sessionKey) === '1') return;
+  const isNewDailyVisitor = safeGetStorage('local', visitKey) !== '1';
+  const recorded = await incrementDailyMetric({
+    visitors: isNewDailyVisitor ? 1 : undefined,
+    pageViews: 1,
+  });
+  if (recorded) {
+    safeSetStorage('session', sessionKey, '1');
+    if (isNewDailyVisitor) {
+      safeSetStorage('local', visitKey, '1');
     }
-  } catch {
-    // Ignore storage/privacy restrictions
   }
 }
 
@@ -365,7 +414,17 @@ export async function trackProjectCardClick(project: {
   try {
     await updateDoc(ref, updatePayload);
   } catch (err) {
-    if (!isMissingDocOrRuleEvalError(err)) return;
+    if (isTransientOfflineError(err)) {
+      await waitMs(1200);
+      try {
+        await updateDoc(ref, updatePayload);
+        return;
+      } catch {
+        // Fall through if doc may not exist yet
+      }
+    } else if (!isMissingDocOrRuleEvalError(err)) {
+      return;
+    }
     try {
       await setDoc(ref, {
         projectId: safeId,

@@ -22,6 +22,7 @@ interface AdminAnalyticsPanelProps {
   projectAnalytics: ProjectAnalyticsRecord[];
   inquiries: InquiryRecord[];
   projects: AdminProjectRecord[];
+  analyticsError?: string | null;
 }
 
 function formatShortDate(isoDate: string): string {
@@ -43,6 +44,7 @@ export const AdminAnalyticsPanel: React.FC<AdminAnalyticsPanelProps> = ({
   projectAnalytics,
   inquiries,
   projects,
+  analyticsError = null,
 }) => {
   const [chartMode, setChartMode] = useState<'daily' | 'monthly'>('daily');
 
@@ -224,6 +226,16 @@ export const AdminAnalyticsPanel: React.FC<AdminAnalyticsPanelProps> = ({
           </span>
         </div>
       </div>
+
+      {analyticsError && (
+        <div
+          role="alert"
+          className="rounded-xl border border-amber-500/35 bg-amber-500/10 px-4 py-3 text-xs leading-relaxed text-amber-200"
+        >
+          Could not sync live analytics counters from Firestore: {analyticsError}. Tap Refresh or
+          sign out and back in to re-verify your session.
+        </div>
+      )}
 
       {/* Top KPI Grid */}
       <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">

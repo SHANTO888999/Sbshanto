@@ -152,7 +152,7 @@ export const AdminCareerEditor: React.FC<AdminCareerEditorProps> = ({
             <button
               type="submit"
               disabled={saving}
-              className="inline-flex min-h-[40px] items-center gap-2 rounded-md bg-[#DC2626] px-4 py-2 text-xs font-semibold text-white hover:bg-[#B91C1C] disabled:opacity-60 whitespace-nowrap shrink-0"
+              className="inline-flex min-h-[40px] items-center gap-2 rounded-md bg-accent px-4 py-2 text-xs font-semibold text-white hover:bg-accent-dark disabled:opacity-60 whitespace-nowrap shrink-0"
             >
               <Save className="h-3.5 w-3.5" aria-hidden="true" />
               {saving ? 'Saving...' : 'Save Milestone'}
@@ -238,7 +238,7 @@ export const AdminCareerEditor: React.FC<AdminCareerEditorProps> = ({
                   sortOrder: Math.max(0, Math.min(1000, Number(e.target.value) || 0)),
                 })
               }
-              className="mt-1.5 min-h-[44px] w-full rounded-md border border-white/15 bg-[#070709] px-3 py-2 font-mono text-sm tabular-nums text-white focus:border-[#DC2626] focus:outline-none"
+              className="mt-1.5 min-h-[44px] w-full rounded-md border border-white/15 bg-[#070709] px-3 py-2 font-mono text-sm tabular-nums text-white focus:border-accent focus:outline-none"
             />
           </div>
         </div>
@@ -255,7 +255,7 @@ export const AdminCareerEditor: React.FC<AdminCareerEditorProps> = ({
           <button
             type="submit"
             disabled={saving}
-            className="inline-flex min-h-[44px] items-center gap-2 rounded-md bg-[#DC2626] px-5 py-2 text-xs font-semibold text-white hover:bg-[#B91C1C] disabled:opacity-60"
+            className="inline-flex min-h-[44px] items-center gap-2 rounded-md bg-accent px-5 py-2 text-xs font-semibold text-white hover:bg-accent-dark disabled:opacity-60"
           >
             <Save className="h-3.5 w-3.5" aria-hidden="true" />
             {saving ? 'Saving...' : 'Save Milestone'}
@@ -322,7 +322,7 @@ export const AdminCareerEditor: React.FC<AdminCareerEditorProps> = ({
             <button
               type="submit"
               disabled={saving}
-              className="inline-flex min-h-[40px] items-center gap-2 rounded-md bg-[#DC2626] px-4 py-2 text-xs font-semibold text-white hover:bg-[#B91C1C] disabled:opacity-60 whitespace-nowrap shrink-0"
+              className="inline-flex min-h-[40px] items-center gap-2 rounded-md bg-accent px-4 py-2 text-xs font-semibold text-white hover:bg-accent-dark disabled:opacity-60 whitespace-nowrap shrink-0"
             >
               <Save className="h-3.5 w-3.5" aria-hidden="true" />
               {saving ? 'Saving...' : 'Save Entry'}
@@ -406,7 +406,7 @@ export const AdminCareerEditor: React.FC<AdminCareerEditorProps> = ({
                   sortOrder: Math.max(0, Math.min(1000, Number(e.target.value) || 0)),
                 })
               }
-              className="mt-1.5 min-h-[44px] w-full rounded-md border border-white/15 bg-[#070709] px-3 py-2 font-mono text-sm tabular-nums text-white focus:border-[#DC2626] focus:outline-none"
+              className="mt-1.5 min-h-[44px] w-full rounded-md border border-white/15 bg-[#070709] px-3 py-2 font-mono text-sm tabular-nums text-white focus:border-accent focus:outline-none"
             />
           </div>
         </div>
@@ -423,7 +423,7 @@ export const AdminCareerEditor: React.FC<AdminCareerEditorProps> = ({
           <button
             type="submit"
             disabled={saving}
-            className="inline-flex min-h-[44px] items-center gap-2 rounded-md bg-[#DC2626] px-5 py-2 text-xs font-semibold text-white hover:bg-[#B91C1C] disabled:opacity-60"
+            className="inline-flex min-h-[44px] items-center gap-2 rounded-md bg-accent px-5 py-2 text-xs font-semibold text-white hover:bg-accent-dark disabled:opacity-60"
           >
             <Save className="h-3.5 w-3.5" aria-hidden="true" />
             {saving ? 'Saving...' : 'Save Entry'}
@@ -474,7 +474,7 @@ export const AdminCareerEditor: React.FC<AdminCareerEditorProps> = ({
               });
             }
           }}
-          className="inline-flex min-h-[42px] items-center justify-center gap-2 rounded-md bg-[#DC2626] px-4 py-2 text-xs font-semibold text-white hover:bg-[#B91C1C] whitespace-nowrap shrink-0"
+          className="inline-flex min-h-[42px] items-center justify-center gap-2 rounded-md bg-accent px-4 py-2 text-xs font-semibold text-white hover:bg-accent-dark whitespace-nowrap shrink-0"
         >
           <Plus className="h-4 w-4" aria-hidden="true" />
           {activeSubTab === 'milestones' ? 'Add Milestone' : 'Add Experience'}
@@ -487,7 +487,7 @@ export const AdminCareerEditor: React.FC<AdminCareerEditorProps> = ({
           onClick={() => setActiveSubTab('milestones')}
           className={`min-h-[38px] rounded-md px-4 py-1.5 text-xs font-medium whitespace-nowrap ${
             activeSubTab === 'milestones'
-              ? 'bg-[#DC2626] text-white'
+              ? 'bg-accent text-white'
               : 'text-zinc-400 hover:text-white'
           }`}
         >
@@ -498,7 +498,7 @@ export const AdminCareerEditor: React.FC<AdminCareerEditorProps> = ({
           onClick={() => setActiveSubTab('experience')}
           className={`min-h-[38px] rounded-md px-4 py-1.5 text-xs font-medium whitespace-nowrap ${
             activeSubTab === 'experience'
-              ? 'bg-[#DC2626] text-white'
+              ? 'bg-accent text-white'
               : 'text-zinc-400 hover:text-white'
           }`}
         >

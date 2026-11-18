@@ -3,6 +3,7 @@ import { ArrowLeft, Check, CheckCircle2, Copy, Mail, X } from 'lucide-react';
 import { usePortfolioContent } from '../context/PortfolioContentContext';
 import { isValidEmailAddress } from '../data/contentSchema';
 import { submitProjectInquiry, trackHireInquirySubmit } from '../firebaseViewer';
+import { copyTextSafely } from '../utils/clipboard';
 import { handleViewerFormEnterToSubmit } from '../utils/formKeyboardNav';
 
 interface InquiryModalProps {
@@ -127,13 +128,11 @@ export const InquiryModal: React.FC<InquiryModalProps> = ({
   };
 
   const handleCopyBrief = async () => {
-    try {
-      await navigator.clipboard.writeText(formattedBrief);
-    } catch {
-      // fallback ignored
+    const ok = await copyTextSafely(formattedBrief);
+    if (ok) {
+      setCopiedBrief(true);
+      window.setTimeout(() => setCopiedBrief(false), 2000);
     }
-    setCopiedBrief(true);
-    window.setTimeout(() => setCopiedBrief(false), 2000);
   };
 
   const resetAndClose = () => {
@@ -171,7 +170,7 @@ export const InquiryModal: React.FC<InquiryModalProps> = ({
       onClick={resetAndClose}
     >
       <div
-        className="w-full max-w-lg rounded-2xl border border-white/15 bg-[#0D0D11] p-5 shadow-2xl sm:p-6"
+        className="max-h-[92dvh] w-full max-w-lg overflow-y-auto rounded-2xl border border-white/15 bg-[#0D0D11] p-5 shadow-2xl sm:p-6"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="flex items-start justify-between gap-3">

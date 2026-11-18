@@ -332,7 +332,7 @@ export const AdminProjectsEditor: React.FC<AdminProjectsEditorProps> = ({
             <button
               type="submit"
               disabled={saving || Boolean(mediaBusyLabel)}
-              className="inline-flex min-h-[40px] items-center gap-2 rounded-md bg-[#DC2626] px-4 py-2 text-xs font-semibold text-white hover:bg-[#B91C1C] disabled:opacity-60 whitespace-nowrap shrink-0"
+              className="inline-flex min-h-[40px] items-center gap-2 rounded-md bg-accent px-4 py-2 text-xs font-semibold text-white hover:bg-accent-dark disabled:opacity-60 whitespace-nowrap shrink-0"
             >
               <Save className="h-3.5 w-3.5" aria-hidden="true" />
               {saving ? 'Saving...' : 'Save Project'}
@@ -384,7 +384,7 @@ export const AdminProjectsEditor: React.FC<AdminProjectsEditorProps> = ({
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
               <div>
                 <label htmlFor="proj-cat" className="block text-xs font-medium text-zinc-200">
-                  Category <span className="text-[#EF4444]">*</span>
+                  Category <span className="text-accent-light">*</span>
                 </label>
                 <select
                   id="proj-cat"
@@ -395,7 +395,7 @@ export const AdminProjectsEditor: React.FC<AdminProjectsEditorProps> = ({
                       category: e.target.value as Exclude<ProjectCategory, 'All'>,
                     })
                   }
-                  className="mt-1.5 min-h-[44px] w-full rounded-md border border-white/15 bg-[#070709] px-3 py-2 text-sm text-white focus:border-[#DC2626] focus:outline-none"
+                  className="mt-1.5 min-h-[44px] w-full rounded-md border border-white/15 bg-[#070709] px-3 py-2 text-sm text-white focus:border-accent focus:outline-none"
                 >
                   {CATEGORIES.map((c) => (
                     <option key={c} value={c}>
@@ -431,7 +431,7 @@ export const AdminProjectsEditor: React.FC<AdminProjectsEditorProps> = ({
                       sortOrder: Math.max(0, Math.min(1000, Number(e.target.value) || 0)),
                     })
                   }
-                  className="mt-1.5 min-h-[44px] w-full rounded-md border border-white/15 bg-[#070709] px-3.5 py-2 font-mono text-sm tabular-nums text-white focus:border-[#DC2626] focus:outline-none"
+                  className="mt-1.5 min-h-[44px] w-full rounded-md border border-white/15 bg-[#070709] px-3.5 py-2 font-mono text-sm tabular-nums text-white focus:border-accent focus:outline-none"
                 />
               </div>
             </div>
@@ -546,7 +546,7 @@ export const AdminProjectsEditor: React.FC<AdminProjectsEditorProps> = ({
                       }
                     }}
                     placeholder="Add technology (e.g. Next.js, Unity)"
-                    className="min-h-[42px] flex-1 rounded-md border border-white/15 bg-[#070709] px-3 py-1.5 text-xs text-white placeholder:text-zinc-500 focus:border-[#DC2626] focus:outline-none"
+                    className="min-h-[42px] flex-1 rounded-md border border-white/15 bg-[#070709] px-3 py-1.5 text-xs text-white placeholder:text-zinc-500 focus:border-accent focus:outline-none"
                   />
                   <button
                     type="button"
@@ -612,9 +612,9 @@ export const AdminProjectsEditor: React.FC<AdminProjectsEditorProps> = ({
                     type="button"
                     disabled={Boolean(mediaBusyLabel)}
                     onClick={() => photoInputRef.current?.click()}
-                    className="inline-flex min-h-[44px] items-center justify-center gap-2 rounded-md border border-white/15 bg-[#101218] px-3 py-2 text-xs font-medium text-white hover:border-[#DC2626]/60 hover:bg-[#161922] disabled:opacity-50"
+                    className="inline-flex min-h-[44px] items-center justify-center gap-2 rounded-md border border-white/15 bg-[#101218] px-3 py-2 text-xs font-medium text-white hover:border-accent/60 hover:bg-[#161922] disabled:opacity-50"
                   >
-                    <ImagePlus className="h-4 w-4 text-[#EF4444]" aria-hidden="true" />
+                    <ImagePlus className="h-4 w-4 text-accent-light" aria-hidden="true" />
                     Pick Photo
                   </button>
 
@@ -622,9 +622,9 @@ export const AdminProjectsEditor: React.FC<AdminProjectsEditorProps> = ({
                     type="button"
                     disabled={Boolean(mediaBusyLabel)}
                     onClick={() => videoInputRef.current?.click()}
-                    className="inline-flex min-h-[44px] items-center justify-center gap-2 rounded-md border border-white/15 bg-[#101218] px-3 py-2 text-xs font-medium text-white hover:border-[#DC2626]/60 hover:bg-[#161922] disabled:opacity-50"
+                    className="inline-flex min-h-[44px] items-center justify-center gap-2 rounded-md border border-white/15 bg-[#101218] px-3 py-2 text-xs font-medium text-white hover:border-accent/60 hover:bg-[#161922] disabled:opacity-50"
                   >
-                    <Film className="h-4 w-4 text-[#EF4444]" aria-hidden="true" />
+                    <Film className="h-4 w-4 text-accent-light" aria-hidden="true" />
                     Short Video
                   </button>
                 </div>
@@ -667,7 +667,7 @@ export const AdminProjectsEditor: React.FC<AdminProjectsEditorProps> = ({
                   onChange={(e) =>
                     setEditing({ ...editing, previewTheme: e.target.value as PreviewTheme })
                   }
-                  className="mt-1.5 min-h-[44px] w-full rounded-md border border-white/15 bg-[#070709] px-3 py-2 text-sm text-white focus:border-[#DC2626] focus:outline-none"
+                  className="mt-1.5 min-h-[44px] w-full rounded-md border border-white/15 bg-[#070709] px-3 py-2 text-sm text-white focus:border-accent focus:outline-none"
                 >
                   {THEMES.map((t) => (
                     <option key={t.id} value={t.id}>
@@ -744,7 +744,7 @@ export const AdminProjectsEditor: React.FC<AdminProjectsEditorProps> = ({
           <button
             type="submit"
             disabled={saving || Boolean(mediaBusyLabel)}
-            className="inline-flex min-h-[44px] items-center gap-2 rounded-md bg-[#DC2626] px-5 py-2 text-xs font-semibold text-white hover:bg-[#B91C1C] disabled:opacity-60"
+            className="inline-flex min-h-[44px] items-center gap-2 rounded-md bg-accent px-5 py-2 text-xs font-semibold text-white hover:bg-accent-dark disabled:opacity-60"
           >
             <Save className="h-3.5 w-3.5" aria-hidden="true" />
             {saving ? 'Saving...' : 'Save Project'}
@@ -769,7 +769,7 @@ export const AdminProjectsEditor: React.FC<AdminProjectsEditorProps> = ({
         <button
           type="button"
           onClick={startNew}
-          className="inline-flex min-h-[42px] items-center justify-center gap-2 rounded-md bg-[#DC2626] px-4 py-2 text-xs font-semibold text-white hover:bg-[#B91C1C] whitespace-nowrap shrink-0"
+          className="inline-flex min-h-[42px] items-center justify-center gap-2 rounded-md bg-accent px-4 py-2 text-xs font-semibold text-white hover:bg-accent-dark whitespace-nowrap shrink-0"
         >
           <Plus className="h-4 w-4" aria-hidden="true" />
           Add New Project
@@ -786,7 +786,7 @@ export const AdminProjectsEditor: React.FC<AdminProjectsEditorProps> = ({
               onClick={() => setFilterCategory(cat)}
               className={`min-h-[36px] rounded-md px-3 py-1 text-xs font-medium transition-colors whitespace-nowrap shrink-0 ${
                 filterCategory === cat
-                  ? 'bg-[#DC2626] text-white'
+                  ? 'bg-accent text-white'
                   : 'text-zinc-400 hover:bg-white/5 hover:text-white'
               }`}
             >
@@ -807,7 +807,7 @@ export const AdminProjectsEditor: React.FC<AdminProjectsEditorProps> = ({
             onChange={(e) => setSearchQuery(e.target.value)}
             placeholder="Filter projects..."
             aria-label="Filter projects"
-            className="min-h-[40px] w-full rounded-md border border-white/15 bg-[#070709] py-2 pr-3 pl-9 text-xs text-white placeholder:text-zinc-500 focus:border-[#DC2626] focus:outline-none"
+            className="min-h-[40px] w-full rounded-md border border-white/15 bg-[#070709] py-2 pr-3 pl-9 text-xs text-white placeholder:text-zinc-500 focus:border-accent focus:outline-none"
           />
         </div>
       </div>
@@ -828,7 +828,7 @@ export const AdminProjectsEditor: React.FC<AdminProjectsEditorProps> = ({
             <button
               type="button"
               onClick={startNew}
-              className="mt-4 inline-flex min-h-[40px] items-center gap-2 rounded-md bg-[#DC2626] px-4 py-2 text-xs font-semibold text-white hover:bg-[#B91C1C]"
+              className="mt-4 inline-flex min-h-[40px] items-center gap-2 rounded-md bg-accent px-4 py-2 text-xs font-semibold text-white hover:bg-accent-dark"
             >
               <Plus className="h-3.5 w-3.5" aria-hidden="true" />
               Create First Project

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { Menu, X } from 'lucide-react';
 import { motion } from 'motion/react';
 import { usePortfolioContent } from '../context/PortfolioContentContext';
@@ -32,6 +32,18 @@ export const Navbar: React.FC<NavbarProps> = ({
     setInternalMobileOpen(next);
     onMobileOpenChange?.(next);
   };
+
+  useEffect(() => {
+    if (!mobileOpen) return;
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        setInternalMobileOpen(false);
+        onMobileOpenChange?.(false);
+      }
+    };
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, [mobileOpen, onMobileOpenChange]);
   const { profile } = usePortfolioContent();
   const { cursorsEnabled, heroStep, prepareSectionJump } = useDesignCanvas();
   const wordmarkBase = profile.wordmark.endsWith('.')

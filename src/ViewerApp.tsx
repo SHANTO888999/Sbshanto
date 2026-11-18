@@ -228,7 +228,7 @@ function ViewerShell({
     }
     ogUrl.content = currentUrl;
 
-    const ogImgUrl = `${window.location.origin}/assets/og-card.jpg`;
+    const ogImgUrl = `${window.location.origin}/assets/og-card.jpg?v=2`;
     setMeta('meta[property="og:image"]', ogImgUrl);
     setMeta('meta[property="og:image:secure_url"]', ogImgUrl);
     setMeta('meta[name="twitter:image"]', ogImgUrl);

@@ -25,6 +25,7 @@
     color: #f4f4f5;
     font-family: var(--font-sans);
     scroll-behavior: smooth;
+    scroll-padding-top: 84px;
   }
 
   body {

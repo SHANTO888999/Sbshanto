@@ -38,7 +38,7 @@ export const LimitedInput: React.FC<LimitedInputProps> = ({
       <div className="flex items-center justify-between gap-3">
         <label htmlFor={id} className="block text-xs font-medium text-zinc-200">
           {label}
-          {required && <span className="ml-1 text-[#EF4444]">*</span>}
+          {required && <span className="ml-1 text-accent-light">*</span>}
         </label>
         <span
           className={`font-mono text-[11px] tabular-nums ${
@@ -57,7 +57,7 @@ export const LimitedInput: React.FC<LimitedInputProps> = ({
         enterKeyHint={enterKeyHint}
         onChange={(e) => onChange(e.target.value.slice(0, maxLength))}
         placeholder={placeholder}
-        className="mt-1.5 min-h-[44px] w-full rounded-md border border-white/15 bg-[#070709] px-3.5 py-2 text-sm text-white placeholder:text-zinc-500 transition-colors focus:border-[#DC2626] focus:outline-none"
+        className="mt-1.5 min-h-[44px] w-full rounded-md border border-white/15 bg-[#070709] px-3.5 py-2 text-sm text-white placeholder:text-zinc-500 transition-colors focus:border-accent focus:outline-none"
       />
       {hint && <p className="mt-1 text-xs text-zinc-500">{hint}</p>}
     </div>
@@ -98,7 +98,7 @@ export const LimitedTextarea: React.FC<LimitedTextareaProps> = ({
       <div className="flex items-center justify-between gap-3">
         <label htmlFor={id} className="block text-xs font-medium text-zinc-200">
           {label}
-          {required && <span className="ml-1 text-[#EF4444]">*</span>}
+          {required && <span className="ml-1 text-accent-light">*</span>}
         </label>
         <span
           className={`font-mono text-[11px] tabular-nums ${
@@ -117,7 +117,7 @@ export const LimitedTextarea: React.FC<LimitedTextareaProps> = ({
         enterKeyHint={enterKeyHint}
         onChange={(e) => onChange(e.target.value.slice(0, maxLength))}
         placeholder={placeholder}
-        className="mt-1.5 w-full rounded-md border border-white/15 bg-[#070709] px-3.5 py-2.5 text-sm leading-relaxed text-white placeholder:text-zinc-500 transition-colors focus:border-[#DC2626] focus:outline-none"
+        className="mt-1.5 w-full rounded-md border border-white/15 bg-[#070709] px-3.5 py-2.5 text-sm leading-relaxed text-white placeholder:text-zinc-500 transition-colors focus:border-accent focus:outline-none"
       />
       {hint && <p className="mt-1 text-xs text-zinc-500">{hint}</p>}
     </div>
@@ -155,7 +155,7 @@ export const SafeUrlInput: React.FC<SafeUrlInputProps> = ({
       <div className="flex items-center justify-between gap-3">
         <label htmlFor={id} className="block text-xs font-medium text-zinc-200">
           {label}
-          {required && <span className="ml-1 text-[#EF4444]">*</span>}
+          {required && <span className="ml-1 text-accent-light">*</span>}
         </label>
         <span className="font-mono text-[11px] tabular-nums text-zinc-500">
           {value.length}/{maxLength}
@@ -171,7 +171,7 @@ export const SafeUrlInput: React.FC<SafeUrlInputProps> = ({
         onChange={(e) => onChange(e.target.value.slice(0, maxLength))}
         placeholder={placeholder}
         className={`mt-1.5 min-h-[44px] w-full rounded-md border bg-[#070709] px-3.5 py-2 font-mono text-xs text-white placeholder:text-zinc-500 transition-colors focus:outline-none ${
-          isValid ? 'border-white/15 focus:border-[#DC2626]' : 'border-[#EF4444]'
+          isValid ? 'border-white/15 focus:border-accent' : 'border-[#EF4444]'
         }`}
       />
       {!isValid ? (

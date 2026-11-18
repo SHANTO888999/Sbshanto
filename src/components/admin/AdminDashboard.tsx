@@ -42,6 +42,7 @@ import {
   sendAdminVerificationEmail,
   signInAdminWithEmail,
   signOutAdmin,
+  subscribeAdminAnalytics,
   subscribeAdminAuth,
   updateAdminInquiryStatus,
   verifyAdminAccess,
@@ -457,6 +458,33 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
     return unsub;
   }, [clearHistorySteps, loadDashboard]);
 
+  // Real-time live analytics listener once Admin session is authenticated and verified
+  useEffect(() => {
+    if (!authorized || !user) return;
+    const unsubAnalytics = subscribeAdminAnalytics(
+      (dailyAnalytics) => {
+        setSnapshot((prev) => ({
+          ...prev,
+          dailyAnalytics,
+          analyticsError: null,
+        }));
+      },
+      (projectAnalytics) => {
+        setSnapshot((prev) => ({
+          ...prev,
+          projectAnalytics,
+        }));
+      },
+      (errMessage) => {
+        setSnapshot((prev) => ({
+          ...prev,
+          analyticsError: errMessage,
+        }));
+      }
+    );
+    return unsubAnalytics;
+  }, [authorized, user]);
+
   const handleEmailLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!loginEmail.trim() || !loginPassword) return;
@@ -539,6 +567,16 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
 
   const newInquiriesCount = snapshot.inquiries.filter((i) => i.status === 'new').length;
   const publishedProjectsCount = snapshot.projects.filter((p) => p.published).length;
+  const hasUnsavedProfileChanges =
+    JSON.stringify(profileDraft) !== JSON.stringify(snapshot.settingsBundle);
+  const nowDate = new Date();
+  const todayIsoKey = `${nowDate.getFullYear()}-${String(nowDate.getMonth() + 1).padStart(
+    2,
+    '0'
+  )}-${String(nowDate.getDate()).padStart(2, '0')}`;
+  const todayAnalyticsRow = snapshot.dailyAnalytics.find((d) => d.date === todayIsoKey);
+  const todayVisitorsCount = todayAnalyticsRow?.visitors ?? 0;
+  const totalVisitorsAllTime = snapshot.dailyAnalytics.reduce((acc, r) => acc + r.visitors, 0);
 
   const navItems: Array<{
     id: AdminTab;
@@ -563,7 +601,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
     return (
       <div className="flex min-h-screen items-center justify-center bg-[#050507] px-6 text-[#F4F4F5]">
         <div className="space-y-3 text-center">
-          <div className="mx-auto h-8 w-8 animate-spin rounded-full border-2 border-zinc-700 border-t-[#DC2626]" />
+          <div className="mx-auto h-8 w-8 animate-spin rounded-full border-2 border-zinc-700 border-t-accent" />
           <p className="text-xs font-medium text-zinc-400">Checking admin session...</p>
         </div>
       </div>
@@ -612,7 +650,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
         </header>
 
         <main className="mx-auto my-auto w-full max-w-md rounded-2xl border border-white/12 bg-[#0B0C10] p-7 shadow-2xl sm:p-8">
-          <div className="inline-flex h-11 w-11 items-center justify-center rounded-lg border border-[#DC2626]/30 bg-[#DC2626]/10 text-[#EF4444]">
+          <div className="inline-flex h-11 w-11 items-center justify-center rounded-lg border border-accent/30 bg-accent/10 text-accent-light">
             {isOwnerUnverified ? (
               <MailCheck className="h-5 w-5" aria-hidden="true" />
             ) : (
@@ -649,7 +687,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                   type="button"
                   disabled={authBusy}
                   onClick={handleSendVerification}
-                  className="inline-flex min-h-[44px] w-full items-center justify-center gap-2 rounded-md bg-[#DC2626] px-4 py-2.5 text-sm font-semibold text-white hover:bg-[#B91C1C] disabled:opacity-60"
+                  className="inline-flex min-h-[44px] w-full items-center justify-center gap-2 rounded-md bg-accent px-4 py-2.5 text-sm font-semibold text-white hover:bg-accent-dark disabled:opacity-60"
                 >
                   {authBusy ? 'Sending...' : 'Send Verification Email'}
                 </button>
@@ -691,7 +729,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                   type="button"
                   disabled={authBusy}
                   onClick={handleSignOut}
-                  className="inline-flex min-h-[44px] w-full items-center justify-center gap-2 rounded-md bg-[#DC2626] px-4 py-2.5 text-sm font-semibold text-white hover:bg-[#B91C1C] disabled:opacity-60"
+                  className="inline-flex min-h-[44px] w-full items-center justify-center gap-2 rounded-md bg-accent px-4 py-2.5 text-sm font-semibold text-white hover:bg-accent-dark disabled:opacity-60"
                 >
                   Try Another Account
                 </button>
@@ -727,7 +765,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                   value={loginEmail}
                   onChange={(e) => setLoginEmail(e.target.value)}
                   placeholder="Enter admin email"
-                  className="mt-1.5 min-h-[44px] w-full rounded-md border border-white/15 bg-[#070709] px-3.5 py-2 text-sm text-white placeholder:text-zinc-500 focus:border-[#DC2626] focus:outline-none"
+                  className="mt-1.5 min-h-[44px] w-full rounded-md border border-white/15 bg-[#070709] px-3.5 py-2 text-sm text-white placeholder:text-zinc-500 focus:border-accent focus:outline-none"
                 />
               </div>
 
@@ -746,7 +784,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                     value={loginPassword}
                     onChange={(e) => setLoginPassword(e.target.value)}
                     placeholder="Enter password"
-                    className="min-h-[44px] w-full rounded-md border border-white/15 bg-[#070709] py-2 pr-11 pl-3.5 text-sm text-white placeholder:text-zinc-500 focus:border-[#DC2626] focus:outline-none"
+                    className="min-h-[44px] w-full rounded-md border border-white/15 bg-[#070709] py-2 pr-11 pl-3.5 text-sm text-white placeholder:text-zinc-500 focus:border-accent focus:outline-none"
                   />
                   <button
                     type="button"
@@ -762,7 +800,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
               <button
                 type="submit"
                 disabled={authBusy}
-                className="inline-flex min-h-[46px] w-full items-center justify-center gap-2 rounded-md bg-[#DC2626] px-5 py-3 text-sm font-semibold text-white transition-colors hover:bg-[#B91C1C] disabled:opacity-60"
+                className="inline-flex min-h-[46px] w-full items-center justify-center gap-2 rounded-md bg-accent px-5 py-3 text-sm font-semibold text-white transition-colors hover:bg-accent-dark disabled:opacity-60"
               >
                 <KeyRound className="h-4 w-4" aria-hidden="true" />
                 {authBusy ? 'Signing In...' : 'Sign In'}
@@ -825,7 +863,12 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                     <Icon className="h-4 w-4 shrink-0" aria-hidden="true" />
                     <span className="whitespace-nowrap">{item.label}</span>
                   </span>
-                  {typeof item.badge === 'number' && (
+                  {item.id === 'profile' && hasUnsavedProfileChanges ? (
+                    <span
+                      title="Unsaved changes"
+                      className={`h-2 w-2 rounded-full ${active ? 'bg-amber-200' : 'bg-amber-400'}`}
+                    />
+                  ) : typeof item.badge === 'number' ? (
                     <span
                       className={`font-mono text-xs tabular-nums ${
                         active ? 'text-white/90' : 'text-zinc-500'
@@ -833,7 +876,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                     >
                       {item.badge}
                     </span>
-                  )}
+                  ) : null}
                 </button>
               );
             })}
@@ -884,9 +927,9 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                   type="button"
                   onClick={handleUiBack}
                   aria-label="Go back one step"
-                  className="inline-flex min-h-[38px] items-center gap-1.5 rounded-md border border-white/15 bg-[#0E1016] px-3 py-1.5 text-xs font-semibold text-white hover:border-[#DC2626]/60 hover:bg-white/5 shrink-0"
+                  className="inline-flex min-h-[38px] items-center gap-1.5 rounded-md border border-white/15 bg-[#0E1016] px-3 py-1.5 text-xs font-semibold text-white hover:border-accent/60 hover:bg-white/5 shrink-0"
                 >
-                  <ArrowLeft className="h-3.5 w-3.5 text-[#EF4444]" aria-hidden="true" />
+                  <ArrowLeft className="h-3.5 w-3.5 text-accent-light" aria-hidden="true" />
                   <span>Back</span>
                   {adminBackStepCount > 1 && (
                     <span className="rounded bg-white/10 px-1.5 py-0.5 font-mono text-[10px] tabular-nums text-zinc-200">
@@ -897,7 +940,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
               )}
 
               <span className="truncate font-display text-lg font-bold tracking-tight text-white lg:hidden">
-                SHANTO<span className="text-[#DC2626]">.</span> ADMIN
+                SHANTO<span className="text-accent">.</span> ADMIN
               </span>
 
               <span className="hidden text-xs font-medium text-zinc-400 lg:inline">
@@ -906,7 +949,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                 {subViewLabel && (
                   <>
                     {' / '}
-                    <span className="text-[#EF4444]">{subViewLabel}</span>
+                    <span className="text-accent-light">{subViewLabel}</span>
                   </>
                 )}
               </span>
@@ -996,7 +1039,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                 onClick={() => navigateToTab('overview')}
                 className="inline-flex min-h-[30px] items-center gap-1 rounded border border-white/10 bg-[#0B0C10] px-2.5 py-1 text-zinc-300 hover:border-white/25 hover:text-white"
               >
-                <Home className="h-3 w-3 text-[#EF4444]" aria-hidden="true" />
+                <Home className="h-3 w-3 text-accent-light" aria-hidden="true" />
                 Overview
               </button>
 
@@ -1056,7 +1099,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
               {subViewLabel && (
                 <>
                   <ChevronRight className="h-3.5 w-3.5 text-zinc-600" aria-hidden="true" />
-                  <span className="rounded bg-[#DC2626]/20 px-2.5 py-1 font-semibold text-red-200">
+                  <span className="rounded bg-accent/20 px-2.5 py-1 font-semibold text-accent-light">
                     {subViewLabel}
                   </span>
                 </>
@@ -1098,7 +1141,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                     type="button"
                     disabled={saving}
                     onClick={() => setSeedConfirmOpen(true)}
-                    className="inline-flex min-h-[42px] items-center justify-center gap-2 rounded-md bg-[#DC2626] px-4 py-2 text-xs font-semibold text-white hover:bg-[#B91C1C] disabled:opacity-60 whitespace-nowrap shrink-0"
+                    className="inline-flex min-h-[42px] items-center justify-center gap-2 rounded-md bg-accent px-4 py-2 text-xs font-semibold text-white hover:bg-accent-dark disabled:opacity-60 whitespace-nowrap shrink-0"
                   >
                     <CloudUpload className="h-4 w-4" aria-hidden="true" />
                     Sync Default Portfolio to Cloud
@@ -1107,6 +1150,20 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
               )}
 
               <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
+                <button
+                  type="button"
+                  onClick={() => navigateToTab('analytics')}
+                  className="rounded-xl border border-white/10 bg-[#090A0F] p-5 text-left transition-colors hover:border-accent/50"
+                >
+                  <p className="text-xs text-zinc-400">Today Visitors</p>
+                  <p className="mt-2 font-display text-3xl font-bold tabular-nums text-white">
+                    {todayVisitorsCount}
+                    <span className="ml-1.5 text-sm font-normal text-zinc-500">
+                      / {totalVisitorsAllTime} total
+                    </span>
+                  </p>
+                </button>
+
                 <div className="rounded-xl border border-white/10 bg-[#090A0F] p-5">
                   <p className="text-xs text-zinc-400">Published Projects</p>
                   <p className="mt-2 font-display text-3xl font-bold tabular-nums text-white">
@@ -1118,22 +1175,15 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                 </div>
 
                 <div className="rounded-xl border border-white/10 bg-[#090A0F] p-5">
-                  <p className="text-xs text-zinc-400">Milestones</p>
+                  <p className="text-xs text-zinc-400">Milestones &amp; Timeline</p>
                   <p className="mt-2 font-display text-3xl font-bold tabular-nums text-white">
-                    {snapshot.milestones.length}
-                  </p>
-                </div>
-
-                <div className="rounded-xl border border-white/10 bg-[#090A0F] p-5">
-                  <p className="text-xs text-zinc-400">Timeline Entries</p>
-                  <p className="mt-2 font-display text-3xl font-bold tabular-nums text-white">
-                    {snapshot.experience.length}
+                    {snapshot.milestones.length + snapshot.experience.length}
                   </p>
                 </div>
 
                 <div className="rounded-xl border border-white/10 bg-[#090A0F] p-5">
                   <p className="text-xs text-zinc-400">New Client Inquiries</p>
-                  <p className="mt-2 font-display text-3xl font-bold tabular-nums text-[#EF4444]">
+                  <p className="mt-2 font-display text-3xl font-bold tabular-nums text-accent-light">
                     {newInquiriesCount}
                   </p>
                 </div>
@@ -1148,7 +1198,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                       onClick={() => navigateToTab('profile')}
                       className="flex min-h-[44px] items-center gap-2.5 rounded-md border border-white/10 bg-[#0E1016] px-3.5 py-2 text-left text-xs font-medium text-zinc-200 hover:border-white/25 hover:text-white"
                     >
-                      <UserCog className="h-4 w-4 text-[#EF4444]" aria-hidden="true" />
+                      <UserCog className="h-4 w-4 text-accent-light" aria-hidden="true" />
                       Edit Name, Photo &amp; Bio
                     </button>
                     <button
@@ -1156,7 +1206,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                       onClick={() => navigateToTab('projects')}
                       className="flex min-h-[44px] items-center gap-2.5 rounded-md border border-white/10 bg-[#0E1016] px-3.5 py-2 text-left text-xs font-medium text-zinc-200 hover:border-white/25 hover:text-white"
                     >
-                      <FolderKanban className="h-4 w-4 text-[#EF4444]" aria-hidden="true" />
+                      <FolderKanban className="h-4 w-4 text-accent-light" aria-hidden="true" />
                       Add / Update Projects
                     </button>
                     <button
@@ -1164,7 +1214,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                       onClick={() => navigateToTab('career')}
                       className="flex min-h-[44px] items-center gap-2.5 rounded-md border border-white/10 bg-[#0E1016] px-3.5 py-2 text-left text-xs font-medium text-zinc-200 hover:border-white/25 hover:text-white"
                     >
-                      <Briefcase className="h-4 w-4 text-[#EF4444]" aria-hidden="true" />
+                      <Briefcase className="h-4 w-4 text-accent-light" aria-hidden="true" />
                       Milestones &amp; Experience
                     </button>
                     <button
@@ -1254,6 +1304,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
               projectAnalytics={snapshot.projectAnalytics}
               inquiries={snapshot.inquiries}
               projects={snapshot.projects}
+              analyticsError={snapshot.analyticsError}
             />
           )}
 
@@ -1261,6 +1312,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
             <AdminProfileEditor
               draft={profileDraft}
               saving={saving}
+              hasUnsavedChanges={hasUnsavedProfileChanges}
               subTab={activeProfileSubTab}
               onChangeSubTab={navigateProfileSubTab}
               onBack={handleUiBack}

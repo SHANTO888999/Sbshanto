@@ -17,6 +17,7 @@ import {
   doc,
   getDoc,
   getDocs,
+  onSnapshot,
   orderBy,
   query,
   serverTimestamp,
@@ -155,6 +156,7 @@ export interface AdminDashboardSnapshot {
   inquiries: InquiryRecord[];
   dailyAnalytics: DailyAnalyticsRecord[];
   projectAnalytics: ProjectAnalyticsRecord[];
+  analyticsError?: string | null;
 }
 
 function toMillis(val: unknown): number {
@@ -244,175 +246,217 @@ export async function fetchAdminDashboardSnapshot(): Promise<AdminDashboardSnaps
   let hasRemoteSettings = false;
   const partial: Partial<PortfolioContentBundle> = {};
 
-  const settingsPath = 'site_settings/main';
-  try {
-    const settingsSnap = await getDoc(doc(db, 'site_settings', 'main'));
-    if (settingsSnap.exists()) {
-      hasRemoteSettings = true;
-      const data = settingsSnap.data();
-      partial.profile = data as unknown as SiteProfile;
-      if (Array.isArray(data.heroMetrics)) partial.heroMetrics = data.heroMetrics;
-      if (Array.isArray(data.wireframeScenes)) partial.wireframeScenes = data.wireframeScenes;
-      if (Array.isArray(data.techStack)) partial.techStack = data.techStack;
-      if (Array.isArray(data.services)) partial.services = data.services;
-      if (Array.isArray(data.techPartners)) partial.techPartners = data.techPartners;
-      if (data.viewerControls && typeof data.viewerControls === 'object') {
-        partial.viewerControls = data.viewerControls as ViewerControlsConfig;
-      }
-      if (data.cvSettings && typeof data.cvSettings === 'object') {
-        partial.cvSettings = data.cvSettings as CvSettingsConfig;
-      }
-    }
-  } catch (error) {
-    handleAdminFirestoreError(error, OperationType.GET, settingsPath);
-  }
-
-  const settingsBundle = normalizePortfolioContent(partial, ADMIN_INITIAL_BUNDLE);
+  const tomorrowCutoff = (() => {
+    const t = new Date();
+    t.setDate(t.getDate() + 1);
+    return `${t.getFullYear()}-${String(t.getMonth() + 1).padStart(2, '0')}-${String(
+      t.getDate()
+    ).padStart(2, '0')}`;
+  })();
 
   let projects: AdminProjectRecord[] = [];
-  try {
-    const snap = await getDocs(collection(db, 'projects'));
-    const docsData: Array<Record<string, unknown> & { id: string }> = snap.docs.map((d) => ({
-      ...(d.data() as Record<string, unknown>),
-      id: d.id,
-    }));
-    projects = docsData
-      .sort((a, b) => Number(a.sortOrder ?? 999) - Number(b.sortOrder ?? 999))
-      .map((d, idx) => ({
-        id: d.id,
-        index: String(d.index ?? String(idx + 1).padStart(2, '0')),
-        title: String(d.title ?? 'Untitled Project'),
-        category: (d.category as ProjectItem['category']) || 'Websites',
-        year: String(d.year ?? '2026'),
-        platform: String(d.platform ?? 'Web Build'),
-        client: String(d.client ?? 'Independent Build'),
-        role: String(d.role ?? 'Creator & Engineer'),
-        stack: Array.isArray(d.stack) ? (d.stack as string[]) : ['React', 'TypeScript'],
-        summary: String(d.summary ?? ''),
-        architectureNotes: String(d.architectureNotes ?? ''),
-        previewTheme: (d.previewTheme as ProjectItem['previewTheme']) || 'web-commerce',
-        dimensions: String(d.dimensions ?? '1440 × 900'),
-        coverImageUrl: sanitizePublicUrl(d.coverImageUrl, '', true) || undefined,
-        coverMediaType:
-          d.coverMediaType === 'video' || d.coverMediaType === 'image'
-            ? d.coverMediaType
-            : undefined,
-        liveUrl: sanitizePublicUrl(d.liveUrl, '') || undefined,
-        repoUrl: sanitizePublicUrl(d.repoUrl, '') || undefined,
-        published: d.published !== false,
-        sortOrder: Number.isFinite(Number(d.sortOrder)) ? Math.trunc(Number(d.sortOrder)) : idx,
-      }));
-  } catch (error) {
-    handleAdminFirestoreError(error, OperationType.LIST, 'projects');
-  }
-
   let milestones: AdminMilestoneRecord[] = [];
-  try {
-    const snap = await getDocs(collection(db, 'milestones'));
-    const docsData: Array<Record<string, unknown> & { id: string }> = snap.docs.map((d) => ({
-      ...(d.data() as Record<string, unknown>),
-      id: d.id,
-    }));
-    milestones = docsData
-      .sort((a, b) => Number(a.sortOrder ?? 999) - Number(b.sortOrder ?? 999))
-      .map((d, idx) => ({
-        id: d.id,
-        title: String(d.title ?? ''),
-        context: String(d.context ?? ''),
-        project: String(d.project ?? ''),
-        year: String(d.year ?? '2026'),
-        outcome: String(d.outcome ?? ''),
-        published: d.published !== false,
-        sortOrder: Number.isFinite(Number(d.sortOrder)) ? Math.trunc(Number(d.sortOrder)) : idx,
-      }));
-  } catch (error) {
-    handleAdminFirestoreError(error, OperationType.LIST, 'milestones');
-  }
-
   let experience: AdminExperienceRecord[] = [];
-  try {
-    const snap = await getDocs(collection(db, 'experience'));
-    const docsData: Array<Record<string, unknown> & { id: string }> = snap.docs.map((d) => ({
-      ...(d.data() as Record<string, unknown>),
-      id: d.id,
-    }));
-    experience = docsData
-      .sort((a, b) => Number(a.sortOrder ?? 999) - Number(b.sortOrder ?? 999))
-      .map((d, idx) => ({
-        id: d.id,
-        period: String(d.period ?? ''),
-        role: String(d.role ?? ''),
-        org: String(d.org ?? ''),
-        description: String(d.description ?? ''),
-        published: d.published !== false,
-        sortOrder: Number.isFinite(Number(d.sortOrder)) ? Math.trunc(Number(d.sortOrder)) : idx,
-      }));
-  } catch (error) {
-    handleAdminFirestoreError(error, OperationType.LIST, 'experience');
-  }
-
   let inquiries: InquiryRecord[] = [];
-  try {
-    const snap = await getDocs(query(collection(db, 'inquiries'), orderBy('createdAt', 'desc')));
-    const docsData: Array<Record<string, unknown> & { id: string }> = snap.docs.map((d) => ({
-      ...(d.data() as Record<string, unknown>),
-      id: d.id,
-    }));
-    inquiries = docsData.map((d) => ({
-      id: d.id,
-      name: String(d.name ?? 'Visitor'),
-      email: String(d.email ?? ''),
-      scope: String(d.scope ?? 'Project Inquiry'),
-      brief: String(d.brief ?? ''),
-      status: (['new', 'read', 'replied', 'archived'].includes(String(d.status))
-        ? String(d.status)
-        : 'new') as InquiryStatus,
-      createdAtMs: toMillis(d.createdAt),
-    }));
-  } catch (error) {
-    handleAdminFirestoreError(error, OperationType.LIST, 'inquiries');
-  }
-
   let dailyAnalytics: DailyAnalyticsRecord[] = [];
-  try {
-    const snap = await getDocs(collection(db, 'analytics_daily'));
-    dailyAnalytics = snap.docs
-      .map((d) => {
-        const data = d.data() as Record<string, unknown>;
-        const dateStr = String(data.date ?? d.id);
-        return {
-          date: dateStr,
-          month: String(data.month ?? dateStr.slice(0, 7)),
-          visitors: Number(data.visitors ?? 0) || 0,
-          pageViews: Number(data.pageViews ?? 0) || 0,
-          projectClicks: Number(data.projectClicks ?? 0) || 0,
-          hireOpens: Number(data.hireOpens ?? 0) || 0,
-          hireSubmits: Number(data.hireSubmits ?? 0) || 0,
-          cvDownloads: Number(data.cvDownloads ?? 0) || 0,
-        };
-      })
-      .sort((a, b) => a.date.localeCompare(b.date));
-  } catch {
-    // Non-fatal if analytics collection isn't populated yet
-  }
-
   let projectAnalytics: ProjectAnalyticsRecord[] = [];
-  try {
-    const snap = await getDocs(collection(db, 'analytics_projects'));
-    projectAnalytics = snap.docs
-      .map((d) => {
-        const data = d.data() as Record<string, unknown>;
-        return {
-          projectId: String(data.projectId ?? d.id),
-          title: String(data.title ?? d.id),
-          category: String(data.category ?? 'Websites'),
-          clicks: Number(data.clicks ?? 0) || 0,
-        };
-      })
-      .sort((a, b) => b.clicks - a.clicks);
-  } catch {
-    // Non-fatal if project analytics collection isn't populated yet
-  }
+  let analyticsError: string | null = null;
+
+  const loadSettings = async () => {
+    const settingsPath = 'site_settings/main';
+    try {
+      const settingsSnap = await getDoc(doc(db, 'site_settings', 'main'));
+      if (settingsSnap.exists()) {
+        hasRemoteSettings = true;
+        const data = settingsSnap.data();
+        partial.profile = data as unknown as SiteProfile;
+        if (Array.isArray(data.heroMetrics)) partial.heroMetrics = data.heroMetrics;
+        if (Array.isArray(data.wireframeScenes)) partial.wireframeScenes = data.wireframeScenes;
+        if (Array.isArray(data.techStack)) partial.techStack = data.techStack;
+        if (Array.isArray(data.services)) partial.services = data.services;
+        if (Array.isArray(data.techPartners)) partial.techPartners = data.techPartners;
+        if (data.viewerControls && typeof data.viewerControls === 'object') {
+          partial.viewerControls = data.viewerControls as ViewerControlsConfig;
+        }
+        if (data.cvSettings && typeof data.cvSettings === 'object') {
+          partial.cvSettings = data.cvSettings as CvSettingsConfig;
+        }
+      }
+    } catch (error) {
+      handleAdminFirestoreError(error, OperationType.GET, settingsPath);
+    }
+  };
+
+  const loadProjects = async () => {
+    try {
+      const snap = await getDocs(collection(db, 'projects'));
+      const docsData: Array<Record<string, unknown> & { id: string }> = snap.docs.map((d) => ({
+        ...(d.data() as Record<string, unknown>),
+        id: d.id,
+      }));
+      projects = docsData
+        .sort((a, b) => Number(a.sortOrder ?? 999) - Number(b.sortOrder ?? 999))
+        .map((d, idx) => ({
+          id: d.id,
+          index: String(d.index ?? String(idx + 1).padStart(2, '0')),
+          title: String(d.title ?? 'Untitled Project'),
+          category: (d.category as ProjectItem['category']) || 'Websites',
+          year: String(d.year ?? '2026'),
+          platform: String(d.platform ?? 'Web Build'),
+          client: String(d.client ?? 'Independent Build'),
+          role: String(d.role ?? 'Creator & Engineer'),
+          stack: Array.isArray(d.stack) ? (d.stack as string[]) : ['React', 'TypeScript'],
+          summary: String(d.summary ?? ''),
+          architectureNotes: String(d.architectureNotes ?? ''),
+          previewTheme: (d.previewTheme as ProjectItem['previewTheme']) || 'web-commerce',
+          dimensions: String(d.dimensions ?? '1440 × 900'),
+          coverImageUrl: sanitizePublicUrl(d.coverImageUrl, '', true) || undefined,
+          coverMediaType:
+            d.coverMediaType === 'video' || d.coverMediaType === 'image'
+              ? d.coverMediaType
+              : undefined,
+          liveUrl: sanitizePublicUrl(d.liveUrl, '') || undefined,
+          repoUrl: sanitizePublicUrl(d.repoUrl, '') || undefined,
+          published: d.published !== false,
+          sortOrder: Number.isFinite(Number(d.sortOrder)) ? Math.trunc(Number(d.sortOrder)) : idx,
+        }));
+    } catch (error) {
+      handleAdminFirestoreError(error, OperationType.LIST, 'projects');
+    }
+  };
+
+  const loadMilestones = async () => {
+    try {
+      const snap = await getDocs(collection(db, 'milestones'));
+      const docsData: Array<Record<string, unknown> & { id: string }> = snap.docs.map((d) => ({
+        ...(d.data() as Record<string, unknown>),
+        id: d.id,
+      }));
+      milestones = docsData
+        .sort((a, b) => Number(a.sortOrder ?? 999) - Number(b.sortOrder ?? 999))
+        .map((d, idx) => ({
+          id: d.id,
+          title: String(d.title ?? ''),
+          context: String(d.context ?? ''),
+          project: String(d.project ?? ''),
+          year: String(d.year ?? '2026'),
+          outcome: String(d.outcome ?? ''),
+          published: d.published !== false,
+          sortOrder: Number.isFinite(Number(d.sortOrder)) ? Math.trunc(Number(d.sortOrder)) : idx,
+        }));
+    } catch (error) {
+      handleAdminFirestoreError(error, OperationType.LIST, 'milestones');
+    }
+  };
+
+  const loadExperience = async () => {
+    try {
+      const snap = await getDocs(collection(db, 'experience'));
+      const docsData: Array<Record<string, unknown> & { id: string }> = snap.docs.map((d) => ({
+        ...(d.data() as Record<string, unknown>),
+        id: d.id,
+      }));
+      experience = docsData
+        .sort((a, b) => Number(a.sortOrder ?? 999) - Number(b.sortOrder ?? 999))
+        .map((d, idx) => ({
+          id: d.id,
+          period: String(d.period ?? ''),
+          role: String(d.role ?? ''),
+          org: String(d.org ?? ''),
+          description: String(d.description ?? ''),
+          published: d.published !== false,
+          sortOrder: Number.isFinite(Number(d.sortOrder)) ? Math.trunc(Number(d.sortOrder)) : idx,
+        }));
+    } catch (error) {
+      handleAdminFirestoreError(error, OperationType.LIST, 'experience');
+    }
+  };
+
+  const loadInquiries = async () => {
+    try {
+      const snap = await getDocs(query(collection(db, 'inquiries'), orderBy('createdAt', 'desc')));
+      const docsData: Array<Record<string, unknown> & { id: string }> = snap.docs.map((d) => ({
+        ...(d.data() as Record<string, unknown>),
+        id: d.id,
+      }));
+      inquiries = docsData.map((d) => ({
+        id: d.id,
+        name: String(d.name ?? 'Visitor'),
+        email: String(d.email ?? ''),
+        scope: String(d.scope ?? 'Project Inquiry'),
+        brief: String(d.brief ?? ''),
+        status: (['new', 'read', 'replied', 'archived'].includes(String(d.status))
+          ? String(d.status)
+          : 'new') as InquiryStatus,
+        createdAtMs: toMillis(d.createdAt),
+      }));
+    } catch (error) {
+      handleAdminFirestoreError(error, OperationType.LIST, 'inquiries');
+    }
+  };
+
+  const loadDailyAnalytics = async () => {
+    try {
+      const snap = await getDocs(collection(db, 'analytics_daily'));
+      dailyAnalytics = snap.docs
+        .map((d) => {
+          const data = d.data() as Record<string, unknown>;
+          const dateStr = String(data.date ?? d.id);
+          if (d.id === '2099-01-01') {
+            void deleteDoc(doc(db, 'analytics_daily', d.id)).catch(() => {});
+            return null;
+          }
+          if (dateStr > tomorrowCutoff) return null;
+          return {
+            date: dateStr,
+            month: String(data.month ?? dateStr.slice(0, 7)),
+            visitors: Number(data.visitors ?? 0) || 0,
+            pageViews: Number(data.pageViews ?? 0) || 0,
+            projectClicks: Number(data.projectClicks ?? 0) || 0,
+            hireOpens: Number(data.hireOpens ?? 0) || 0,
+            hireSubmits: Number(data.hireSubmits ?? 0) || 0,
+            cvDownloads: Number(data.cvDownloads ?? 0) || 0,
+          };
+        })
+        .filter((r): r is DailyAnalyticsRecord => r !== null)
+        .sort((a, b) => a.date.localeCompare(b.date));
+    } catch (err) {
+      analyticsError = err instanceof Error ? err.message : String(err);
+    }
+  };
+
+  const loadProjectAnalytics = async () => {
+    try {
+      const snap = await getDocs(collection(db, 'analytics_projects'));
+      projectAnalytics = snap.docs
+        .map((d) => {
+          const data = d.data() as Record<string, unknown>;
+          return {
+            projectId: String(data.projectId ?? d.id),
+            title: String(data.title ?? d.id),
+            category: String(data.category ?? 'Websites'),
+            clicks: Number(data.clicks ?? 0) || 0,
+          };
+        })
+        .sort((a, b) => b.clicks - a.clicks);
+    } catch (err) {
+      if (!analyticsError) {
+        analyticsError = err instanceof Error ? err.message : String(err);
+      }
+    }
+  };
+
+  await Promise.all([
+    loadSettings(),
+    loadProjects(),
+    loadMilestones(),
+    loadExperience(),
+    loadInquiries(),
+    loadDailyAnalytics(),
+    loadProjectAnalytics(),
+  ]);
+
+  const settingsBundle = normalizePortfolioContent(partial, ADMIN_INITIAL_BUNDLE);
 
   return {
     hasRemoteSettings,
@@ -423,6 +467,79 @@ export async function fetchAdminDashboardSnapshot(): Promise<AdminDashboardSnaps
     inquiries,
     dailyAnalytics,
     projectAnalytics,
+    analyticsError,
+  };
+}
+
+export function subscribeAdminAnalytics(
+  onDailyUpdate: (rows: DailyAnalyticsRecord[]) => void,
+  onProjectUpdate: (rows: ProjectAnalyticsRecord[]) => void,
+  onError?: (message: string) => void
+): () => void {
+  const tomorrowCutoff = (() => {
+    const t = new Date();
+    t.setDate(t.getDate() + 1);
+    return `${t.getFullYear()}-${String(t.getMonth() + 1).padStart(2, '0')}-${String(
+      t.getDate()
+    ).padStart(2, '0')}`;
+  })();
+
+  const unsubDaily = onSnapshot(
+    collection(db, 'analytics_daily'),
+    (snap) => {
+      const rows = snap.docs
+        .map((d) => {
+          const data = d.data() as Record<string, unknown>;
+          const dateStr = String(data.date ?? d.id);
+          if (d.id === '2099-01-01') {
+            void deleteDoc(doc(db, 'analytics_daily', d.id)).catch(() => {});
+            return null;
+          }
+          if (dateStr > tomorrowCutoff) return null;
+          return {
+            date: dateStr,
+            month: String(data.month ?? dateStr.slice(0, 7)),
+            visitors: Number(data.visitors ?? 0) || 0,
+            pageViews: Number(data.pageViews ?? 0) || 0,
+            projectClicks: Number(data.projectClicks ?? 0) || 0,
+            hireOpens: Number(data.hireOpens ?? 0) || 0,
+            hireSubmits: Number(data.hireSubmits ?? 0) || 0,
+            cvDownloads: Number(data.cvDownloads ?? 0) || 0,
+          };
+        })
+        .filter((r): r is DailyAnalyticsRecord => r !== null)
+        .sort((a, b) => a.date.localeCompare(b.date));
+      onDailyUpdate(rows);
+    },
+    (err) => {
+      if (onError) onError(err instanceof Error ? err.message : String(err));
+    }
+  );
+
+  const unsubProj = onSnapshot(
+    collection(db, 'analytics_projects'),
+    (snap) => {
+      const rows = snap.docs
+        .map((d) => {
+          const data = d.data() as Record<string, unknown>;
+          return {
+            projectId: String(data.projectId ?? d.id),
+            title: String(data.title ?? d.id),
+            category: String(data.category ?? 'Websites'),
+            clicks: Number(data.clicks ?? 0) || 0,
+          };
+        })
+        .sort((a, b) => b.clicks - a.clicks);
+      onProjectUpdate(rows);
+    },
+    (err) => {
+      if (onError) onError(err instanceof Error ? err.message : String(err));
+    }
+  );
+
+  return () => {
+    unsubDaily();
+    unsubProj();
   };
 }
 
@@ -480,10 +597,13 @@ function buildSettingsPayload(bundle: PortfolioContentBundle) {
       title: clampText(s.title, 48, 'Custom Build'),
       detail: clampText(s.detail, 140, 'Full lifecycle delivery.'),
     })),
-    techPartners: safe.techPartners
-      .slice(0, 8)
-      .map((partner) => clampExact(partner, 24, '').toUpperCase())
-      .filter(Boolean),
+    techPartners: (() => {
+      const cleaned = safe.techPartners
+        .slice(0, 8)
+        .map((partner) => clampExact(partner, 24, '').toUpperCase())
+        .filter(Boolean);
+      return cleaned.length > 0 ? cleaned : ADMIN_INITIAL_BUNDLE.techPartners;
+    })(),
     viewerControls: {
       showTopScrollBar: Boolean(safe.viewerControls.showTopScrollBar),
       showBottomHud: Boolean(safe.viewerControls.showBottomHud),

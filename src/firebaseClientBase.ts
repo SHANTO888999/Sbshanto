@@ -18,8 +18,7 @@ export const db: Firestore = (() => {
     return initializeFirestore(
       app,
       {
-        experimentalForceLongPolling: true,
-        experimentalLongPollingOptions: { timeoutSeconds: 15 },
+        experimentalAutoDetectLongPolling: true,
         ignoreUndefinedProperties: true,
       },
       firebaseConfig.firestoreDatabaseId

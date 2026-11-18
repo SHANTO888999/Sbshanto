@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { ArrowLeft, Check, Copy, Mail, Trash2 } from 'lucide-react';
 import type { InquiryRecord, InquiryStatus } from '../../firebaseAdmin';
+import { copyTextSafely } from '../../utils/clipboard';
 import { ConfirmDialog } from './FieldControls';
 
 interface AdminInquiriesInboxProps {
@@ -59,12 +60,10 @@ export const AdminInquiriesInbox: React.FC<AdminInquiriesInboxProps> = ({
   }, [inquiries, filter]);
 
   const handleCopyEmail = async (inq: InquiryRecord) => {
-    try {
-      await navigator.clipboard.writeText(inq.email);
+    const ok = await copyTextSafely(inq.email);
+    if (ok) {
       setCopiedId(inq.id);
       window.setTimeout(() => setCopiedId(null), 1800);
-    } catch {
-      // ignore clipboard errors
     }
   };
 
@@ -91,7 +90,7 @@ export const AdminInquiriesInbox: React.FC<AdminInquiriesInboxProps> = ({
               onClick={() => setFilter(st)}
               className={`min-h-[36px] rounded-md px-3 py-1 text-xs font-medium capitalize transition-colors whitespace-nowrap shrink-0 ${
                 filter === st
-                  ? 'bg-[#DC2626] text-white'
+                  ? 'bg-accent text-white'
                   : 'text-zinc-400 hover:bg-white/5 hover:text-white'
               }`}
             >
@@ -119,7 +118,7 @@ export const AdminInquiriesInbox: React.FC<AdminInquiriesInboxProps> = ({
             });
             const statusTone =
               inq.status === 'new'
-                ? 'text-[#EF4444]'
+                ? 'text-accent-light'
                 : inq.status === 'replied'
                   ? 'text-emerald-400'
                   : 'text-zinc-400';
@@ -150,7 +149,7 @@ export const AdminInquiriesInbox: React.FC<AdminInquiriesInboxProps> = ({
                       value={inq.status}
                       disabled={saving}
                       onChange={(e) => onUpdateStatus(inq.id, e.target.value as InquiryStatus)}
-                      className="min-h-[38px] rounded-md border border-white/15 bg-[#070709] px-3 py-1.5 text-xs font-medium text-white focus:border-[#DC2626] focus:outline-none"
+                      className="min-h-[38px] rounded-md border border-white/15 bg-[#070709] px-3 py-1.5 text-xs font-medium text-white focus:border-accent focus:outline-none"
                     >
                       <option value="new">New</option>
                       <option value="read">Read</option>
@@ -180,7 +179,7 @@ export const AdminInquiriesInbox: React.FC<AdminInquiriesInboxProps> = ({
                       href={`mailto:${inq.email}?subject=${encodeURIComponent(
                         `Re: ${inq.scope} Inquiry — SHANTO Studio`
                       )}`}
-                      className="inline-flex min-h-[38px] items-center gap-1.5 rounded-md bg-[#DC2626] px-3 py-1.5 text-xs font-semibold text-white hover:bg-[#B91C1C]"
+                      className="inline-flex min-h-[38px] items-center gap-1.5 rounded-md bg-accent px-3 py-1.5 text-xs font-semibold text-white hover:bg-accent-dark"
                     >
                       <Mail className="h-3.5 w-3.5" aria-hidden="true" />
                       Reply
