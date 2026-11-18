@@ -134,12 +134,12 @@ export const DEFAULT_ACCENT_COLOR = '#DC2626';
 
 export const DEFAULT_VIEWER_CONTROLS: ViewerControlsConfig = {
   showTopScrollBar: true,
-  showBottomHud: true,
-  showHudProgress: true,
-  showHudCursors: true,
-  showHudAutoScroll: true,
-  showHudReplay: true,
-  showHudSound: true,
+  showBottomHud: false,
+  showHudProgress: false,
+  showHudCursors: false,
+  showHudAutoScroll: false,
+  showHudReplay: false,
+  showHudSound: false,
   showMultiBackBar: true,
   enableCursorsByDefault: true,
   enableAutoScrollByDefault: true,

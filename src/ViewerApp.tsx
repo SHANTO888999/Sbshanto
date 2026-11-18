@@ -14,7 +14,6 @@ import {
 } from './firebaseViewer';
 import { applyDocumentAccentTheme } from './utils/themeAccent';
 import { DesignCanvasProvider } from './components/DesignCursorSystem';
-import { IntroSequence } from './components/IntroSequence';
 import { Navbar } from './components/Navbar';
 import { HeroSection } from './components/HeroSection';
 import { WorksSection } from './components/WorksSection';
@@ -424,8 +423,6 @@ function ViewerShell({
           )}
 
         {previewTopBar}
-
-        <IntroSequence />
 
         <Navbar
           onOpenInquiry={handleOpenInquiryModal}

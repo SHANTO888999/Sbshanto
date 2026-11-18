@@ -73,11 +73,10 @@ export const AdminInquiriesInbox: React.FC<AdminInquiriesInboxProps> = ({
 
   return (
     <div className="space-y-6">
-      <div className="border-b border-white/10 pb-5">
-        <h2 className="font-display text-2xl font-bold tracking-tight text-white">
+      <div className="border-b border-white/10 pb-4">
+        <h2 className="font-display text-2xl font-semibold tracking-tight text-white">
           {t.inquiries.heading} ({inquiries.length})
         </h2>
-        <p className="mt-1 text-sm text-zinc-400">{t.inquiries.subtitle}</p>
       </div>
 
       <div className="flex flex-wrap gap-1.5 rounded-lg border border-white/10 bg-[#08090D] p-1">
@@ -102,12 +101,11 @@ export const AdminInquiriesInbox: React.FC<AdminInquiriesInboxProps> = ({
       </div>
 
       {visible.length === 0 ? (
-        <div className="rounded-xl border border-dashed border-white/15 bg-[#090A0F] p-10 text-center">
-          <p className="text-sm font-medium text-zinc-200">{t.inquiries.emptyTitle}</p>
-          <p className="mt-1 text-xs text-zinc-500">{t.inquiries.emptyDesc}</p>
+        <div className="rounded-lg border border-dashed border-white/15 bg-[#090A0F] p-10 text-center">
+          <p className="text-sm font-medium text-zinc-400">{t.inquiries.emptyTitle}</p>
         </div>
       ) : (
-        <div className="space-y-4">
+        <div className="space-y-3">
           {visible.map((inq) => {
             const dateLabel = new Date(inq.createdAtMs).toLocaleDateString('en-US', {
               month: 'short',
@@ -124,7 +122,7 @@ export const AdminInquiriesInbox: React.FC<AdminInquiriesInboxProps> = ({
             return (
               <article
                 key={inq.id}
-                className="rounded-xl border border-white/10 bg-[#090A0F] p-5"
+                className="rounded-lg border border-white/10 bg-[#090A0F] p-4"
               >
                 <div className="flex flex-col gap-3 border-b border-white/10 pb-4 sm:flex-row sm:items-start sm:justify-between">
                   <div className="min-w-0">

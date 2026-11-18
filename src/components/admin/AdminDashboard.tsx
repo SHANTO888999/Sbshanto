@@ -21,7 +21,6 @@ import {
   Lock,
   LogOut,
   MailCheck,
-  Radio,
   RefreshCw,
   UserCog,
 } from 'lucide-react';
@@ -720,7 +719,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
             )}
           </div>
 
-          <h1 className="mt-5 font-display text-3xl font-bold tracking-tight text-white">
+          <h1 className="mt-4 font-display text-2xl font-semibold tracking-tight text-white">
             {isOwnerUnverified ? t.auth.verifyYourEmail : t.auth.adminSignIn}
           </h1>
 
@@ -796,8 +795,6 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
               onKeyDown={handleFormEnterToNext}
               className="mt-4 space-y-4"
             >
-              <p className="text-sm leading-relaxed text-zinc-300">{t.auth.signInPrompt}</p>
-
               {authError && (
                 <p className="rounded-md border border-[#DC2626]/40 bg-[#DC2626]/10 p-3 text-xs leading-relaxed text-red-200">
                   {authError}
@@ -860,10 +857,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
             </form>
           )}
         </main>
-
-        <footer className="mx-auto w-full max-w-4xl text-center text-xs text-zinc-500">
-          {t.auth.sessionFooter}
-        </footer>
+        <div />
       </div>
     );
   }
@@ -1177,167 +1171,154 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
           <StatusNotice notice={notice} onDismiss={() => setNotice(null)} />
 
           {activeTab === 'overview' && (
-            <div className="space-y-8">
-              <div className="border-b border-white/10 pb-5">
-                <h1 className="font-display text-3xl font-bold tracking-tight text-white">
+            <div className="space-y-6">
+              <div className="flex flex-wrap items-center justify-between gap-3 border-b border-white/10 pb-4">
+                <h1 className="font-display text-2xl font-semibold tracking-tight text-white">
                   {t.overview.heading}
                 </h1>
-                <p className="mt-1 text-sm text-zinc-400">{t.overview.subtitle}</p>
-              </div>
 
-              {(!snapshot.hasRemoteSettings || snapshot.projects.length === 0) && (
-                <div className="flex flex-col gap-4 rounded-xl border border-amber-500/30 bg-amber-500/10 p-5 sm:flex-row sm:items-center sm:justify-between">
-                  <div>
-                    <h2 className="text-sm font-semibold text-amber-200">
-                      {t.overview.cloudInitTitle}
-                    </h2>
-                    <p className="mt-1 text-xs leading-relaxed text-amber-100/80">
-                      {t.overview.cloudInitDesc}
-                    </p>
-                  </div>
+                {(!snapshot.hasRemoteSettings || snapshot.projects.length === 0) && (
                   <button
                     type="button"
                     disabled={saving}
                     onClick={() => setSeedConfirmOpen(true)}
-                    className="inline-flex min-h-[42px] items-center justify-center gap-2 rounded-md bg-accent px-4 py-2 text-xs font-semibold text-white hover:bg-accent-dark disabled:opacity-60 whitespace-nowrap shrink-0"
+                    className="inline-flex min-h-[38px] items-center gap-2 rounded-md border border-amber-500/40 bg-amber-500/10 px-3.5 py-1.5 text-xs font-medium text-amber-200 hover:bg-amber-500/20 disabled:opacity-60"
                   >
-                    <CloudUpload className="h-4 w-4" aria-hidden="true" />
+                    <CloudUpload className="h-3.5 w-3.5" aria-hidden="true" />
                     {t.overview.syncButton}
                   </button>
-                </div>
-              )}
+                )}
+              </div>
 
-              <div className="grid grid-cols-2 gap-4 lg:grid-cols-5">
+              <div className="grid grid-cols-2 gap-3 lg:grid-cols-5">
                 <button
                   type="button"
                   onClick={() => navigateToTab('analytics')}
-                  className="rounded-xl border border-emerald-500/35 bg-emerald-500/10 p-5 text-left transition-colors hover:border-emerald-400/70"
+                  className="rounded-lg border border-white/10 bg-[#090A0F] p-4 text-left transition-colors hover:border-white/25"
                 >
                   <div className="flex items-center justify-between gap-2">
-                    <p className="text-xs font-medium text-emerald-200">{t.overview.liveRightNow}</p>
-                    <Radio className="h-3.5 w-3.5 animate-pulse text-emerald-300" aria-hidden="true" />
+                    <p className="text-xs text-zinc-400">{t.overview.liveRightNow}</p>
+                    <span
+                      className={`h-2 w-2 rounded-full ${
+                        liveActiveCount > 0 ? 'bg-emerald-400' : 'bg-zinc-600'
+                      }`}
+                    />
                   </div>
-                  <p className="mt-2 font-display text-3xl font-bold tabular-nums text-white">
+                  <p className="mt-2 font-display text-2xl font-bold tabular-nums text-white">
                     <AnimatedCounter value={liveActiveCount} />
-                  </p>
-                  <p className="mt-1 truncate text-[11px] text-emerald-200/75">
-                    {t.overview.activeViewersDesc}
                   </p>
                 </button>
 
                 <button
                   type="button"
                   onClick={() => navigateToTab('analytics')}
-                  className="rounded-xl border border-white/10 bg-[#090A0F] p-5 text-left transition-colors hover:border-accent/50"
+                  className="rounded-lg border border-white/10 bg-[#090A0F] p-4 text-left transition-colors hover:border-white/25"
                 >
                   <p className="text-xs text-zinc-400">{t.overview.todayVisitors}</p>
-                  <p className="mt-2 font-display text-3xl font-bold tabular-nums text-white">
+                  <p className="mt-2 font-display text-2xl font-bold tabular-nums text-white">
                     <AnimatedCounter value={todayVisitorsCount} />
-                    <span className="ml-1.5 text-sm font-normal text-zinc-500">
-                      / <AnimatedCounter value={totalVisitorsAllTime} /> {t.overview.totalSuffix}
+                    <span className="ml-1.5 text-xs font-normal text-zinc-500">
+                      / <AnimatedCounter value={totalVisitorsAllTime} />
                     </span>
                   </p>
                 </button>
 
-                <div className="rounded-xl border border-white/10 bg-[#090A0F] p-5">
+                <div className="rounded-lg border border-white/10 bg-[#090A0F] p-4">
                   <p className="text-xs text-zinc-400">{t.overview.publishedProjects}</p>
-                  <p className="mt-2 font-display text-3xl font-bold tabular-nums text-white">
+                  <p className="mt-2 font-display text-2xl font-bold tabular-nums text-white">
                     <AnimatedCounter value={publishedProjectsCount} />
-                    <span className="ml-1.5 text-sm font-normal text-zinc-500">
+                    <span className="ml-1.5 text-xs font-normal text-zinc-500">
                       / {snapshot.projects.length}
                     </span>
                   </p>
                 </div>
 
-                <div className="rounded-xl border border-white/10 bg-[#090A0F] p-5">
+                <div className="rounded-lg border border-white/10 bg-[#090A0F] p-4">
                   <p className="text-xs text-zinc-400">{t.overview.milestonesTimeline}</p>
-                  <p className="mt-2 font-display text-3xl font-bold tabular-nums text-white">
+                  <p className="mt-2 font-display text-2xl font-bold tabular-nums text-white">
                     <AnimatedCounter
                       value={snapshot.milestones.length + snapshot.experience.length}
                     />
                   </p>
                 </div>
 
-                <div className="rounded-xl border border-white/10 bg-[#090A0F] p-5 col-span-2 lg:col-span-1">
+                <div className="col-span-2 rounded-lg border border-white/10 bg-[#090A0F] p-4 lg:col-span-1">
                   <p className="text-xs text-zinc-400">{t.overview.newInquiries}</p>
-                  <p className="mt-2 font-display text-3xl font-bold tabular-nums text-accent-light">
+                  <p className="mt-2 font-display text-2xl font-bold tabular-nums text-accent-light">
                     <AnimatedCounter value={newInquiriesCount} />
                   </p>
                 </div>
               </div>
 
               <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-                <div className="rounded-xl border border-white/10 bg-[#090A0F] p-5">
-                  <h2 className="text-sm font-semibold text-white">{t.overview.quickShortcuts}</h2>
-                  <div className="mt-4 grid grid-cols-1 gap-2.5 sm:grid-cols-2">
+                <div className="rounded-lg border border-white/10 bg-[#090A0F] p-4">
+                  <h2 className="text-xs font-semibold uppercase tracking-wider text-zinc-400">
+                    {t.overview.quickShortcuts}
+                  </h2>
+                  <div className="mt-3 grid grid-cols-1 gap-2 sm:grid-cols-2">
                     <button
                       type="button"
                       onClick={() => navigateToTab('profile')}
-                      className="flex min-h-[44px] items-center gap-2.5 rounded-md border border-white/10 bg-[#0E1016] px-3.5 py-2 text-left text-xs font-medium text-zinc-200 hover:border-white/25 hover:text-white"
+                      className="flex min-h-[40px] items-center gap-2.5 rounded-md border border-white/10 bg-[#0D0F14] px-3 py-2 text-left text-xs font-medium text-zinc-200 hover:border-white/25 hover:text-white"
                     >
-                      <UserCog className="h-4 w-4 text-accent-light" aria-hidden="true" />
+                      <UserCog className="h-3.5 w-3.5 text-accent-light" aria-hidden="true" />
                       {t.overview.editNamePhotoBio}
                     </button>
                     <button
                       type="button"
                       onClick={() => navigateToTab('projects')}
-                      className="flex min-h-[44px] items-center gap-2.5 rounded-md border border-white/10 bg-[#0E1016] px-3.5 py-2 text-left text-xs font-medium text-zinc-200 hover:border-white/25 hover:text-white"
+                      className="flex min-h-[40px] items-center gap-2.5 rounded-md border border-white/10 bg-[#0D0F14] px-3 py-2 text-left text-xs font-medium text-zinc-200 hover:border-white/25 hover:text-white"
                     >
-                      <FolderKanban className="h-4 w-4 text-accent-light" aria-hidden="true" />
+                      <FolderKanban className="h-3.5 w-3.5 text-accent-light" aria-hidden="true" />
                       {t.overview.addUpdateProjects}
                     </button>
                     <button
                       type="button"
                       onClick={() => navigateToTab('career')}
-                      className="flex min-h-[44px] items-center gap-2.5 rounded-md border border-white/10 bg-[#0E1016] px-3.5 py-2 text-left text-xs font-medium text-zinc-200 hover:border-white/25 hover:text-white"
+                      className="flex min-h-[40px] items-center gap-2.5 rounded-md border border-white/10 bg-[#0D0F14] px-3 py-2 text-left text-xs font-medium text-zinc-200 hover:border-white/25 hover:text-white"
                     >
-                      <Briefcase className="h-4 w-4 text-accent-light" aria-hidden="true" />
+                      <Briefcase className="h-3.5 w-3.5 text-accent-light" aria-hidden="true" />
                       {t.overview.milestonesExperience}
                     </button>
                     <button
                       type="button"
                       onClick={() => navigateToTab('inquiries')}
-                      className="flex min-h-[44px] items-center gap-2.5 rounded-md border border-white/10 bg-[#0E1016] px-3.5 py-2 text-left text-xs font-medium text-zinc-200 hover:border-white/25 hover:text-white"
+                      className="flex min-h-[40px] items-center gap-2.5 rounded-md border border-white/10 bg-[#0D0F14] px-3 py-2 text-left text-xs font-medium text-zinc-200 hover:border-white/25 hover:text-white"
                     >
-                      <Inbox className="h-4 w-4 text-accent-light" aria-hidden="true" />
+                      <Inbox className="h-3.5 w-3.5 text-accent-light" aria-hidden="true" />
                       {t.overview.openInquiries} ({snapshot.inquiries.length})
                     </button>
                     <button
                       type="button"
                       onClick={() => navigateToTab('analytics')}
-                      className="flex min-h-[44px] items-center gap-2.5 rounded-md border border-white/10 bg-[#0E1016] px-3.5 py-2 text-left text-xs font-medium text-zinc-200 hover:border-white/25 hover:text-white sm:col-span-2"
+                      className="flex min-h-[40px] items-center gap-2.5 rounded-md border border-white/10 bg-[#0D0F14] px-3 py-2 text-left text-xs font-medium text-zinc-200 hover:border-white/25 hover:text-white sm:col-span-2"
                     >
-                      <BarChart3 className="h-4 w-4 text-accent-light" aria-hidden="true" />
+                      <BarChart3 className="h-3.5 w-3.5 text-accent-light" aria-hidden="true" />
                       {t.overview.viewAnalytics}
                     </button>
                   </div>
                 </div>
 
-                <div className="rounded-xl border border-white/10 bg-[#090A0F] p-5 flex flex-col justify-between gap-4">
-                  <div>
-                    <div className="flex flex-wrap items-center justify-between gap-2">
-                      <h2 className="flex items-center gap-2 text-sm font-semibold text-white">
-                        <FileText className="h-4 w-4 text-accent-light" aria-hidden="true" />
-                        {t.overview.cvCloudStatus}
-                      </h2>
-                      <span
-                        className={`rounded px-2 py-0.5 font-mono text-[10px] font-bold uppercase ${
-                          profileDraft.viewerControls.showCvDownloadOnViewer
-                            ? 'bg-emerald-500/20 text-emerald-300'
-                            : 'bg-zinc-800 text-zinc-300'
-                        }`}
-                      >
-                        {profileDraft.viewerControls.showCvDownloadOnViewer
-                          ? t.overview.publicCvOn
-                          : t.overview.publicCvOff}
-                      </span>
-                    </div>
-                    <p className="mt-2 text-xs leading-relaxed text-zinc-400">
-                      {t.overview.cvDesc}
-                    </p>
+                <div className="flex flex-col justify-between gap-4 rounded-lg border border-white/10 bg-[#090A0F] p-4">
+                  <div className="flex items-center justify-between gap-2">
+                    <h2 className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-zinc-400">
+                      <FileText className="h-3.5 w-3.5 text-accent-light" aria-hidden="true" />
+                      {t.overview.cvCloudStatus}
+                    </h2>
+                    <span
+                      className={`rounded px-2 py-0.5 font-mono text-[10px] font-semibold uppercase ${
+                        profileDraft.viewerControls.showCvDownloadOnViewer
+                          ? 'bg-emerald-500/15 text-emerald-300'
+                          : 'bg-white/5 text-zinc-400'
+                      }`}
+                    >
+                      {profileDraft.viewerControls.showCvDownloadOnViewer
+                        ? t.overview.publicCvOn
+                        : t.overview.publicCvOff}
+                    </span>
                   </div>
 
-                  <div className="flex flex-wrap items-center gap-2.5">
+                  <div className="flex flex-wrap items-center gap-2">
                     <button
                       type="button"
                       onClick={() => downloadPortfolioCv(profileDraft)}
@@ -1352,7 +1333,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                         navigateToTab('profile');
                         navigateProfileSubTab('cv');
                       }}
-                      className="inline-flex min-h-[38px] items-center gap-1.5 rounded-md border border-white/15 bg-[#0E1016] px-3 py-1.5 text-xs font-medium text-zinc-200 hover:border-white/30 hover:text-white"
+                      className="inline-flex min-h-[38px] items-center gap-1.5 rounded-md border border-white/15 bg-[#0D0F14] px-3 py-1.5 text-xs font-medium text-zinc-200 hover:border-white/30 hover:text-white"
                     >
                       {t.overview.cvToggleSettings}
                     </button>
@@ -1361,7 +1342,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                         type="button"
                         disabled={saving}
                         onClick={() => setSeedConfirmOpen(true)}
-                        className="inline-flex min-h-[38px] items-center gap-1.5 rounded-md border border-white/15 px-3 py-1.5 text-xs font-medium text-zinc-300 hover:bg-white/5"
+                        className="inline-flex min-h-[38px] items-center gap-1.5 rounded-md border border-white/10 px-3 py-1.5 text-xs font-medium text-zinc-400 hover:bg-white/5 hover:text-zinc-200"
                       >
                         <CloudUpload className="h-3.5 w-3.5" aria-hidden="true" />
                         {t.overview.resyncDefaults}
@@ -1410,13 +1391,6 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
               projects={snapshot.projects}
               saving={saving}
               lang={lang}
-              showStarterDemoProjects={
-                snapshot.settingsBundle.viewerControls.showStarterDemoProjects !== false
-              }
-              onOpenViewerControls={() => {
-                navigateToTab('profile');
-                navigateProfileSubTab('viewer');
-              }}
               onSubViewChange={handleSubViewChange}
               exitSubViewNonce={exitSubViewNonce}
               closeDialogNonce={closeChildDialogNonce}

@@ -7,9 +7,7 @@ import {
   FolderKanban,
   Globe2,
   MousePointerClick,
-  Radio,
   Send,
-  ShieldCheck,
   TrendingUp,
   UserCheck,
   Users,
@@ -253,83 +251,69 @@ export const AdminAnalyticsPanel: React.FC<AdminAnalyticsPanelProps> = ({
 
   return (
     <div className="space-y-6">
-      <div className="border-b border-white/10 pb-5">
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <div>
-            <h1 className="font-display text-3xl font-bold tracking-tight text-white">
-              {t.analytics.heading}
-            </h1>
-            <p className="mt-1 text-sm text-zinc-400">{t.analytics.subtitle}</p>
-          </div>
-          <span className="inline-flex items-center gap-2 rounded-md border border-emerald-500/35 bg-emerald-500/10 px-3 py-1.5 font-mono text-[11px] font-medium text-emerald-300">
-            <span className="relative flex h-2 w-2">
-              <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-75" />
-              <span className="relative inline-flex h-2 w-2 rounded-full bg-emerald-400" />
-            </span>
-            {t.analytics.liveBadge}
-          </span>
-        </div>
+      <div className="border-b border-white/10 pb-4">
+        <h1 className="font-display text-2xl font-semibold tracking-tight text-white">
+          {t.analytics.heading}
+        </h1>
       </div>
 
       {analyticsError && (
         <div
           role="alert"
-          className="rounded-xl border border-amber-500/35 bg-amber-500/10 px-4 py-3 text-xs leading-relaxed text-amber-200"
+          className="rounded-lg border border-amber-500/35 bg-amber-500/10 px-4 py-3 text-xs leading-relaxed text-amber-200"
         >
           {analyticsError}
         </div>
       )}
 
-      {/* Live Active Viewers Pulse Banner */}
-      <div className="flex flex-col gap-4 rounded-xl border border-emerald-500/30 bg-gradient-to-r from-emerald-500/10 via-[#090A0F] to-[#090A0F] p-5 sm:flex-row sm:items-center sm:justify-between">
-        <div className="flex items-start gap-3.5">
-          <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg border border-emerald-500/35 bg-emerald-500/15 text-emerald-300">
-            <Radio className="h-5 w-5 animate-pulse" aria-hidden="true" />
-          </div>
-          <div>
-            <p className="font-mono text-[11px] font-semibold uppercase tracking-wider text-emerald-300">
+      {/* Live Active Viewers Card */}
+      <div className="flex flex-col gap-3 rounded-lg border border-white/10 bg-[#090A0F] p-4 sm:flex-row sm:items-center sm:justify-between">
+        <div className="min-w-0">
+          <div className="flex items-center gap-2">
+            <span
+              className={`h-2 w-2 rounded-full ${
+                liveSessions.length > 0 ? 'bg-emerald-400' : 'bg-zinc-600'
+              }`}
+            />
+            <p className="font-mono text-[11px] font-semibold uppercase tracking-wider text-zinc-300">
               {t.analytics.liveNowTitle}
             </p>
-            <p className="mt-0.5 text-xs text-zinc-300">{t.analytics.liveNowSubtitle}</p>
-            {liveCountries.length > 0 ? (
-              <div className="mt-2.5 flex flex-wrap gap-2">
-                {liveCountries.map((c) => (
-                  <span
-                    key={c.code}
-                    className="inline-flex items-center gap-1.5 rounded border border-emerald-500/25 bg-black/40 px-2.5 py-1 text-xs text-zinc-100"
-                  >
-                    <span aria-hidden="true">{countryCodeToFlag(c.code)}</span>
-                    <span>{c.name}</span>
-                    <span className="font-mono text-emerald-300 tabular-nums">({c.count})</span>
-                  </span>
-                ))}
-              </div>
-            ) : (
-              <p className="mt-2 font-mono text-[11px] text-zinc-500">
-                {t.analytics.noActiveViewers}
-              </p>
-            )}
           </div>
+          {liveCountries.length > 0 ? (
+            <div className="mt-2.5 flex flex-wrap gap-1.5">
+              {liveCountries.map((c) => (
+                <span
+                  key={c.code}
+                  className="inline-flex items-center gap-1.5 rounded border border-white/10 bg-[#0D0F14] px-2 py-0.5 text-xs text-zinc-200"
+                >
+                  <span aria-hidden="true">{countryCodeToFlag(c.code)}</span>
+                  <span>{c.name}</span>
+                  <span className="font-mono text-emerald-300 tabular-nums">({c.count})</span>
+                </span>
+              ))}
+            </div>
+          ) : (
+            <p className="mt-1.5 font-mono text-[11px] text-zinc-500">
+              {t.analytics.noActiveViewers}
+            </p>
+          )}
         </div>
 
         <div className="shrink-0 text-left sm:text-right">
-          <div className="font-display text-5xl font-bold text-white leading-none">
+          <div className="font-display text-3xl font-bold leading-none tabular-nums text-white">
             <AnimatedCounter value={liveSessions.length} />
           </div>
-          <p className="mt-1 font-mono text-[11px] text-emerald-300">
-            {lang === 'bn' ? 'লাইভ সেশন' : 'ONLINE NOW'}
-          </p>
         </div>
       </div>
 
       {/* Top KPI Grid */}
-      <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
-        <div className="rounded-xl border border-white/10 bg-[#090A0F] p-5">
+      <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+        <div className="rounded-lg border border-white/10 bg-[#090A0F] p-4">
           <div className="flex items-center justify-between text-xs text-zinc-400">
             <span>{t.analytics.todayVisitors}</span>
             <Users className="h-4 w-4 text-accent-light" aria-hidden="true" />
           </div>
-          <p className="mt-2 font-display text-3xl font-bold text-white tabular-nums">
+          <p className="mt-2 font-display text-2xl font-bold text-white tabular-nums">
             <AnimatedCounter value={summary.todayVisitors} />
           </p>
           <p className="mt-1 font-mono text-[11px] text-zinc-500 tabular-nums">
@@ -337,12 +321,12 @@ export const AdminAnalyticsPanel: React.FC<AdminAnalyticsPanelProps> = ({
           </p>
         </div>
 
-        <div className="rounded-xl border border-white/10 bg-[#090A0F] p-5">
+        <div className="rounded-lg border border-white/10 bg-[#090A0F] p-4">
           <div className="flex items-center justify-between text-xs text-zinc-400">
             <span>{t.analytics.monthVisitors}</span>
             <Eye className="h-4 w-4 text-[#38BDF8]" aria-hidden="true" />
           </div>
-          <p className="mt-2 font-display text-3xl font-bold text-white tabular-nums">
+          <p className="mt-2 font-display text-2xl font-bold text-white tabular-nums">
             <AnimatedCounter value={summary.monthVisitors} />
           </p>
           <p className="mt-1 font-mono text-[11px] text-zinc-500 tabular-nums">
@@ -351,27 +335,27 @@ export const AdminAnalyticsPanel: React.FC<AdminAnalyticsPanelProps> = ({
           </p>
         </div>
 
-        <div className="rounded-xl border border-white/10 bg-[#090A0F] p-5">
+        <div className="rounded-lg border border-white/10 bg-[#090A0F] p-4">
           <div className="flex items-center justify-between text-xs text-zinc-400">
             <span>{t.analytics.projectClicks}</span>
             <MousePointerClick className="h-4 w-4 text-[#F59E0B]" aria-hidden="true" />
           </div>
-          <p className="mt-2 font-display text-3xl font-bold text-white tabular-nums">
+          <p className="mt-2 font-display text-2xl font-bold text-white tabular-nums">
             <AnimatedCounter value={summary.totalProjectClicks} />
           </p>
           <p className="mt-1 truncate font-mono text-[11px] text-zinc-500">
             {rankedProjects[0] && rankedProjects[0].clicks > 0
-              ? `Top: ${rankedProjects[0].title} (${rankedProjects[0].clicks})`
-              : t.analytics.waitingClicks}
+              ? `${rankedProjects[0].title} (${rankedProjects[0].clicks})`
+              : t.analytics.noClicks}
           </p>
         </div>
 
-        <div className="rounded-xl border border-white/10 bg-[#090A0F] p-5">
+        <div className="rounded-lg border border-white/10 bg-[#090A0F] p-4">
           <div className="flex items-center justify-between text-xs text-zinc-400">
             <span>{t.analytics.hireSubmissions}</span>
             <Send className="h-4 w-4 text-emerald-400" aria-hidden="true" />
           </div>
-          <p className="mt-2 font-display text-3xl font-bold text-white tabular-nums">
+          <p className="mt-2 font-display text-2xl font-bold text-white tabular-nums">
             <AnimatedCounter value={summary.totalHireSubmits} />
             <span className="ml-1.5 text-sm font-normal text-zinc-400">
               / <AnimatedCounter value={summary.totalHireOpens} /> {t.analytics.opensSuffix}
@@ -385,16 +369,13 @@ export const AdminAnalyticsPanel: React.FC<AdminAnalyticsPanelProps> = ({
       </div>
 
       {/* Visitor Countries & Age Groups Row */}
-      <div className="grid grid-cols-1 gap-6 lg:grid-cols-12">
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-12">
         {/* Visitor Countries */}
-        <div className="rounded-xl border border-white/10 bg-[#090A0F] p-5 lg:col-span-7">
-          <div className="flex items-center justify-between border-b border-white/10 pb-4">
-            <div>
-              <div className="flex items-center gap-2">
-                <Globe2 className="h-4 w-4 text-[#38BDF8]" aria-hidden="true" />
-                <h2 className="text-sm font-semibold text-white">{t.analytics.countriesTitle}</h2>
-              </div>
-              <p className="mt-0.5 text-xs text-zinc-500">{t.analytics.countriesSubtitle}</p>
+        <div className="rounded-lg border border-white/10 bg-[#090A0F] p-4 lg:col-span-7">
+          <div className="flex items-center justify-between border-b border-white/10 pb-3">
+            <div className="flex items-center gap-2">
+              <Globe2 className="h-4 w-4 text-[#38BDF8]" aria-hidden="true" />
+              <h2 className="text-sm font-semibold text-white">{t.analytics.countriesTitle}</h2>
             </div>
             <span className="font-mono text-xs text-zinc-400 tabular-nums">
               <AnimatedCounter value={countryStats.total} /> {t.overview.totalSuffix}
@@ -402,9 +383,7 @@ export const AdminAnalyticsPanel: React.FC<AdminAnalyticsPanelProps> = ({
           </div>
 
           {countryStats.rows.length === 0 ? (
-            <p className="mt-4 rounded-lg border border-white/10 bg-[#050507] px-3.5 py-3 text-xs text-zinc-400">
-              {t.analytics.noCountryData}
-            </p>
+            <p className="mt-4 text-xs text-zinc-500">{t.analytics.noCountryData}</p>
           ) : (
             <div className="mt-4 space-y-3">
               {countryStats.rows.map((country) => {
@@ -440,56 +419,46 @@ export const AdminAnalyticsPanel: React.FC<AdminAnalyticsPanelProps> = ({
         </div>
 
         {/* Reported Visitor Age Groups */}
-        <div className="rounded-xl border border-white/10 bg-[#090A0F] p-5 lg:col-span-5 flex flex-col justify-between">
-          <div>
-            <div className="flex items-center justify-between border-b border-white/10 pb-4">
-              <div>
-                <div className="flex items-center gap-2">
-                  <UserCheck className="h-4 w-4 text-accent-light" aria-hidden="true" />
-                  <h2 className="text-sm font-semibold text-white">{t.analytics.ageGroupsTitle}</h2>
-                </div>
-                <p className="mt-0.5 text-xs text-zinc-500">{t.analytics.ageGroupsSubtitle}</p>
-              </div>
-              <span className="font-mono text-xs text-zinc-400 tabular-nums">
-                <AnimatedCounter value={ageStats.total} />
-              </span>
+        <div className="rounded-lg border border-white/10 bg-[#090A0F] p-4 lg:col-span-5">
+          <div className="flex items-center justify-between border-b border-white/10 pb-3">
+            <div className="flex items-center gap-2">
+              <UserCheck className="h-4 w-4 text-accent-light" aria-hidden="true" />
+              <h2 className="text-sm font-semibold text-white">{t.analytics.ageGroupsTitle}</h2>
             </div>
-
-            <div className="mt-4 space-y-3">
-              {ageStats.ordered.map((bucket) => {
-                const pct =
-                  ageStats.total > 0 ? Math.round((bucket.count / ageStats.total) * 100) : 0;
-                return (
-                  <div key={bucket.code} className="space-y-1.5">
-                    <div className="flex items-center justify-between text-xs">
-                      <span className="font-mono font-medium text-zinc-200">{bucket.code}</span>
-                      <span className="font-mono text-xs text-zinc-300 tabular-nums">
-                        <AnimatedCounter value={bucket.count} />{' '}
-                        <span className="text-zinc-500">({pct}%)</span>
-                      </span>
-                    </div>
-                    <div className="h-1.5 w-full overflow-hidden rounded-full bg-white/10">
-                      <div
-                        className="h-full rounded-full bg-accent transition-all duration-300"
-                        style={{ width: `${bucket.count > 0 ? Math.max(6, pct) : 0}%` }}
-                      />
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
+            <span className="font-mono text-xs text-zinc-400 tabular-nums">
+              <AnimatedCounter value={ageStats.total} />
+            </span>
           </div>
 
-          <div className="mt-5 flex items-start gap-2 rounded-lg border border-white/10 bg-[#050507] px-3 py-2.5 text-[11px] leading-relaxed text-zinc-400">
-            <ShieldCheck className="mt-0.5 h-3.5 w-3.5 shrink-0 text-emerald-400" aria-hidden="true" />
-            <span>{t.analytics.agePrivacyNote}</span>
+          <div className="mt-4 space-y-3">
+            {ageStats.ordered.map((bucket) => {
+              const pct =
+                ageStats.total > 0 ? Math.round((bucket.count / ageStats.total) * 100) : 0;
+              return (
+                <div key={bucket.code} className="space-y-1.5">
+                  <div className="flex items-center justify-between text-xs">
+                    <span className="font-mono font-medium text-zinc-200">{bucket.code}</span>
+                    <span className="font-mono text-xs text-zinc-300 tabular-nums">
+                      <AnimatedCounter value={bucket.count} />{' '}
+                      <span className="text-zinc-500">({pct}%)</span>
+                    </span>
+                  </div>
+                  <div className="h-1.5 w-full overflow-hidden rounded-full bg-white/10">
+                    <div
+                      className="h-full rounded-full bg-accent transition-all duration-300"
+                      style={{ width: `${bucket.count > 0 ? Math.max(6, pct) : 0}%` }}
+                    />
+                  </div>
+                </div>
+              );
+            })}
           </div>
         </div>
       </div>
 
       {/* Traffic Chart + Top Projects */}
-      <div className="grid grid-cols-1 gap-6 lg:grid-cols-12">
-        <div className="rounded-xl border border-white/10 bg-[#090A0F] p-5 lg:col-span-7">
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-12">
+        <div className="rounded-lg border border-white/10 bg-[#090A0F] p-4 lg:col-span-7">
           <div className="flex flex-wrap items-center justify-between gap-3 border-b border-white/10 pb-4">
             <div className="flex items-center gap-2">
               <BarChart3 className="h-4 w-4 text-accent-light" aria-hidden="true" />
@@ -577,8 +546,8 @@ export const AdminAnalyticsPanel: React.FC<AdminAnalyticsPanelProps> = ({
         </div>
 
         {/* Top Clicked Projects Leaderboard */}
-        <div className="rounded-xl border border-white/10 bg-[#090A0F] p-5 lg:col-span-5">
-          <div className="flex items-center justify-between border-b border-white/10 pb-4">
+        <div className="rounded-lg border border-white/10 bg-[#090A0F] p-4 lg:col-span-5">
+          <div className="flex items-center justify-between border-b border-white/10 pb-3">
             <div className="flex items-center gap-2">
               <FolderKanban className="h-4 w-4 text-accent-light" aria-hidden="true" />
               <h2 className="text-sm font-semibold text-white">{t.analytics.mostClickedTitle}</h2>
@@ -623,8 +592,8 @@ export const AdminAnalyticsPanel: React.FC<AdminAnalyticsPanelProps> = ({
       </div>
 
       {/* Hire Me Funnel & CV Summary */}
-      <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
-        <div className="rounded-xl border border-white/10 bg-[#090A0F] p-5">
+      <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
+        <div className="rounded-lg border border-white/10 bg-[#090A0F] p-4">
           <div className="flex items-center gap-2 text-xs font-medium text-zinc-400">
             <TrendingUp className="h-4 w-4 text-emerald-400" aria-hidden="true" />
             <span>{t.analytics.hireFunnelTitle}</span>
@@ -641,7 +610,7 @@ export const AdminAnalyticsPanel: React.FC<AdminAnalyticsPanelProps> = ({
               <AnimatedCounter value={summary.totalHireSubmits} />
             </span>
           </div>
-          <div className="mt-3 h-2 w-full overflow-hidden rounded-full bg-white/10">
+          <div className="mt-3 h-1.5 w-full overflow-hidden rounded-full bg-white/10">
             <div
               className="h-full rounded-full bg-emerald-500 transition-all duration-300"
               style={{ width: `${summary.hireConvRate}%` }}
@@ -649,27 +618,26 @@ export const AdminAnalyticsPanel: React.FC<AdminAnalyticsPanelProps> = ({
           </div>
         </div>
 
-        <div className="rounded-xl border border-white/10 bg-[#090A0F] p-5">
+        <div className="rounded-lg border border-white/10 bg-[#090A0F] p-4">
           <div className="flex items-center gap-2 text-xs font-medium text-zinc-400">
             <Download className="h-4 w-4 text-[#38BDF8]" aria-hidden="true" />
             <span>{t.analytics.cvDownloadsTitle}</span>
           </div>
-          <p className="mt-3 font-display text-3xl font-bold text-white tabular-nums">
+          <p className="mt-3 font-display text-2xl font-bold text-white tabular-nums">
             <AnimatedCounter value={summary.totalCvDownloads} />
           </p>
-          <p className="mt-1 text-xs text-zinc-400">{t.analytics.cvDownloadsDesc}</p>
         </div>
 
-        <div className="rounded-xl border border-white/10 bg-[#090A0F] p-5">
+        <div className="rounded-lg border border-white/10 bg-[#090A0F] p-4">
           <div className="flex items-center gap-2 text-xs font-medium text-zinc-400">
             <Activity className="h-4 w-4 text-accent-light" aria-hidden="true" />
             <span>{t.analytics.allTimeViewsTitle}</span>
           </div>
-          <p className="mt-3 font-display text-3xl font-bold text-white tabular-nums">
+          <p className="mt-3 font-display text-2xl font-bold text-white tabular-nums">
             <AnimatedCounter value={summary.totalViews} />
           </p>
-          <p className="mt-1 text-xs text-zinc-400">
-            {t.analytics.allTimeViewsDesc} <AnimatedCounter value={dailyAnalytics.length} />
+          <p className="mt-1 font-mono text-[11px] text-zinc-500 tabular-nums">
+            <AnimatedCounter value={dailyAnalytics.length} /> {t.analytics.daysRecorded}
           </p>
         </div>
       </div>

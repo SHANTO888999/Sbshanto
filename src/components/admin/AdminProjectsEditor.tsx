@@ -8,7 +8,6 @@ import {
   EyeOff,
   Film,
   ImagePlus,
-  Info,
   Link2,
   Loader2,
   Pencil,
@@ -32,8 +31,6 @@ interface AdminProjectsEditorProps {
   projects: AdminProjectRecord[];
   saving: boolean;
   lang?: AdminLang;
-  showStarterDemoProjects?: boolean;
-  onOpenViewerControls?: () => void;
   onSaveProject: (project: AdminProjectRecord) => Promise<boolean>;
   onDeleteProject: (projectId: string) => Promise<boolean>;
   onSubViewChange?: (label: string | null) => void;
@@ -119,8 +116,6 @@ export const AdminProjectsEditor: React.FC<AdminProjectsEditorProps> = ({
   projects,
   saving,
   lang = 'en',
-  showStarterDemoProjects = true,
-  onOpenViewerControls,
   onSaveProject,
   onDeleteProject,
   onSubViewChange,
@@ -450,14 +445,11 @@ export const AdminProjectsEditor: React.FC<AdminProjectsEditorProps> = ({
               <ArrowLeft className="h-3.5 w-3.5" aria-hidden="true" />
               {t.projects.backToProjects}
             </button>
-            <div>
-              <h2 className="font-display text-2xl font-bold text-white">
-                {projects.some((p) => p.id === editing.id)
-                  ? t.projects.editHeading
-                  : t.projects.newHeading}
-              </h2>
-              <p className="text-xs text-zinc-400">{t.projects.formHint}</p>
-            </div>
+            <h2 className="font-display text-2xl font-semibold text-white">
+              {projects.some((p) => p.id === editing.id)
+                ? t.projects.editHeading
+                : t.projects.newHeading}
+            </h2>
           </div>
 
           <div className="flex items-center gap-3 shrink-0">
@@ -654,9 +646,8 @@ export const AdminProjectsEditor: React.FC<AdminProjectsEditorProps> = ({
             <div className="rounded-lg border border-white/10 bg-[#090A0F] p-4">
               <div className="flex items-center justify-between">
                 <span className="text-xs font-medium text-zinc-200">
-                  Tech Stack Tags ({editing.stack.length}/6)
+                  Tech Stack ({editing.stack.length}/6)
                 </span>
-                <span className="text-[11px] text-zinc-500">Min 1, Max 6 tags</span>
               </div>
 
               <div className="mt-3 flex flex-wrap gap-2">
@@ -716,9 +707,9 @@ export const AdminProjectsEditor: React.FC<AdminProjectsEditorProps> = ({
           </div>
 
           {/* Right Column: Live Project URL + Multi-Photo Reel / Video */}
-          <div className="space-y-5 lg:col-span-5">
-            {/* Prominent Live Project URL Box */}
-            <div className="rounded-xl border border-accent/35 bg-accent/10 p-5 space-y-3">
+          <div className="space-y-4 lg:col-span-5">
+            {/* Live Project URL */}
+            <div className="rounded-lg border border-white/10 bg-[#090A0F] p-4 space-y-2.5">
               <div className="flex items-center justify-between gap-2">
                 <div className="flex items-center gap-2 text-xs font-semibold text-white">
                   <Link2 className="h-4 w-4 text-accent-light" aria-hidden="true" />
@@ -745,12 +736,11 @@ export const AdminProjectsEditor: React.FC<AdminProjectsEditorProps> = ({
                 autoPrefixHttps
                 lang={lang}
                 placeholder="https://myproject.web.app"
-                hint={t.projects.liveUrlHint}
                 onChange={(v) => setEditing({ ...editing, liveUrl: v })}
               />
             </div>
 
-            <div className="rounded-xl border border-white/10 bg-[#090A0F] p-5">
+            <div className="rounded-lg border border-white/10 bg-[#090A0F] p-4">
               <div className="flex items-center justify-between gap-2">
                 <p className="font-mono text-[11px] uppercase tracking-wider text-zinc-300">
                   {t.projects.slidesTitle}
@@ -775,10 +765,6 @@ export const AdminProjectsEditor: React.FC<AdminProjectsEditorProps> = ({
                   </button>
                 )}
               </div>
-
-              <p className="mt-1 text-xs leading-relaxed text-zinc-400">
-                {t.projects.slidesSubtitle}
-              </p>
 
               <input
                 ref={photoInputRef}
@@ -998,13 +984,10 @@ export const AdminProjectsEditor: React.FC<AdminProjectsEditorProps> = ({
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-col gap-4 border-b border-white/10 pb-5 sm:flex-row sm:items-center sm:justify-between">
-        <div>
-          <h2 className="font-display text-2xl font-bold tracking-tight text-white">
-            {t.projects.heading} ({projects.length})
-          </h2>
-          <p className="mt-1 text-sm text-zinc-400">{t.projects.subtitle}</p>
-        </div>
+      <div className="flex flex-col gap-4 border-b border-white/10 pb-4 sm:flex-row sm:items-center sm:justify-between">
+        <h2 className="font-display text-2xl font-semibold tracking-tight text-white">
+          {t.projects.heading} ({projects.length})
+        </h2>
 
         <button
           type="button"
@@ -1015,31 +998,6 @@ export const AdminProjectsEditor: React.FC<AdminProjectsEditorProps> = ({
           {t.projects.addNew}
         </button>
       </div>
-
-      {showStarterDemoProjects && (
-        <div className="flex flex-col gap-3 rounded-xl border border-emerald-500/25 bg-emerald-500/10 p-4 sm:flex-row sm:items-center sm:justify-between">
-          <div className="flex items-start gap-2.5">
-            <Info className="mt-0.5 h-4 w-4 shrink-0 text-emerald-300" aria-hidden="true" />
-            <div>
-              <p className="text-xs font-semibold text-emerald-200">
-                {t.projects.starterDemoNoticeTitle}
-              </p>
-              <p className="mt-0.5 text-xs leading-relaxed text-emerald-100/80">
-                {t.projects.starterDemoNoticeDesc}
-              </p>
-            </div>
-          </div>
-          {onOpenViewerControls && (
-            <button
-              type="button"
-              onClick={onOpenViewerControls}
-              className="min-h-[36px] shrink-0 rounded-md border border-emerald-400/30 bg-black/30 px-3 py-1.5 text-xs font-medium text-emerald-200 hover:bg-black/50"
-            >
-              {t.projects.manageStarterToggle}
-            </button>
-          )}
-        </div>
-      )}
 
       {/* Filters & Search */}
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
@@ -1078,12 +1036,9 @@ export const AdminProjectsEditor: React.FC<AdminProjectsEditorProps> = ({
       </div>
 
       {filtered.length === 0 ? (
-        <div className="rounded-xl border border-dashed border-white/15 bg-[#090A0F] p-10 text-center">
+        <div className="rounded-lg border border-dashed border-white/15 bg-[#090A0F] p-10 text-center">
           <p className="text-sm font-medium text-zinc-200">
             {projects.length === 0 ? t.projects.emptyCloudTitle : t.projects.emptyFilterTitle}
-          </p>
-          <p className="mt-1 text-xs text-zinc-500">
-            {projects.length === 0 ? t.projects.emptyCloudDesc : t.projects.emptyFilterDesc}
           </p>
           {projects.length === 0 && (
             <button
@@ -1097,7 +1052,7 @@ export const AdminProjectsEditor: React.FC<AdminProjectsEditorProps> = ({
           )}
         </div>
       ) : (
-        <div className="divide-y divide-white/10 overflow-hidden rounded-xl border border-white/10 bg-[#090A0F]">
+        <div className="divide-y divide-white/10 overflow-hidden rounded-lg border border-white/10 bg-[#090A0F]">
           {filtered.map((proj) => (
             <div
               key={proj.id}

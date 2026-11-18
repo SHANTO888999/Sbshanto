@@ -12,7 +12,6 @@ import {
   Plus,
   RotateCcw,
   Save,
-  SlidersHorizontal,
   Trash2,
   Upload,
   X,
@@ -47,74 +46,16 @@ import { LimitedInput, LimitedTextarea, SafeUrlInput } from './FieldControls';
 
 export type ProfileSubTab = 'identity' | 'contact' | 'metrics' | 'process' | 'viewer' | 'cv';
 
-interface ViewerToggleDef {
+const COMPACT_VIEWER_TOGGLES: ReadonlyArray<{
   key: keyof ViewerControlsConfig;
-  title: string;
-  description: string;
-}
-
-const VIEWER_BAR_AND_LINE_TOGGLES: ReadonlyArray<ViewerToggleDef> = [
-  {
-    key: 'showTopScrollBar',
-    title: 'Top Red Scroll Progress Line',
-    description: 'Crimson thin line across the top edge showing page scroll progress.',
-  },
-  {
-    key: 'showBottomHud',
-    title: 'Bottom Control Bar Container',
-    description: 'Show or hide the entire floating control bar at the bottom of the viewer page.',
-  },
-  {
-    key: 'showHudProgress',
-    title: 'Build Progress & Color Line',
-    description: 'Shows cursor color dots, "0 / 36 built" text, and colorful gradient line.',
-  },
-  {
-    key: 'showMultiBackBar',
-    title: 'Viewer Multi-Back Button',
-    description: 'Floating Back button for stepping back across sections, filters, and modals.',
-  },
-];
-
-const VIEWER_BUTTON_TOGGLES: ReadonlyArray<ViewerToggleDef> = [
-  {
-    key: 'showHudCursors',
-    title: 'Live Cursors On/Off Button',
-    description: 'Button inside bottom bar to let visitors turn live cursors on or off.',
-  },
-  {
-    key: 'showHudAutoScroll',
-    title: 'Auto-Scroll / Skip / Play-Pause Button',
-    description: 'Shows the Skip button during intro and Play/Pause auto-scroll button below.',
-  },
-  {
-    key: 'showHudReplay',
-    title: 'Replay Build Button',
-    description: 'Lets visitors replay the multi-cursor page construction animation from top.',
-  },
-  {
-    key: 'showHudSound',
-    title: 'Sound Mute / Unmute Button',
-    description: 'Speaker button inside the bottom bar to mute or enable cursor sound FX.',
-  },
-];
-
-const VIEWER_DEFAULT_BEHAVIOR_TOGGLES: ReadonlyArray<ViewerToggleDef> = [
-  {
-    key: 'enableCursorsByDefault',
-    title: 'Cursors Active When Page Loads',
-    description: 'Start the multi-cursor wireframe-to-real animation automatically on open.',
-  },
-  {
-    key: 'enableAutoScrollByDefault',
-    title: 'Auto-Scroll Active When Page Loads',
-    description: 'Automatically glide down sections as cursors finish building (if cursors on).',
-  },
-  {
-    key: 'enableSoundByDefault',
-    title: 'Cursor Sound On By Default',
-    description: 'Enable interactive click/type cursor audio when page opens.',
-  },
+  en: string;
+  bn: string;
+}> = [
+  { key: 'showTopScrollBar', en: 'Top Scroll Progress Bar', bn: 'টপ স্ক্রল প্রগ্রেস লাইন' },
+  { key: 'showMultiBackBar', en: 'Floating Back Button', bn: 'ফ্লোটিং ব্যাক বাটন' },
+  { key: 'enableCursorsByDefault', en: 'Cursor Build Animation on Load', bn: 'পেজ লোডে কার্সর অ্যানিমেশন' },
+  { key: 'enableAutoScrollByDefault', en: 'Auto-Scroll on Load', bn: 'অটো-স্ক্রল চালু রাখুন' },
+  { key: 'enableSoundByDefault', en: 'Sound FX on Load', bn: 'সাউন্ড এফেক্ট চালু রাখুন' },
 ];
 
 interface AdminProfileEditorProps {
@@ -391,19 +332,16 @@ export const AdminProfileEditor: React.FC<AdminProfileEditorProps> = ({
       onKeyDown={handleFormEnterToNext}
       className="space-y-6 pb-8"
     >
-      <div className="flex flex-col gap-4 border-b border-white/10 pb-5 sm:flex-row sm:items-center sm:justify-between">
-        <div>
-          <div className="flex flex-wrap items-center gap-2.5">
-            <h2 className="font-display text-2xl font-bold tracking-tight text-white">
-              {t.profile.heading}
-            </h2>
-            {hasUnsavedChanges && (
-              <span className="rounded border border-amber-500/40 bg-amber-500/15 px-2 py-0.5 font-mono text-[10px] font-semibold uppercase tracking-wide text-amber-300">
-                {t.common.unsavedChanges}
-              </span>
-            )}
-          </div>
-          <p className="mt-1 text-sm text-zinc-400">{t.profile.subtitle}</p>
+      <div className="flex flex-col gap-4 border-b border-white/10 pb-4 sm:flex-row sm:items-center sm:justify-between">
+        <div className="flex flex-wrap items-center gap-2.5">
+          <h2 className="font-display text-2xl font-semibold tracking-tight text-white">
+            {t.profile.heading}
+          </h2>
+          {hasUnsavedChanges && (
+            <span className="rounded border border-amber-500/40 bg-amber-500/15 px-2 py-0.5 font-mono text-[10px] font-semibold uppercase tracking-wide text-amber-300">
+              {t.common.unsavedChanges}
+            </span>
+          )}
         </div>
 
         <div className="flex flex-wrap items-center gap-2.5 shrink-0">
@@ -496,7 +434,6 @@ export const AdminProfileEditor: React.FC<AdminProfileEditorProps> = ({
                 maxLength={16}
                 required
                 onChange={(v) => updateProfile('wordmark', v)}
-                hint="Shown top-left in navbar (trailing dot uses brand accent)."
               />
               <LimitedInput
                 id="prof-greeting"
@@ -521,7 +458,6 @@ export const AdminProfileEditor: React.FC<AdminProfileEditorProps> = ({
                 maxLength={10}
                 required
                 onChange={(v) => updateProfile('backdropName', v.toUpperCase())}
-                hint="Keep <= 10 uppercase chars so it stays framed behind portrait."
               />
             </div>
 
@@ -596,11 +532,10 @@ export const AdminProfileEditor: React.FC<AdminProfileEditorProps> = ({
               {!isUploadedPortrait && (
                 <SafeUrlInput
                   id="prof-portrait"
-                  label="Or Paste Portrait Path / URL (optional)"
+                  label="Portrait Path / URL (optional)"
                   value={p.portraitUrl}
                   maxLength={500}
                   onChange={(v) => updateProfile('portraitUrl', v)}
-                  hint="Leave blank for the default cutout or paste any public https:// transparent PNG."
                 />
               )}
             </div>
@@ -659,7 +594,6 @@ export const AdminProfileEditor: React.FC<AdminProfileEditorProps> = ({
               maxLength={80}
               required
               onChange={(v) => updateProfile('email', v)}
-              hint="Displayed on Contact footer and mailto replies."
             />
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
               <LimitedInput
@@ -1155,80 +1089,40 @@ export const AdminProfileEditor: React.FC<AdminProfileEditorProps> = ({
       )}
 
       {subTab === 'viewer' && (
-        <div className="space-y-6">
-          <div className="flex flex-col gap-3 rounded-xl border border-white/10 bg-[#090A0F] p-5 sm:flex-row sm:items-center sm:justify-between">
-            <div className="flex items-start gap-3">
-              <div className="mt-0.5 inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-accent/30 bg-accent/10 text-accent-light">
-                <SlidersHorizontal className="h-4 w-4" aria-hidden="true" />
-              </div>
-              <div>
-                <h3 className="text-sm font-semibold text-white">
-                  Viewer Page Controls, Speed &amp; Accent Theme
-                </h3>
-                <p className="mt-0.5 text-xs leading-relaxed text-zinc-400">
-                  Control cursor animation speed, brand accent color, bottom bar buttons, and
-                  public CV visibility. Tap Save Profile &amp; Settings to publish changes.
-                </p>
-              </div>
-            </div>
-
-            <div className="flex flex-wrap gap-2 shrink-0">
-              <button
-                type="button"
-                onClick={() => {
-                  applyDocumentAccentTheme(DEFAULT_VIEWER_CONTROLS.accentColor);
-                  onChange({
-                    ...draft,
-                    viewerControls: { ...DEFAULT_VIEWER_CONTROLS },
-                  });
-                }}
-                className="min-h-[36px] rounded-md border border-white/15 bg-[#101218] px-3 py-1.5 text-xs font-medium text-zinc-200 hover:bg-white/5"
-              >
-                Reset Viewer Defaults
-              </button>
-              <button
-                type="button"
-                onClick={() =>
-                  onChange({
-                    ...draft,
-                    viewerControls: {
-                      ...vc,
-                      showTopScrollBar: false,
-                      showBottomHud: false,
-                      showHudProgress: false,
-                      showHudCursors: false,
-                      showHudAutoScroll: false,
-                      showHudReplay: false,
-                      showHudSound: false,
-                    },
-                  })
-                }
-                className="min-h-[36px] rounded-md border border-white/15 bg-[#101218] px-3 py-1.5 text-xs font-medium text-zinc-300 hover:bg-white/5"
-              >
-                Hide All Bottom Bars
-              </button>
-            </div>
-          </div>
-
+        <div className="space-y-5">
           {/* Cursor Speed & Brand Theme Accent Control */}
           <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
             {/* Cursor Animation Speed */}
-            <div className="rounded-xl border border-white/10 bg-[#090A0F] p-5">
-              <div className="flex items-center gap-2.5">
-                <Gauge className="h-4 w-4 text-accent-light" aria-hidden="true" />
-                <h4 className="text-sm font-semibold text-white">Cursor Animation Speed</h4>
+            <div className="rounded-lg border border-white/10 bg-[#090A0F] p-4">
+              <div className="flex items-center justify-between gap-2">
+                <div className="flex items-center gap-2">
+                  <Gauge className="h-4 w-4 text-accent-light" aria-hidden="true" />
+                  <h4 className="text-sm font-semibold text-white">
+                    {lang === 'bn' ? 'কার্সর স্পিড' : 'Cursor Speed'}
+                  </h4>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => {
+                    applyDocumentAccentTheme(DEFAULT_VIEWER_CONTROLS.accentColor);
+                    onChange({
+                      ...draft,
+                      viewerControls: { ...DEFAULT_VIEWER_CONTROLS },
+                    });
+                  }}
+                  className="rounded border border-white/15 px-2.5 py-1 text-[11px] font-medium text-zinc-300 hover:bg-white/5 hover:text-white"
+                >
+                  {lang === 'bn' ? 'রিসেট' : 'Reset'}
+                </button>
               </div>
-              <p className="mt-1 text-xs text-zinc-400">
-                Choose how fast the 18 design cursors build sections and glide across the public site.
-              </p>
 
-              <div className="mt-4 grid grid-cols-3 gap-2">
+              <div className="mt-3 grid grid-cols-3 gap-2">
                 {(
                   [
-                    { id: 'slow', label: 'Slow', sub: 'Cinematic 0.65×' },
-                    { id: 'normal', label: 'Normal', sub: 'Balanced 1.0×' },
-                    { id: 'fast', label: 'Fast', sub: 'Snappy 1.7×' },
-                  ] as ReadonlyArray<{ id: CursorSpeed; label: string; sub: string }>
+                    { id: 'slow', label: lang === 'bn' ? 'স্লো · 0.65×' : 'Slow · 0.65×' },
+                    { id: 'normal', label: lang === 'bn' ? 'নরমাল · 1.0×' : 'Normal · 1.0×' },
+                    { id: 'fast', label: lang === 'bn' ? 'ফাস্ট · 1.7×' : 'Fast · 1.7×' },
+                  ] as ReadonlyArray<{ id: CursorSpeed; label: string }>
                 ).map((opt) => {
                   const selected = (vc.cursorSpeed ?? 'normal') === opt.id;
                   return (
@@ -1236,14 +1130,13 @@ export const AdminProfileEditor: React.FC<AdminProfileEditorProps> = ({
                       key={opt.id}
                       type="button"
                       onClick={() => updateViewerControl('cursorSpeed', opt.id)}
-                      className={`rounded-lg border px-3 py-2.5 text-left transition-colors ${
+                      className={`rounded-md border px-2.5 py-2 text-center font-mono text-xs font-medium transition-colors ${
                         selected
                           ? 'border-accent bg-accent/15 text-white'
-                          : 'border-white/10 bg-[#0D0F16] text-zinc-300 hover:border-white/25 hover:text-white'
+                          : 'border-white/10 bg-[#0D0F16] text-zinc-400 hover:border-white/25 hover:text-white'
                       }`}
                     >
-                      <div className="text-xs font-semibold">{opt.label}</div>
-                      <div className="mt-0.5 font-mono text-[10px] text-zinc-400">{opt.sub}</div>
+                      {opt.label}
                     </button>
                   );
                 })}
@@ -1251,21 +1144,20 @@ export const AdminProfileEditor: React.FC<AdminProfileEditorProps> = ({
             </div>
 
             {/* Brand Theme Accent Color */}
-            <div className="rounded-xl border border-white/10 bg-[#090A0F] p-5">
+            <div className="rounded-lg border border-white/10 bg-[#090A0F] p-4">
               <div className="flex items-center justify-between gap-2">
-                <div className="flex items-center gap-2.5">
+                <div className="flex items-center gap-2">
                   <Palette className="h-4 w-4 text-accent-light" aria-hidden="true" />
-                  <h4 className="text-sm font-semibold text-white">Brand Theme Accent Color</h4>
+                  <h4 className="text-sm font-semibold text-white">
+                    {lang === 'bn' ? 'থিম কালার' : 'Accent Color'}
+                  </h4>
                 </div>
-                <span className="font-mono text-xs text-zinc-300">
+                <span className="font-mono text-xs text-zinc-400">
                   {sanitizeHexColor(vc.accentColor, DEFAULT_ACCENT_COLOR)}
                 </span>
               </div>
-              <p className="mt-1 text-xs text-zinc-400">
-                Replaces red highlights, buttons, borders, and PDF accent color across the entire site.
-              </p>
 
-              <div className="mt-4 flex flex-wrap items-center gap-2">
+              <div className="mt-3 flex flex-wrap items-center gap-2">
                 {ACCENT_PRESETS.map((preset) => {
                   const active =
                     sanitizeHexColor(vc.accentColor, DEFAULT_ACCENT_COLOR) === preset.hex;
@@ -1275,14 +1167,14 @@ export const AdminProfileEditor: React.FC<AdminProfileEditorProps> = ({
                       type="button"
                       onClick={() => updateViewerControl('accentColor', preset.hex)}
                       title={preset.name}
-                      className={`inline-flex items-center gap-2 rounded-lg border px-2.5 py-1.5 text-xs font-medium transition-colors ${
+                      className={`inline-flex items-center gap-2 rounded-md border px-2.5 py-1.5 text-xs font-medium transition-colors ${
                         active
                           ? 'border-white bg-white/10 text-white'
                           : 'border-white/10 bg-[#0D0F16] text-zinc-300 hover:border-white/25'
                       }`}
                     >
                       <span
-                        className="h-3.5 w-3.5 rounded-full border border-white/30"
+                        className="h-3 w-3 rounded-full border border-white/30"
                         style={{ backgroundColor: preset.hex }}
                       />
                       <span>{preset.name.split(' ')[1] ?? preset.name}</span>
@@ -1290,31 +1182,23 @@ export const AdminProfileEditor: React.FC<AdminProfileEditorProps> = ({
                   );
                 })}
 
-                <label className="inline-flex cursor-pointer items-center gap-2 rounded-lg border border-white/15 bg-[#0D0F16] px-2.5 py-1.5 text-xs font-medium text-zinc-200 hover:border-white/30">
+                <label className="inline-flex cursor-pointer items-center gap-2 rounded-md border border-white/15 bg-[#0D0F16] px-2.5 py-1.5 text-xs font-medium text-zinc-200 hover:border-white/30">
                   <input
                     type="color"
                     aria-label="Pick custom accent color"
                     value={sanitizeHexColor(vc.accentColor, DEFAULT_ACCENT_COLOR)}
                     onChange={(e) => updateViewerControl('accentColor', e.target.value.toUpperCase())}
-                    className="h-4 w-4 cursor-pointer rounded border-0 bg-transparent p-0"
+                    className="h-3.5 w-3.5 cursor-pointer rounded border-0 bg-transparent p-0"
                   />
-                  <span>Custom</span>
+                  <span>{lang === 'bn' ? 'কাস্টম' : 'Custom'}</span>
                 </label>
               </div>
             </div>
           </div>
 
-          <div className="space-y-3">
-            <h4 className="font-mono text-[11px] font-semibold uppercase tracking-wider text-zinc-400">
-              {lang === 'bn' ? 'প্রজেক্ট শোকেস' : 'Portfolio Works Display'}
-            </h4>
-            <div className="flex items-center justify-between gap-4 rounded-xl border border-emerald-500/25 bg-[#090A0F] p-4">
-              <div className="min-w-0">
-                <p className="text-sm font-medium text-white">{t.profile.starterDemosTitle}</p>
-                <p className="mt-0.5 text-xs leading-relaxed text-zinc-400">
-                  {t.profile.starterDemosDesc}
-                </p>
-              </div>
+          <div className="divide-y divide-white/10 overflow-hidden rounded-lg border border-white/10 bg-[#090A0F]">
+            <div className="flex items-center justify-between gap-4 px-4 py-3">
+              <span className="text-sm font-medium text-white">{t.profile.starterDemosTitle}</span>
               <button
                 type="button"
                 role="switch"
@@ -1326,208 +1210,156 @@ export const AdminProfileEditor: React.FC<AdminProfileEditorProps> = ({
                     vc.showStarterDemoProjects === false
                   )
                 }
-                className={`relative inline-flex h-8 w-16 shrink-0 items-center justify-between rounded-md border px-2 text-[11px] font-bold tracking-wide transition-colors ${
+                className={`relative inline-flex h-7 w-14 shrink-0 items-center justify-center rounded border px-2 font-mono text-[11px] font-bold transition-colors ${
                   vc.showStarterDemoProjects !== false
                     ? 'border-emerald-500 bg-emerald-600 text-white'
                     : 'border-white/15 bg-[#111218] text-zinc-400 hover:text-white'
                 }`}
               >
-                <span className="mx-auto">
-                  {vc.showStarterDemoProjects !== false ? 'ON' : 'OFF'}
-                </span>
+                {vc.showStarterDemoProjects !== false ? 'ON' : 'OFF'}
               </button>
             </div>
+
+            {COMPACT_VIEWER_TOGGLES.map((item) => {
+              const enabled = Boolean(vc[item.key]);
+              const label = lang === 'bn' ? item.bn : item.en;
+              return (
+                <div
+                  key={item.key}
+                  className="flex items-center justify-between gap-4 px-4 py-3"
+                >
+                  <span className="text-sm font-medium text-white">{label}</span>
+                  <button
+                    type="button"
+                    role="switch"
+                    aria-checked={enabled}
+                    aria-label={label}
+                    onClick={() => updateViewerControl(item.key, !enabled)}
+                    className={`relative inline-flex h-7 w-14 shrink-0 items-center justify-center rounded border px-2 font-mono text-[11px] font-bold transition-colors ${
+                      enabled
+                        ? 'border-accent bg-accent text-white'
+                        : 'border-white/15 bg-[#111218] text-zinc-400 hover:text-white'
+                    }`}
+                  >
+                    {enabled ? 'ON' : 'OFF'}
+                  </button>
+                </div>
+              );
+            })}
           </div>
-
-          {[
-            { heading: 'Bars & Color Lines', items: VIEWER_BAR_AND_LINE_TOGGLES },
-            { heading: 'Bottom Bar Buttons', items: VIEWER_BUTTON_TOGGLES },
-            { heading: 'Default Startup Behavior', items: VIEWER_DEFAULT_BEHAVIOR_TOGGLES },
-          ].map((group) => (
-            <div key={group.heading} className="space-y-3">
-              <h4 className="font-mono text-[11px] font-semibold uppercase tracking-wider text-zinc-400">
-                {group.heading}
-              </h4>
-              <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
-                {group.items.map((item) => {
-                  const enabled = Boolean(vc[item.key]);
-                  return (
-                    <div
-                      key={item.key}
-                      className="flex items-center justify-between gap-4 rounded-xl border border-white/10 bg-[#090A0F] p-4"
-                    >
-                      <div className="min-w-0">
-                        <p className="text-sm font-medium text-white">{item.title}</p>
-                        <p className="mt-0.5 text-xs leading-relaxed text-zinc-400">
-                          {item.description}
-                        </p>
-                      </div>
-
-                      <button
-                        type="button"
-                        role="switch"
-                        aria-checked={enabled}
-                        aria-label={item.title}
-                        onClick={() => updateViewerControl(item.key, !enabled)}
-                        className={`relative inline-flex h-8 w-16 shrink-0 items-center justify-between rounded-md border px-2 text-[11px] font-bold tracking-wide transition-colors ${
-                          enabled
-                            ? 'border-accent bg-accent text-white'
-                            : 'border-white/15 bg-[#111218] text-zinc-400 hover:text-white'
-                        }`}
-                      >
-                        <span className="mx-auto">{enabled ? 'ON' : 'OFF'}</span>
-                      </button>
-                    </div>
-                  );
-                })}
-              </div>
-            </div>
-          ))}
         </div>
       )}
 
       {subTab === 'cv' && (
-        <div className="space-y-6">
-          {/* Public Visibility Switch Banner (CRITICAL Custom Condition) */}
-          <div className="flex flex-col gap-4 rounded-xl border border-white/12 bg-[#090A0F] p-5 sm:flex-row sm:items-center sm:justify-between">
-            <div className="flex items-start gap-3">
+        <div className="space-y-5">
+          {/* Public Visibility Switch */}
+          <div className="flex flex-col gap-3 rounded-lg border border-white/10 bg-[#090A0F] p-4 sm:flex-row sm:items-center sm:justify-between">
+            <div className="flex items-center gap-3">
               <div
-                className={`mt-0.5 inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border ${
+                className={`inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-md border ${
                   vc.showCvDownloadOnViewer
                     ? 'border-emerald-500/40 bg-emerald-500/15 text-emerald-300'
                     : 'border-white/15 bg-white/5 text-zinc-400'
                 }`}
               >
                 {vc.showCvDownloadOnViewer ? (
-                  <Eye className="h-5 w-5" aria-hidden="true" />
+                  <Eye className="h-4 w-4" aria-hidden="true" />
                 ) : (
-                  <EyeOff className="h-5 w-5" aria-hidden="true" />
+                  <EyeOff className="h-4 w-4" aria-hidden="true" />
                 )}
               </div>
-              <div>
-                <div className="flex flex-wrap items-center gap-2">
-                  <h3 className="text-sm font-semibold text-white">
-                    Public Website CV Download Visibility
-                  </h3>
-                  <span
-                    className={`rounded px-2 py-0.5 font-mono text-[10px] font-bold uppercase ${
-                      vc.showCvDownloadOnViewer
-                        ? 'bg-emerald-500/20 text-emerald-300'
-                        : 'bg-zinc-800 text-zinc-300'
-                    }`}
-                  >
-                    {vc.showCvDownloadOnViewer
-                      ? 'ON · Visible on Public Site'
-                      : 'OFF · Admin Panel Only'}
-                  </span>
-                </div>
-                <p className="mt-1 text-xs leading-relaxed text-zinc-400">
-                  When switched OFF (default), visitors on your public website will NOT see any CV
-                  download button—you can still generate and download your PDF anytime right here in
-                  the Admin Panel. Switch ON and Save when you want visitors to download it.
-                </p>
+              <div className="flex flex-wrap items-center gap-2">
+                <h3 className="text-sm font-semibold text-white">{t.profile.publicCvTitle}</h3>
+                <span
+                  className={`rounded px-2 py-0.5 font-mono text-[10px] font-semibold uppercase ${
+                    vc.showCvDownloadOnViewer
+                      ? 'bg-emerald-500/20 text-emerald-300'
+                      : 'bg-zinc-800 text-zinc-400'
+                  }`}
+                >
+                  {vc.showCvDownloadOnViewer ? 'PUBLIC' : 'HIDDEN'}
+                </span>
               </div>
             </div>
 
-            <button
-              type="button"
-              role="switch"
-              aria-checked={Boolean(vc.showCvDownloadOnViewer)}
-              aria-label="Show CV Download on Public Website"
-              onClick={() =>
-                updateViewerControl('showCvDownloadOnViewer', !vc.showCvDownloadOnViewer)
-              }
-              className={`relative inline-flex h-10 w-24 shrink-0 items-center justify-center rounded-lg border px-3 text-xs font-bold tracking-wide transition-colors ${
-                vc.showCvDownloadOnViewer
-                  ? 'border-emerald-500 bg-emerald-600 text-white'
-                  : 'border-white/15 bg-[#12131A] text-zinc-300 hover:border-white/30 hover:text-white'
-              }`}
-            >
-              {vc.showCvDownloadOnViewer ? 'PUBLIC ON' : 'ADMIN ONLY'}
-            </button>
-          </div>
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={() => downloadPortfolioCv(draft)}
+                className="inline-flex min-h-[38px] items-center gap-1.5 rounded-md border border-white/15 bg-[#101218] px-3 py-1.5 text-xs font-medium text-zinc-200 hover:border-white/30 hover:text-white"
+              >
+                <Download className="h-3.5 w-3.5" aria-hidden="true" />
+                {t.overview.downloadCv}
+              </button>
 
-          {/* Instant Admin Download & Preview */}
-          <div className="flex flex-col gap-4 rounded-xl border border-accent/30 bg-accent/10 p-5 sm:flex-row sm:items-center sm:justify-between">
-            <div className="flex items-start gap-3">
-              <FileText className="mt-0.5 h-5 w-5 shrink-0 text-accent-light" aria-hidden="true" />
-              <div>
-                <h4 className="text-sm font-semibold text-white">
-                  Instant Admin CV PDF Generator
-                </h4>
-                <p className="mt-0.5 text-xs text-zinc-300">
-                  Downloads a clean PDF built live from your Experience, Core Stack, Projects,
-                  Milestones, and selected accent color (or opens your custom PDF if set below).
-                </p>
-              </div>
+              <button
+                type="button"
+                role="switch"
+                aria-checked={Boolean(vc.showCvDownloadOnViewer)}
+                aria-label={t.profile.publicCvTitle}
+                onClick={() =>
+                  updateViewerControl('showCvDownloadOnViewer', !vc.showCvDownloadOnViewer)
+                }
+                className={`inline-flex h-[38px] w-16 shrink-0 items-center justify-center rounded-md border font-mono text-xs font-bold transition-colors ${
+                  vc.showCvDownloadOnViewer
+                    ? 'border-emerald-500 bg-emerald-600 text-white'
+                    : 'border-white/15 bg-[#12131A] text-zinc-300 hover:border-white/30 hover:text-white'
+                }`}
+              >
+                {vc.showCvDownloadOnViewer ? 'ON' : 'OFF'}
+              </button>
             </div>
-            <button
-              type="button"
-              onClick={() => downloadPortfolioCv(draft)}
-              className="inline-flex min-h-[42px] shrink-0 items-center justify-center gap-2 rounded-md bg-accent px-4 py-2 text-xs font-semibold text-white transition-colors hover:bg-accent-dark whitespace-nowrap"
-            >
-              <Download className="h-4 w-4" aria-hidden="true" />
-              Download / Preview CV (PDF)
-            </button>
           </div>
 
           {/* CV Source Mode & Content Options */}
-          <div className="space-y-5 rounded-xl border border-white/10 bg-[#090A0F] p-5">
-            <div>
-              <h4 className="text-sm font-semibold text-white">Resume / CV Source</h4>
-              <p className="mt-0.5 text-xs text-zinc-400">
-                Use auto-generated dynamic PDF or upload/link your own custom PDF file.
-              </p>
+          <div className="space-y-4 rounded-lg border border-white/10 bg-[#090A0F] p-4">
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+              <button
+                type="button"
+                onClick={() => updateCvSettings('mode', 'auto')}
+                className={`flex items-center gap-3 rounded-lg border p-3.5 text-left transition-colors ${
+                  cv.mode === 'auto'
+                    ? 'border-accent bg-accent/12 text-white'
+                    : 'border-white/10 bg-[#0D0F16] text-zinc-300 hover:border-white/25'
+                }`}
+              >
+                <FileText className="h-4 w-4 shrink-0 text-accent-light" aria-hidden="true" />
+                <div>
+                  <div className="text-sm font-semibold">Auto PDF</div>
+                  <div className="font-mono text-[11px] text-zinc-400">Generated from profile</div>
+                </div>
+              </button>
 
-              <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2">
-                <button
-                  type="button"
-                  onClick={() => updateCvSettings('mode', 'auto')}
-                  className={`rounded-xl border p-4 text-left transition-colors ${
-                    cv.mode === 'auto'
-                      ? 'border-accent bg-accent/12 text-white'
-                      : 'border-white/10 bg-[#0D0F16] text-zinc-300 hover:border-white/25'
-                  }`}
-                >
-                  <div className="text-sm font-semibold">Auto-Generated PDF</div>
-                  <p className="mt-1 text-xs text-zinc-400">
-                    Automatically formats your live bio, metrics, experience, stack, projects &amp;
-                    milestones into a crisp A4 PDF.
-                  </p>
-                </button>
-
-                <button
-                  type="button"
-                  onClick={() => updateCvSettings('mode', 'custom')}
-                  className={`rounded-xl border p-4 text-left transition-colors ${
-                    cv.mode === 'custom'
-                      ? 'border-accent bg-accent/12 text-white'
-                      : 'border-white/10 bg-[#0D0F16] text-zinc-300 hover:border-white/25'
-                  }`}
-                >
-                  <div className="text-sm font-semibold">Custom PDF Upload / Link</div>
-                  <p className="mt-1 text-xs text-zinc-400">
-                    Upload your own designed PDF file (&lt; 380 KB) or paste a direct PDF link
-                    (Google Drive / hosted URL).
-                  </p>
-                </button>
-              </div>
+              <button
+                type="button"
+                onClick={() => updateCvSettings('mode', 'custom')}
+                className={`flex items-center gap-3 rounded-lg border p-3.5 text-left transition-colors ${
+                  cv.mode === 'custom'
+                    ? 'border-accent bg-accent/12 text-white'
+                    : 'border-white/10 bg-[#0D0F16] text-zinc-300 hover:border-white/25'
+                }`}
+              >
+                <Upload className="h-4 w-4 shrink-0 text-accent-light" aria-hidden="true" />
+                <div>
+                  <div className="text-sm font-semibold">Custom PDF / URL</div>
+                  <div className="font-mono text-[11px] text-zinc-400">&lt; 380 KB PDF or https://</div>
+                </div>
+              </button>
             </div>
 
             <LimitedInput
               id="cv-headline"
-              label="CV Subtitle / Executive Headline"
+              label="CV Subtitle"
               value={cv.headline}
               maxLength={96}
               onChange={(v) => updateCvSettings('headline', v)}
-              hint="Shown beneath your name & role in the auto-generated PDF header."
             />
 
             {cv.mode === 'custom' && (
               <div className="space-y-3 rounded-lg border border-white/10 bg-[#050507] p-4">
                 <div className="flex flex-wrap items-center justify-between gap-2">
                   <span className="text-xs font-medium text-zinc-200">
-                    Custom PDF File or Direct URL
+                    Custom PDF / URL
                   </span>
                   {cv.customUrl && (
                     <button
@@ -1539,7 +1371,7 @@ export const AdminProfileEditor: React.FC<AdminProfileEditorProps> = ({
                       className="inline-flex items-center gap-1 rounded px-2 py-1 text-[11px] font-medium text-zinc-400 hover:bg-white/5 hover:text-white"
                     >
                       <X className="h-3 w-3" aria-hidden="true" />
-                      Clear Custom PDF
+                      {t.common.clear}
                     </button>
                   )}
                 </div>
@@ -1557,31 +1389,30 @@ export const AdminProfileEditor: React.FC<AdminProfileEditorProps> = ({
                     type="button"
                     disabled={cvBusy || saving}
                     onClick={() => cvFileInputRef.current?.click()}
-                    className="inline-flex min-h-[42px] items-center gap-2 rounded-md border border-white/15 bg-[#101218] px-3.5 py-2 text-xs font-medium text-white hover:border-accent/60 hover:bg-[#161922] disabled:opacity-50"
+                    className="inline-flex min-h-[40px] items-center gap-2 rounded-md border border-white/15 bg-[#101218] px-3.5 py-2 text-xs font-medium text-white hover:border-accent/60 hover:bg-[#161922] disabled:opacity-50"
                   >
                     {cvBusy ? (
                       <Loader2 className="h-4 w-4 animate-spin text-accent-light" aria-hidden="true" />
                     ) : (
                       <Upload className="h-4 w-4 text-accent-light" aria-hidden="true" />
                     )}
-                    {cvBusy ? 'Reading PDF...' : 'Upload PDF From Device'}
+                    {cvBusy ? t.common.working : 'Upload PDF'}
                   </button>
                 </div>
 
                 {(cvNote || cv.customUrl.startsWith('data:application/pdf')) && (
                   <p className="rounded-md border border-emerald-500/30 bg-emerald-500/10 px-3 py-2 text-xs text-emerald-200">
-                    {cvNote ?? 'Custom PDF file attached and ready to download.'}
+                    {cvNote ?? 'Custom PDF attached.'}
                   </p>
                 )}
 
                 {!cv.customUrl.startsWith('data:application/pdf') && (
                   <SafeUrlInput
                     id="cv-custom-url"
-                    label="Or Paste External PDF URL (https://...)"
+                    label="External PDF URL"
                     value={cv.customUrl}
                     maxLength={500}
                     onChange={(v) => updateCvSettings('customUrl', v)}
-                    hint="Use a direct https:// link to your resume PDF."
                   />
                 )}
               </div>

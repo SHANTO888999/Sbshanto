@@ -127,12 +127,12 @@ export const AdminCareerEditor: React.FC<AdminCareerEditorProps> = ({
               className="inline-flex min-h-[40px] items-center gap-1.5 rounded-md border border-white/15 px-3 py-1.5 text-xs font-medium text-zinc-300 hover:bg-white/5"
             >
               <ArrowLeft className="h-3.5 w-3.5" aria-hidden="true" />
-              Back
+              {t.common.back}
             </button>
-            <h2 className="font-display text-2xl font-bold text-white">
+            <h2 className="font-display text-2xl font-semibold text-white">
               {milestones.some((m) => m.id === editingMilestone.id)
-                ? 'EDIT MILESTONE'
-                : 'NEW MILESTONE'}
+                ? `${t.common.edit} ${t.career.milestonesTab}`
+                : t.career.addMilestone}
             </h2>
           </div>
 
@@ -151,7 +151,7 @@ export const AdminCareerEditor: React.FC<AdminCareerEditorProps> = ({
                   : 'border-amber-500/30 bg-amber-500/10 text-amber-300'
               }`}
             >
-              {editingMilestone.published ? 'Published' : 'Hidden Draft'}
+              {editingMilestone.published ? t.common.published : t.common.hiddenDraft}
             </button>
             <button
               type="submit"
@@ -159,7 +159,7 @@ export const AdminCareerEditor: React.FC<AdminCareerEditorProps> = ({
               className="inline-flex min-h-[40px] items-center gap-2 rounded-md bg-accent px-4 py-2 text-xs font-semibold text-white hover:bg-accent-dark disabled:opacity-60 whitespace-nowrap shrink-0"
             >
               <Save className="h-3.5 w-3.5" aria-hidden="true" />
-              {saving ? 'Saving...' : 'Save Milestone'}
+              {saving ? t.common.saving : t.career.saveMilestone}
             </button>
           </div>
         </div>
@@ -254,7 +254,7 @@ export const AdminCareerEditor: React.FC<AdminCareerEditorProps> = ({
             className="inline-flex min-h-[44px] items-center gap-2 rounded-md border border-white/15 px-4 py-2 text-xs font-medium text-zinc-300 hover:bg-white/5 hover:text-white"
           >
             <ArrowLeft className="h-3.5 w-3.5" aria-hidden="true" />
-            Back to Milestones
+            {t.common.back}
           </button>
           <button
             type="submit"
@@ -262,7 +262,7 @@ export const AdminCareerEditor: React.FC<AdminCareerEditorProps> = ({
             className="inline-flex min-h-[44px] items-center gap-2 rounded-md bg-accent px-5 py-2 text-xs font-semibold text-white hover:bg-accent-dark disabled:opacity-60"
           >
             <Save className="h-3.5 w-3.5" aria-hidden="true" />
-            {saving ? 'Saving...' : 'Save Milestone'}
+            {saving ? t.common.saving : t.career.saveMilestone}
           </button>
         </div>
       </form>
@@ -302,12 +302,12 @@ export const AdminCareerEditor: React.FC<AdminCareerEditorProps> = ({
               className="inline-flex min-h-[40px] items-center gap-1.5 rounded-md border border-white/15 px-3 py-1.5 text-xs font-medium text-zinc-300 hover:bg-white/5"
             >
               <ArrowLeft className="h-3.5 w-3.5" aria-hidden="true" />
-              Back
+              {t.common.back}
             </button>
-            <h2 className="font-display text-2xl font-bold text-white">
+            <h2 className="font-display text-2xl font-semibold text-white">
               {experience.some((ex) => ex.id === editingExp.id)
-                ? 'EDIT EXPERIENCE'
-                : 'NEW EXPERIENCE'}
+                ? `${t.common.edit} ${t.career.experienceTab}`
+                : t.career.addExperience}
             </h2>
           </div>
 
@@ -321,7 +321,7 @@ export const AdminCareerEditor: React.FC<AdminCareerEditorProps> = ({
                   : 'border-amber-500/30 bg-amber-500/10 text-amber-300'
               }`}
             >
-              {editingExp.published ? 'Published' : 'Hidden Draft'}
+              {editingExp.published ? t.common.published : t.common.hiddenDraft}
             </button>
             <button
               type="submit"
@@ -329,7 +329,7 @@ export const AdminCareerEditor: React.FC<AdminCareerEditorProps> = ({
               className="inline-flex min-h-[40px] items-center gap-2 rounded-md bg-accent px-4 py-2 text-xs font-semibold text-white hover:bg-accent-dark disabled:opacity-60 whitespace-nowrap shrink-0"
             >
               <Save className="h-3.5 w-3.5" aria-hidden="true" />
-              {saving ? 'Saving...' : 'Save Entry'}
+              {saving ? t.common.saving : t.career.saveEntry}
             </button>
           </div>
         </div>
@@ -422,7 +422,7 @@ export const AdminCareerEditor: React.FC<AdminCareerEditorProps> = ({
             className="inline-flex min-h-[44px] items-center gap-2 rounded-md border border-white/15 px-4 py-2 text-xs font-medium text-zinc-300 hover:bg-white/5 hover:text-white"
           >
             <ArrowLeft className="h-3.5 w-3.5" aria-hidden="true" />
-            Back to Timeline
+            {t.common.back}
           </button>
           <button
             type="submit"
@@ -430,7 +430,7 @@ export const AdminCareerEditor: React.FC<AdminCareerEditorProps> = ({
             className="inline-flex min-h-[44px] items-center gap-2 rounded-md bg-accent px-5 py-2 text-xs font-semibold text-white hover:bg-accent-dark disabled:opacity-60"
           >
             <Save className="h-3.5 w-3.5" aria-hidden="true" />
-            {saving ? 'Saving...' : 'Save Entry'}
+            {saving ? t.common.saving : t.career.saveEntry}
           </button>
         </div>
       </form>
@@ -439,13 +439,10 @@ export const AdminCareerEditor: React.FC<AdminCareerEditorProps> = ({
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-col gap-4 border-b border-white/10 pb-5 sm:flex-row sm:items-center sm:justify-between">
-        <div>
-          <h2 className="font-display text-2xl font-bold tracking-tight text-white">
-            {t.career.heading}
-          </h2>
-          <p className="mt-1 text-sm text-zinc-400">{t.career.subtitle}</p>
-        </div>
+      <div className="flex flex-col gap-4 border-b border-white/10 pb-4 sm:flex-row sm:items-center sm:justify-between">
+        <h2 className="font-display text-2xl font-semibold tracking-tight text-white">
+          {t.career.heading}
+        </h2>
 
         <button
           type="button"
@@ -527,7 +524,7 @@ export const AdminCareerEditor: React.FC<AdminCareerEditorProps> = ({
                     <span>{item.project}</span>
                     <span aria-hidden="true">·</span>
                     <span className={item.published ? 'text-emerald-400' : 'text-amber-400'}>
-                      {item.published ? 'Published' : 'Draft'}
+                      {item.published ? t.common.published : t.common.draft}
                     </span>
                   </div>
                   <h3 className="mt-0.5 truncate text-sm font-semibold text-white">
@@ -548,7 +545,7 @@ export const AdminCareerEditor: React.FC<AdminCareerEditorProps> = ({
                     ) : (
                       <Eye className="h-3.5 w-3.5" aria-hidden="true" />
                     )}
-                    {item.published ? 'Hide' : 'Publish'}
+                    {item.published ? t.common.hide : t.common.publish}
                   </button>
                   <button
                     type="button"
@@ -556,7 +553,7 @@ export const AdminCareerEditor: React.FC<AdminCareerEditorProps> = ({
                     className="inline-flex min-h-[38px] items-center gap-1.5 rounded-md border border-white/15 px-3 py-1.5 text-xs text-zinc-200 hover:bg-white/5"
                   >
                     <Pencil className="h-3.5 w-3.5" aria-hidden="true" />
-                    Edit
+                    {t.common.edit}
                   </button>
                   <button
                     type="button"
@@ -574,11 +571,11 @@ export const AdminCareerEditor: React.FC<AdminCareerEditorProps> = ({
           </div>
         )
       ) : experience.length === 0 ? (
-        <div className="rounded-xl border border-dashed border-white/15 bg-[#090A0F] p-10 text-center text-sm text-zinc-400">
+        <div className="rounded-lg border border-dashed border-white/15 bg-[#090A0F] p-10 text-center text-sm text-zinc-400">
           {t.career.emptyExperience}
         </div>
       ) : (
-        <div className="divide-y divide-white/10 overflow-hidden rounded-xl border border-white/10 bg-[#090A0F]">
+        <div className="divide-y divide-white/10 overflow-hidden rounded-lg border border-white/10 bg-[#090A0F]">
           {experience.map((item) => (
             <div
               key={item.id}
