@@ -32,6 +32,7 @@ import {
   DEFAULT_CV_SETTINGS,
   DEFAULT_VIEWER_CONTROLS,
   isValidEmailAddress,
+  isValidPhoneIfPresent,
   sanitizeCvSourceUrl,
   sanitizeHexColor,
   sanitizePublicUrl,
@@ -259,10 +260,52 @@ export const AdminProfileEditor: React.FC<AdminProfileEditorProps> = ({
     if (!isValidEmailAddress(p.email)) {
       return { tab: 'contact', message: 'Enter a valid public studio contact email address.' };
     }
+    if (!isValidPhoneIfPresent(p.phoneNumber)) {
+      return {
+        tab: 'contact',
+        message: 'Contact / Phone number must contain 6–18 digits (e.g. +880 1XXX-XXXXXX).',
+      };
+    }
+    if (!isValidPhoneIfPresent(p.whatsappNumber)) {
+      return {
+        tab: 'contact',
+        message: 'WhatsApp number must contain 6–18 digits (e.g. +880 1XXX-XXXXXX).',
+      };
+    }
     if (!sanitizePublicUrl(p.githubUrl, '', false)) {
       return {
         tab: 'contact',
         message: 'GitHub Profile URL must start with https:// or http://.',
+      };
+    }
+    if (p.twitterUrl.trim() && !sanitizePublicUrl(p.twitterUrl, '', false)) {
+      return {
+        tab: 'contact',
+        message: 'Twitter / X URL must start with https:// or http://.',
+      };
+    }
+    if (p.behanceUrl.trim() && !sanitizePublicUrl(p.behanceUrl, '', false)) {
+      return {
+        tab: 'contact',
+        message: 'Behance URL must start with https:// or http://.',
+      };
+    }
+    if (p.facebookUrl.trim() && !sanitizePublicUrl(p.facebookUrl, '', false)) {
+      return {
+        tab: 'contact',
+        message: 'Facebook URL must start with https:// or http://.',
+      };
+    }
+    if (p.linkedinUrl.trim() && !sanitizePublicUrl(p.linkedinUrl, '', false)) {
+      return {
+        tab: 'contact',
+        message: 'LinkedIn URL must start with https:// or http://.',
+      };
+    }
+    if (p.instagramUrl.trim() && !sanitizePublicUrl(p.instagramUrl, '', false)) {
+      return {
+        tab: 'contact',
+        message: 'Instagram URL must start with https:// or http://.',
       };
     }
     if (
@@ -586,15 +629,108 @@ export const AdminProfileEditor: React.FC<AdminProfileEditorProps> = ({
       {subTab === 'contact' && (
         <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
           <div className="space-y-4">
-            <LimitedInput
-              id="prof-email"
-              label="Public Studio Contact Email"
-              type="email"
-              value={p.email}
-              maxLength={80}
-              required
-              onChange={(v) => updateProfile('email', v)}
-            />
+            <div className="space-y-4 rounded-xl border border-white/10 bg-[#090A0F] p-4">
+              <p className="font-mono text-[11px] uppercase tracking-wider text-zinc-400">
+                {lang === 'bn'
+                  ? 'ওয়েবসাইটের নিচের কন্টাক্ট ডিটেইলস'
+                  : 'Footer Direct Contact Details'}
+              </p>
+
+              <LimitedInput
+                id="prof-email"
+                label={lang === 'bn' ? 'ইমেইল অ্যাড্রেস (Email)' : 'Public Studio Contact Email'}
+                type="email"
+                value={p.email}
+                maxLength={80}
+                required
+                onChange={(v) => updateProfile('email', v)}
+              />
+
+              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                <LimitedInput
+                  id="prof-whatsapp"
+                  label={lang === 'bn' ? 'হোয়াটসঅ্যাপ নম্বর (WhatsApp)' : 'WhatsApp Number'}
+                  type="tel"
+                  value={p.whatsappNumber}
+                  maxLength={24}
+                  placeholder="+880 1XXX-XXXXXX"
+                  onChange={(v) => updateProfile('whatsappNumber', v)}
+                />
+                <LimitedInput
+                  id="prof-phone"
+                  label={lang === 'bn' ? 'ফোন / কন্টাক্ট নম্বর (Phone)' : 'Contact / Phone Number'}
+                  type="tel"
+                  value={p.phoneNumber}
+                  maxLength={24}
+                  placeholder="+880 1XXX-XXXXXX"
+                  onChange={(v) => updateProfile('phoneNumber', v)}
+                />
+              </div>
+
+              <LimitedInput
+                id="prof-location"
+                label={lang === 'bn' ? 'ঠিকানা / শহর (Location)' : 'Location / City'}
+                value={p.location}
+                maxLength={60}
+                placeholder="Dhaka, Bangladesh"
+                onChange={(v) => updateProfile('location', v)}
+              />
+
+              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                <SafeUrlInput
+                  id="prof-linkedin"
+                  label={lang === 'bn' ? 'লিংকডইন লিংক (LinkedIn)' : 'LinkedIn URL (optional)'}
+                  value={p.linkedinUrl}
+                  maxLength={300}
+                  placeholder="https://linkedin.com/in/..."
+                  autoPrefixHttps
+                  lang={lang}
+                  onChange={(v) => updateProfile('linkedinUrl', v)}
+                />
+                <SafeUrlInput
+                  id="prof-twitter"
+                  label={lang === 'bn' ? 'টুইটার / X লিংক' : 'Twitter / X URL (optional)'}
+                  value={p.twitterUrl}
+                  maxLength={300}
+                  placeholder="https://x.com/..."
+                  autoPrefixHttps
+                  lang={lang}
+                  onChange={(v) => updateProfile('twitterUrl', v)}
+                />
+                <SafeUrlInput
+                  id="prof-behance"
+                  label={lang === 'bn' ? 'বিহ্যান্স লিংক (Behance)' : 'Behance URL (optional)'}
+                  value={p.behanceUrl}
+                  maxLength={300}
+                  placeholder="https://behance.net/..."
+                  autoPrefixHttps
+                  lang={lang}
+                  onChange={(v) => updateProfile('behanceUrl', v)}
+                />
+                <SafeUrlInput
+                  id="prof-facebook"
+                  label={lang === 'bn' ? 'ফেসবুক লিংক (Facebook)' : 'Facebook URL (optional)'}
+                  value={p.facebookUrl}
+                  maxLength={300}
+                  placeholder="https://facebook.com/..."
+                  autoPrefixHttps
+                  lang={lang}
+                  onChange={(v) => updateProfile('facebookUrl', v)}
+                />
+              </div>
+
+              <SafeUrlInput
+                id="prof-instagram"
+                label={lang === 'bn' ? 'ইনস্টাগ্রাম লিংক (Instagram)' : 'Instagram URL (optional)'}
+                value={p.instagramUrl}
+                maxLength={300}
+                placeholder="https://instagram.com/..."
+                autoPrefixHttps
+                lang={lang}
+                onChange={(v) => updateProfile('instagramUrl', v)}
+              />
+            </div>
+
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
               <LimitedInput
                 id="prof-gh-handle"
@@ -619,6 +755,8 @@ export const AdminProfileEditor: React.FC<AdminProfileEditorProps> = ({
               value={p.githubUrl}
               maxLength={300}
               required
+              autoPrefixHttps
+              lang={lang}
               onChange={(v) => updateProfile('githubUrl', v)}
             />
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">

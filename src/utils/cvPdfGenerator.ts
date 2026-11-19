@@ -112,8 +112,9 @@ export function generatePortfolioCvPdf(bundle: PortfolioContentBundle): void {
 
   const contactLine = [
     profile.email,
+    profile.phoneNumber || (profile.whatsappNumber ? `WhatsApp: ${profile.whatsappNumber}` : ''),
+    profile.location,
     profile.githubHandle,
-    profile.availability,
     'sbshanto.web.app',
   ]
     .filter(Boolean)

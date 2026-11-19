@@ -22,8 +22,16 @@ export interface SiteProfile {
   bio: string;
   portraitUrl: string;
   email: string;
+  phoneNumber: string;
+  whatsappNumber: string;
+  location: string;
   githubHandle: string;
   githubUrl: string;
+  twitterUrl: string;
+  linkedinUrl: string;
+  behanceUrl: string;
+  facebookUrl: string;
+  instagramUrl: string;
   availability: string;
   disciplineSummary: string;
   craftMetricValue: string;
@@ -215,6 +223,41 @@ export function isValidEmailAddress(value: string): boolean {
   return trimmed.length >= 3 && trimmed.length <= 120 && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(trimmed);
 }
 
+export function sanitizePhoneInput(value: unknown, maxLength = 24): string {
+  if (typeof value !== 'string') return '';
+  return value
+    .replace(/[^0-9+\-\s()]/g, '')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .slice(0, maxLength);
+}
+
+export function isValidPhoneIfPresent(value: string): boolean {
+  const trimmed = value.trim();
+  if (!trimmed) return true;
+  if (!/^[0-9+\-\s()]{3,28}$/.test(trimmed)) return false;
+  const digits = trimmed.replace(/\D/g, '');
+  return digits.length >= 6 && digits.length <= 18;
+}
+
+export function formatTelHref(phone: string): string {
+  const trimmed = phone.trim();
+  if (!trimmed) return '';
+  const hasPlus = trimmed.startsWith('+');
+  const digits = trimmed.replace(/\D/g, '');
+  if (digits.length < 6) return '';
+  return `tel:${hasPlus ? '+' : ''}${digits}`;
+}
+
+export function formatWhatsappHref(phone: string): string {
+  let digits = phone.replace(/\D/g, '');
+  if (digits.length < 6) return '';
+  if (digits.length === 11 && digits.startsWith('01')) {
+    digits = `88${digits}`;
+  }
+  return `https://wa.me/${digits}`;
+}
+
 export function isVideoMediaSource(
   url?: string,
   mediaType?: 'image' | 'video'
@@ -317,8 +360,16 @@ export function normalizePortfolioContent(
     bio: clampText(rawProfile.bio, 260, dp.bio),
     portraitUrl: safePortraitUrl,
     email: clampExact(rawProfile.email, 80, dp.email),
+    phoneNumber: sanitizePhoneInput(rawProfile.phoneNumber ?? dp.phoneNumber, 24),
+    whatsappNumber: sanitizePhoneInput(rawProfile.whatsappNumber ?? dp.whatsappNumber, 24),
+    location: clampText(rawProfile.location, 60, dp.location),
     githubHandle: clampExact(rawProfile.githubHandle, 40, dp.githubHandle),
     githubUrl: sanitizePublicUrl(rawProfile.githubUrl, dp.githubUrl),
+    twitterUrl: sanitizePublicUrl(rawProfile.twitterUrl, dp.twitterUrl),
+    linkedinUrl: sanitizePublicUrl(rawProfile.linkedinUrl, dp.linkedinUrl),
+    behanceUrl: sanitizePublicUrl(rawProfile.behanceUrl, dp.behanceUrl),
+    facebookUrl: sanitizePublicUrl(rawProfile.facebookUrl, dp.facebookUrl),
+    instagramUrl: sanitizePublicUrl(rawProfile.instagramUrl, dp.instagramUrl),
     availability: clampText(rawProfile.availability, 40, dp.availability),
     disciplineSummary: clampText(rawProfile.disciplineSummary, 40, dp.disciplineSummary),
     craftMetricValue: clampExact(rawProfile.craftMetricValue, 8, dp.craftMetricValue),

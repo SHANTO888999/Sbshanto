@@ -44,7 +44,15 @@ service cloud.firestore {
       return !(field in data) || (
         data[field] is string
         && data[field].size() <= maxLen
-        && (data[field] == '' || data[field].matches('^(https?://|/|mailto:).*'))
+        && data[field].matches('^(https?://|/|mailto:).*|^$')
+      );
+    }
+
+    function isValidOptionalPhone(data, field) {
+      return !(field in data) || (
+        data[field] is string
+        && data[field].size() <= 28
+        && data[field].matches('^[0-9+\\-\\s()]{3,28}$|^$')
       );
     }
 
@@ -145,7 +153,8 @@ service cloud.firestore {
         ])
         && data.keys().hasOnly([
           'greeting', 'displayName', 'backdropName', 'wordmark', 'role', 'bio',
-          'portraitUrl', 'email', 'githubHandle', 'githubUrl', 'availability',
+          'portraitUrl', 'email', 'phoneNumber', 'whatsappNumber', 'location',
+          'githubHandle', 'githubUrl', 'twitterUrl', 'linkedinUrl', 'behanceUrl', 'facebookUrl', 'instagramUrl', 'availability',
           'disciplineSummary', 'craftMetricValue', 'craftMetricSuffix', 'craftMetricLabel',
           'craftSummary', 'quoteText', 'quoteAuthor', 'quoteRole',
           'manifestoLead', 'manifestoAvailability', 'prototypeTurnaround',
@@ -153,28 +162,36 @@ service cloud.firestore {
         ])
         && (!('viewerControls' in data) || isValidViewerControls(data.viewerControls))
         && (!('cvSettings' in data) || isValidCvSettings(data.cvSettings))
-        && data.greeting is string && data.greeting.size() >= 1 && data.greeting.size() <= 40
-        && data.displayName is string && data.displayName.size() >= 1 && data.displayName.size() <= 24
-        && data.backdropName is string && data.backdropName.size() >= 1 && data.backdropName.size() <= 14
-        && data.wordmark is string && data.wordmark.size() >= 1 && data.wordmark.size() <= 20
-        && data.role is string && data.role.size() >= 1 && data.role.size() <= 80
-        && data.bio is string && data.bio.size() >= 1 && data.bio.size() <= 300
+        && data.greeting is string && data.greeting.size() <= 40
+        && data.displayName is string && data.displayName.size() <= 24
+        && data.backdropName is string && data.backdropName.size() <= 14
+        && data.wordmark is string && data.wordmark.size() <= 20
+        && data.role is string && data.role.size() <= 80
+        && data.bio is string && data.bio.size() <= 300
         && isValidPortraitMedia(data.portraitUrl)
         && data.email is string && data.email.size() >= 3 && data.email.size() <= 100 && data.email.matches('^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$')
-        && data.githubHandle is string && data.githubHandle.size() >= 1 && data.githubHandle.size() <= 48
-        && data.githubUrl is string && data.githubUrl.size() >= 1 && data.githubUrl.size() <= 300 && data.githubUrl.matches('^(https?://|/|mailto:).*')
-        && data.availability is string && data.availability.size() >= 1 && data.availability.size() <= 48
-        && data.disciplineSummary is string && data.disciplineSummary.size() >= 1 && data.disciplineSummary.size() <= 48
-        && data.craftMetricValue is string && data.craftMetricValue.size() >= 1 && data.craftMetricValue.size() <= 12
+        && isValidOptionalPhone(data, 'phoneNumber')
+        && isValidOptionalPhone(data, 'whatsappNumber')
+        && (!('location' in data) || (data.location is string && data.location.size() <= 80))
+        && data.githubHandle is string && data.githubHandle.size() <= 48
+        && data.githubUrl is string && data.githubUrl.size() <= 300 && data.githubUrl.matches('^(https?://|/|mailto:).*')
+        && isValidOptionalUrl(data, 'twitterUrl', 300)
+        && isValidOptionalUrl(data, 'linkedinUrl', 300)
+        && isValidOptionalUrl(data, 'behanceUrl', 300)
+        && isValidOptionalUrl(data, 'facebookUrl', 300)
+        && isValidOptionalUrl(data, 'instagramUrl', 300)
+        && data.availability is string && data.availability.size() <= 48
+        && data.disciplineSummary is string && data.disciplineSummary.size() <= 48
+        && data.craftMetricValue is string && data.craftMetricValue.size() <= 12
         && data.craftMetricSuffix is string && data.craftMetricSuffix.size() <= 6
-        && data.craftMetricLabel is string && data.craftMetricLabel.size() >= 1 && data.craftMetricLabel.size() <= 64
-        && data.craftSummary is string && data.craftSummary.size() >= 1 && data.craftSummary.size() <= 260
-        && data.quoteText is string && data.quoteText.size() >= 1 && data.quoteText.size() <= 220
-        && data.quoteAuthor is string && data.quoteAuthor.size() >= 1 && data.quoteAuthor.size() <= 40
-        && data.quoteRole is string && data.quoteRole.size() >= 1 && data.quoteRole.size() <= 80
-        && data.manifestoLead is string && data.manifestoLead.size() >= 1 && data.manifestoLead.size() <= 240
-        && data.manifestoAvailability is string && data.manifestoAvailability.size() >= 1 && data.manifestoAvailability.size() <= 200
-        && data.prototypeTurnaround is string && data.prototypeTurnaround.size() >= 1 && data.prototypeTurnaround.size() <= 32
+        && data.craftMetricLabel is string && data.craftMetricLabel.size() <= 64
+        && data.craftSummary is string && data.craftSummary.size() <= 260
+        && data.quoteText is string && data.quoteText.size() <= 220
+        && data.quoteAuthor is string && data.quoteAuthor.size() <= 40
+        && data.quoteRole is string && data.quoteRole.size() <= 80
+        && data.manifestoLead is string && data.manifestoLead.size() <= 240
+        && data.manifestoAvailability is string && data.manifestoAvailability.size() <= 200
+        && data.prototypeTurnaround is string && data.prototypeTurnaround.size() <= 32
         && data.heroMetrics is list && data.heroMetrics.size() >= 1 && data.heroMetrics.size() <= 4
         && data.heroMetrics[0] is map
         && data.wireframeScenes is list && data.wireframeScenes.size() >= 1 && data.wireframeScenes.size() <= 6
@@ -264,7 +281,8 @@ service cloud.firestore {
       allow update: if isValidId(settingId) && isAdmin() && isValidPortfolioSettings(incoming())
         && incoming().diff(existing()).affectedKeys().hasOnly([
           'greeting', 'displayName', 'backdropName', 'wordmark', 'role', 'bio',
-          'portraitUrl', 'email', 'githubHandle', 'githubUrl', 'availability',
+          'portraitUrl', 'email', 'phoneNumber', 'whatsappNumber', 'location',
+          'githubHandle', 'githubUrl', 'twitterUrl', 'linkedinUrl', 'behanceUrl', 'facebookUrl', 'instagramUrl', 'availability',
           'disciplineSummary', 'craftMetricValue', 'craftMetricSuffix', 'craftMetricLabel',
           'craftSummary', 'quoteText', 'quoteAuthor', 'quoteRole',
           'manifestoLead', 'manifestoAvailability', 'prototypeTurnaround',

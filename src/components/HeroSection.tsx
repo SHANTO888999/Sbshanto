@@ -256,20 +256,39 @@ export const HeroSection: React.FC<HeroSectionProps> = ({
       id="top"
       className="relative overflow-hidden border-b border-white/10 bg-[#050507] pt-10 pb-14 lg:pt-12 lg:pb-16"
     >
-      {/* Step 0: Clean Black Canvas with S. while 18 Cursors Orbit Smoothly */}
+      {/* Step 0: Clean Black Canvas with Stylish SB Monogram while Cursors Orbit */}
       {isBlack && (
         <div
           className="pointer-events-none fixed inset-0 z-20 flex items-center justify-center bg-[#050507]"
           aria-hidden="true"
         >
-          <motion.span
-            initial={{ opacity: 0, scale: 0.85 }}
-            animate={{ opacity: 1, scale: 1 }}
-            transition={{ duration: 0.35 * speedMultiplier }}
-            className="font-display text-6xl font-bold tracking-tight text-white"
+          <div
+            className="pointer-events-none absolute h-56 w-56 rounded-full bg-accent/20 blur-[90px]"
+            aria-hidden="true"
+          />
+          <motion.div
+            initial={{ opacity: 0, scale: 0.88, y: 6 }}
+            animate={{ opacity: 1, scale: 1, y: 0 }}
+            transition={{ duration: 0.4 * speedMultiplier, ease: [0.22, 1, 0.36, 1] }}
+            className="relative flex flex-col items-center px-8 py-6 select-none"
           >
-            S<span className="text-accent">.</span>
-          </motion.span>
+            <span className="absolute top-0 left-0 h-3 w-3 border-t-2 border-l-2 border-white/30" />
+            <span className="absolute top-0 right-0 h-3 w-3 border-t-2 border-r-2 border-accent/70" />
+            <span className="absolute bottom-0 left-0 h-3 w-3 border-b-2 border-l-2 border-accent/70" />
+            <span className="absolute bottom-0 right-0 h-3 w-3 border-b-2 border-r-2 border-white/30" />
+
+            <span className="font-display text-7xl font-bold leading-none tracking-[-0.04em] sm:text-8xl">
+              <span className="text-white drop-shadow-[0_2px_18px_rgba(255,255,255,0.22)]">S</span>
+              <span className="text-accent drop-shadow-[0_2px_22px_rgba(220,38,38,0.45)]">B</span>
+            </span>
+
+            <motion.span
+              initial={{ scaleX: 0, opacity: 0 }}
+              animate={{ scaleX: 1, opacity: 1 }}
+              transition={{ duration: 0.45 * speedMultiplier, delay: 0.1 * speedMultiplier }}
+              className="mt-3 block h-[3px] w-16 origin-center rounded-full bg-gradient-to-r from-white/80 via-accent to-accent"
+            />
+          </motion.div>
         </div>
       )}
 

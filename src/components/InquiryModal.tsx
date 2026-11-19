@@ -5,8 +5,6 @@ import { isValidEmailAddress } from '../data/contentSchema';
 import {
   submitProjectInquiry,
   trackHireInquirySubmit,
-  trackVisitorAgeGroup,
-  type VisitorAgeGroup,
 } from '../firebaseViewer';
 import { copyTextSafely } from '../utils/clipboard';
 import { handleViewerFormEnterToSubmit } from '../utils/formKeyboardNav';
@@ -20,14 +18,6 @@ interface InquiryModalProps {
   trackAnalytics?: boolean;
 }
 
-const AGE_GROUPS: ReadonlyArray<{ id: VisitorAgeGroup; label: string }> = [
-  { id: 'under18', label: '< 18' },
-  { id: '18-24', label: '18–24' },
-  { id: '25-34', label: '25–34' },
-  { id: '35-44', label: '35–44' },
-  { id: '45plus', label: '45+' },
-];
-
 export const InquiryModal: React.FC<InquiryModalProps> = ({
   isOpen,
   onClose,
@@ -40,7 +30,6 @@ export const InquiryModal: React.FC<InquiryModalProps> = ({
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [scope, setScope] = useState('Website Design & Development');
-  const [ageGroup, setAgeGroup] = useState<VisitorAgeGroup | ''>('');
   const [brief, setBrief] = useState('');
   const [internalSubmitted, setInternalSubmitted] = useState(false);
   const [cloudSaved, setCloudSaved] = useState(true);
@@ -131,9 +120,6 @@ export const InquiryModal: React.FC<InquiryModalProps> = ({
       setCloudSaved(true);
       if (trackAnalytics) {
         void trackHireInquirySubmit();
-        if (ageGroup) {
-          void trackVisitorAgeGroup(ageGroup);
-        }
       }
     } catch (err) {
       console.warn('Firestore inquiry save fallback used:', err);
@@ -162,7 +148,6 @@ export const InquiryModal: React.FC<InquiryModalProps> = ({
     setCopiedBrief(false);
     setName('');
     setEmail('');
-    setAgeGroup('');
     setBrief('');
     onClose();
   };
@@ -331,31 +316,6 @@ export const InquiryModal: React.FC<InquiryModalProps> = ({
                 <option>2D / 3D Game Design &amp; Development</option>
                 <option>UI/UX Design System &amp; Prototype</option>
               </select>
-            </div>
-
-            <div>
-              <span className="block text-xs font-medium text-zinc-300">
-                Your Age Group <span className="text-zinc-500">(optional)</span>
-              </span>
-              <div className="mt-1.5 flex flex-wrap gap-1.5">
-                {AGE_GROUPS.map((opt) => {
-                  const selected = ageGroup === opt.id;
-                  return (
-                    <button
-                      key={opt.id}
-                      type="button"
-                      onClick={() => setAgeGroup(selected ? '' : opt.id)}
-                      className={`rounded border px-2.5 py-1 text-xs font-medium transition-colors ${
-                        selected
-                          ? 'border-accent bg-accent/20 text-white'
-                          : 'border-white/15 bg-[#08080A] text-zinc-300 hover:border-white/30'
-                      }`}
-                    >
-                      {opt.label}
-                    </button>
-                  );
-                })}
-              </div>
             </div>
 
             <div>

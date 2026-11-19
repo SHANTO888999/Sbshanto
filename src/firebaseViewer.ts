@@ -3,13 +3,16 @@ import {
   doc,
   getDoc,
   getDocs,
+  getFirestore,
   increment,
+  initializeFirestore,
   query,
   serverTimestamp,
   setDoc,
   updateDoc,
   where,
-} from 'firebase/firestore';
+  type Firestore,
+} from 'firebase/firestore/lite';
 import type {
   CvSettingsConfig,
   ExperienceItem,
@@ -21,14 +24,27 @@ import type {
 } from './data/contentSchema';
 import { clampText, sanitizePublicUrl } from './data/contentSchema';
 import {
-  db,
+  app,
+  firebaseConfig,
   isTransientOfflineError,
   OperationType,
   sanitizeFirestoreId,
   waitMs,
   type FirestoreErrorInfo,
-} from './firebaseClientBase';
+} from './firebaseShared';
 import { detectVisitorCountry } from './utils/visitorGeo';
+
+const db: Firestore = (() => {
+  try {
+    return initializeFirestore(
+      app,
+      { ignoreUndefinedProperties: true },
+      firebaseConfig.firestoreDatabaseId
+    );
+  } catch {
+    return getFirestore(app, firebaseConfig.firestoreDatabaseId);
+  }
+})();
 
 export type VisitorAgeGroup = 'under18' | '18-24' | '25-34' | '35-44' | '45plus';
 
@@ -70,16 +86,19 @@ export async function fetchLivePortfolioContent(): Promise<Partial<PortfolioCont
   const milestonesPath = 'milestones';
   const experiencePath = 'experience';
 
+  const withOfflineRetry = async <T,>(fn: () => Promise<T>): Promise<T> => {
+    try {
+      return await fn();
+    } catch (firstErr) {
+      if (!isTransientOfflineError(firstErr)) throw firstErr;
+      await waitMs(1000);
+      return await fn();
+    }
+  };
+
   const loadSettings = async () => {
     try {
-      let settingsSnap;
-      try {
-        settingsSnap = await getDoc(doc(db, 'site_settings', 'main'));
-      } catch (firstErr) {
-        if (!isTransientOfflineError(firstErr)) throw firstErr;
-        await waitMs(1000);
-        settingsSnap = await getDoc(doc(db, 'site_settings', 'main'));
-      }
+      const settingsSnap = await withOfflineRetry(() => getDoc(doc(db, 'site_settings', 'main')));
       if (settingsSnap.exists()) {
         const data = settingsSnap.data();
         hasRemoteData = true;
@@ -92,8 +111,16 @@ export async function fetchLivePortfolioContent(): Promise<Partial<PortfolioCont
           bio: data.bio,
           portraitUrl: data.portraitUrl,
           email: data.email,
+          phoneNumber: data.phoneNumber,
+          whatsappNumber: data.whatsappNumber,
+          location: data.location,
           githubHandle: data.githubHandle,
           githubUrl: data.githubUrl,
+          twitterUrl: data.twitterUrl,
+          linkedinUrl: data.linkedinUrl,
+          behanceUrl: data.behanceUrl,
+          facebookUrl: data.facebookUrl,
+          instagramUrl: data.instagramUrl,
           availability: data.availability,
           disciplineSummary: data.disciplineSummary,
           craftMetricValue: data.craftMetricValue,
@@ -128,8 +155,8 @@ export async function fetchLivePortfolioContent(): Promise<Partial<PortfolioCont
 
   const loadProjects = async () => {
     try {
-      const projSnap = await getDocs(
-        query(collection(db, projectsPath), where('published', '==', true))
+      const projSnap = await withOfflineRetry(() =>
+        getDocs(query(collection(db, projectsPath), where('published', '==', true)))
       );
       if (!projSnap.empty) {
         hasRemoteData = true;
@@ -182,8 +209,8 @@ export async function fetchLivePortfolioContent(): Promise<Partial<PortfolioCont
 
   const loadMilestones = async () => {
     try {
-      const msSnap = await getDocs(
-        query(collection(db, milestonesPath), where('published', '==', true))
+      const msSnap = await withOfflineRetry(() =>
+        getDocs(query(collection(db, milestonesPath), where('published', '==', true)))
       );
       if (!msSnap.empty) {
         hasRemoteData = true;
@@ -213,8 +240,8 @@ export async function fetchLivePortfolioContent(): Promise<Partial<PortfolioCont
 
   const loadExperience = async () => {
     try {
-      const expSnap = await getDocs(
-        query(collection(db, experiencePath), where('published', '==', true))
+      const expSnap = await withOfflineRetry(() =>
+        getDocs(query(collection(db, experiencePath), where('published', '==', true)))
       );
       if (!expSnap.empty) {
         hasRemoteData = true;

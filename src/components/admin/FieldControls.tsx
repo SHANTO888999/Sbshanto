@@ -14,7 +14,7 @@ interface LimitedInputProps {
   placeholder?: string;
   hint?: string;
   required?: boolean;
-  type?: 'text' | 'email' | 'url';
+  type?: 'text' | 'email' | 'url' | 'tel';
   enterKeyHint?: EnterKeyHintValue;
 }
 
