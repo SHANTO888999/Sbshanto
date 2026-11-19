@@ -1,5 +1,6 @@
 import {
   DEFAULT_CV_SETTINGS,
+  DEFAULT_SOCIAL_NAMES,
   DEFAULT_VIEWER_CONTROLS,
   type PortfolioContentBundle,
 } from './contentSchema';
@@ -24,6 +25,7 @@ export const ADMIN_INITIAL_BUNDLE: PortfolioContentBundle = {
     behanceUrl: '',
     facebookUrl: '',
     instagramUrl: '',
+    socialNames: { ...DEFAULT_SOCIAL_NAMES },
     availability: 'Available',
     disciplineSummary: 'Web · Apps · Games',
     craftMetricValue: '10',

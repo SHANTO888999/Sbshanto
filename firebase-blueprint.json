@@ -23,6 +23,7 @@
         "behanceUrl": { "type": "string", "maxLength": 300 },
         "facebookUrl": { "type": "string", "maxLength": 300 },
         "instagramUrl": { "type": "string", "maxLength": 300 },
+        "socialNames": { "type": "object" },
         "availability": { "type": "string", "maxLength": 48 },
         "disciplineSummary": { "type": "string", "maxLength": 48 },
         "craftMetricValue": { "type": "string", "maxLength": 12 },

@@ -121,6 +121,7 @@ export async function fetchLivePortfolioContent(): Promise<Partial<PortfolioCont
           behanceUrl: data.behanceUrl,
           facebookUrl: data.facebookUrl,
           instagramUrl: data.instagramUrl,
+          socialNames: data.socialNames,
           availability: data.availability,
           disciplineSummary: data.disciplineSummary,
           craftMetricValue: data.craftMetricValue,

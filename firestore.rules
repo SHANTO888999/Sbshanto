@@ -142,6 +142,18 @@ service cloud.firestore {
         && (cv.customUrl == '' || cv.customUrl.matches('^(https?://|/|data:application/pdf;base64,).*'));
     }
 
+    function isValidSocialNames(sn) {
+      return sn is map
+        && sn.keys().hasOnly(['github', 'linkedin', 'twitter', 'behance', 'facebook', 'whatsapp', 'instagram'])
+        && (!('github' in sn) || (sn.github is string && sn.github.size() <= 48))
+        && (!('linkedin' in sn) || (sn.linkedin is string && sn.linkedin.size() <= 48))
+        && (!('twitter' in sn) || (sn.twitter is string && sn.twitter.size() <= 48))
+        && (!('behance' in sn) || (sn.behance is string && sn.behance.size() <= 48))
+        && (!('facebook' in sn) || (sn.facebook is string && sn.facebook.size() <= 48))
+        && (!('whatsapp' in sn) || (sn.whatsapp is string && sn.whatsapp.size() <= 48))
+        && (!('instagram' in sn) || (sn.instagram is string && sn.instagram.size() <= 48));
+    }
+
     function isValidPortfolioSettings(data) {
       return data.keys().hasAll([
           'greeting', 'displayName', 'backdropName', 'wordmark', 'role', 'bio',
@@ -154,7 +166,7 @@ service cloud.firestore {
         && data.keys().hasOnly([
           'greeting', 'displayName', 'backdropName', 'wordmark', 'role', 'bio',
           'portraitUrl', 'email', 'phoneNumber', 'whatsappNumber', 'location',
-          'githubHandle', 'githubUrl', 'twitterUrl', 'linkedinUrl', 'behanceUrl', 'facebookUrl', 'instagramUrl', 'availability',
+          'githubHandle', 'githubUrl', 'twitterUrl', 'linkedinUrl', 'behanceUrl', 'facebookUrl', 'instagramUrl', 'socialNames', 'availability',
           'disciplineSummary', 'craftMetricValue', 'craftMetricSuffix', 'craftMetricLabel',
           'craftSummary', 'quoteText', 'quoteAuthor', 'quoteRole',
           'manifestoLead', 'manifestoAvailability', 'prototypeTurnaround',
@@ -162,6 +174,7 @@ service cloud.firestore {
         ])
         && (!('viewerControls' in data) || isValidViewerControls(data.viewerControls))
         && (!('cvSettings' in data) || isValidCvSettings(data.cvSettings))
+        && (!('socialNames' in data) || isValidSocialNames(data.socialNames))
         && data.greeting is string && data.greeting.size() <= 40
         && data.displayName is string && data.displayName.size() <= 24
         && data.backdropName is string && data.backdropName.size() <= 14
@@ -282,7 +295,7 @@ service cloud.firestore {
         && incoming().diff(existing()).affectedKeys().hasOnly([
           'greeting', 'displayName', 'backdropName', 'wordmark', 'role', 'bio',
           'portraitUrl', 'email', 'phoneNumber', 'whatsappNumber', 'location',
-          'githubHandle', 'githubUrl', 'twitterUrl', 'linkedinUrl', 'behanceUrl', 'facebookUrl', 'instagramUrl', 'availability',
+          'githubHandle', 'githubUrl', 'twitterUrl', 'linkedinUrl', 'behanceUrl', 'facebookUrl', 'instagramUrl', 'socialNames', 'availability',
           'disciplineSummary', 'craftMetricValue', 'craftMetricSuffix', 'craftMetricLabel',
           'craftSummary', 'quoteText', 'quoteAuthor', 'quoteRole',
           'manifestoLead', 'manifestoAvailability', 'prototypeTurnaround',

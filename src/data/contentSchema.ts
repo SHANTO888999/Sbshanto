@@ -13,6 +13,27 @@ export type PreviewTheme =
   | 'game-drift'
   | 'ui-system';
 
+export type SocialPlatformKey =
+  | 'github'
+  | 'linkedin'
+  | 'twitter'
+  | 'behance'
+  | 'facebook'
+  | 'whatsapp'
+  | 'instagram';
+
+export type SocialNamesConfig = Record<SocialPlatformKey, string>;
+
+export const DEFAULT_SOCIAL_NAMES: SocialNamesConfig = {
+  github: '',
+  linkedin: '',
+  twitter: '',
+  behance: '',
+  facebook: '',
+  whatsapp: '',
+  instagram: '',
+};
+
 export interface SiteProfile {
   greeting: string;
   displayName: string;
@@ -32,6 +53,7 @@ export interface SiteProfile {
   behanceUrl: string;
   facebookUrl: string;
   instagramUrl: string;
+  socialNames: SocialNamesConfig;
   availability: string;
   disciplineSummary: string;
   craftMetricValue: string;
@@ -351,6 +373,18 @@ export function normalizePortfolioContent(
       ? dp.portraitUrl
       : candidatePortrait;
 
+  const rawSocialNames = (rawProfile.socialNames ?? {}) as Partial<SocialNamesConfig>;
+  const dsn = dp.socialNames ?? DEFAULT_SOCIAL_NAMES;
+  const socialNames: SocialNamesConfig = {
+    github: clampText(rawSocialNames.github, 40, dsn.github),
+    linkedin: clampText(rawSocialNames.linkedin, 40, dsn.linkedin),
+    twitter: clampText(rawSocialNames.twitter, 40, dsn.twitter),
+    behance: clampText(rawSocialNames.behance, 40, dsn.behance),
+    facebook: clampText(rawSocialNames.facebook, 40, dsn.facebook),
+    whatsapp: clampText(rawSocialNames.whatsapp, 40, dsn.whatsapp),
+    instagram: clampText(rawSocialNames.instagram, 40, dsn.instagram),
+  };
+
   const profile: SiteProfile = {
     greeting: clampText(rawProfile.greeting, 32, dp.greeting),
     displayName: clampExact(rawProfile.displayName, 18, dp.displayName),
@@ -370,6 +404,7 @@ export function normalizePortfolioContent(
     behanceUrl: sanitizePublicUrl(rawProfile.behanceUrl, dp.behanceUrl),
     facebookUrl: sanitizePublicUrl(rawProfile.facebookUrl, dp.facebookUrl),
     instagramUrl: sanitizePublicUrl(rawProfile.instagramUrl, dp.instagramUrl),
+    socialNames,
     availability: clampText(rawProfile.availability, 40, dp.availability),
     disciplineSummary: clampText(rawProfile.disciplineSummary, 40, dp.disciplineSummary),
     craftMetricValue: clampExact(rawProfile.craftMetricValue, 8, dp.craftMetricValue),

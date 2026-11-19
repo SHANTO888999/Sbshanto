@@ -1,6 +1,7 @@
 export {
   DEFAULT_ACCENT_COLOR,
   DEFAULT_CV_SETTINGS,
+  DEFAULT_SOCIAL_NAMES,
   DEFAULT_VIEWER_CONTROLS,
 } from './contentSchema';
 
@@ -17,6 +18,8 @@ export type {
   ProjectItem,
   ServiceItem,
   SiteProfile,
+  SocialNamesConfig,
+  SocialPlatformKey,
   TechStackItem,
   ViewerControlsConfig,
   WireframeRealScene,
@@ -24,6 +27,7 @@ export type {
 
 import {
   DEFAULT_CV_SETTINGS,
+  DEFAULT_SOCIAL_NAMES,
   DEFAULT_VIEWER_CONTROLS,
   type ExperienceItem,
   type HeroMetricItem,
@@ -55,6 +59,7 @@ export const DEFAULT_SITE_PROFILE: SiteProfile = {
   behanceUrl: '',
   facebookUrl: '',
   instagramUrl: '',
+  socialNames: { ...DEFAULT_SOCIAL_NAMES },
   availability: 'Remote Worldwide',
   disciplineSummary: 'Web · Apps · Games',
   craftMetricValue: '60',

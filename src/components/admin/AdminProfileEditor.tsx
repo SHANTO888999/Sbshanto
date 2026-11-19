@@ -1,6 +1,7 @@
 import React, { useRef, useState } from 'react';
 import {
   ArrowLeft,
+  ArrowUpRight,
   Download,
   Eye,
   EyeOff,
@@ -12,6 +13,7 @@ import {
   Plus,
   RotateCcw,
   Save,
+  Share2,
   Trash2,
   Upload,
   X,
@@ -23,6 +25,7 @@ import type {
   PortfolioContentBundle,
   ServiceItem,
   SiteProfile,
+  SocialPlatformKey,
   TechStackItem,
   ViewerControlsConfig,
   WireframeRealScene,
@@ -30,7 +33,9 @@ import type {
 import {
   DEFAULT_ACCENT_COLOR,
   DEFAULT_CV_SETTINGS,
+  DEFAULT_SOCIAL_NAMES,
   DEFAULT_VIEWER_CONTROLS,
+  formatWhatsappHref,
   isValidEmailAddress,
   isValidPhoneIfPresent,
   sanitizeCvSourceUrl,
@@ -42,10 +47,18 @@ import { downloadPortfolioCv } from '../../utils/cvPdfGenerator';
 import { handleFormEnterToNext } from '../../utils/formKeyboardNav';
 import { processProjectPhotoFile } from '../../utils/mediaCompressor';
 import { ACCENT_PRESETS, applyDocumentAccentTheme } from '../../utils/themeAccent';
+import { SocialBrandLogo } from '../SocialBrandLogo';
 import { getAdminCopy, type AdminLang } from './adminI18n';
 import { LimitedInput, LimitedTextarea, SafeUrlInput } from './FieldControls';
 
-export type ProfileSubTab = 'identity' | 'contact' | 'metrics' | 'process' | 'viewer' | 'cv';
+export type ProfileSubTab =
+  | 'identity'
+  | 'contact'
+  | 'social'
+  | 'metrics'
+  | 'process'
+  | 'viewer'
+  | 'cv';
 
 const COMPACT_VIEWER_TOGGLES: ReadonlyArray<{
   key: keyof ViewerControlsConfig;
@@ -100,6 +113,7 @@ export const AdminProfileEditor: React.FC<AdminProfileEditorProps> = ({
 
   const p = draft.profile;
   const cv = draft.cvSettings ?? DEFAULT_CV_SETTINGS;
+  const socialNames = p.socialNames ?? DEFAULT_SOCIAL_NAMES;
 
   const updateProfile = <K extends keyof SiteProfile>(key: K, value: SiteProfile[K]) => {
     if (key === 'portraitUrl') setPortraitLoadFailed(false);
@@ -108,6 +122,19 @@ export const AdminProfileEditor: React.FC<AdminProfileEditorProps> = ({
       profile: {
         ...draft.profile,
         [key]: value,
+      },
+    });
+  };
+
+  const updateSocialName = (key: SocialPlatformKey, value: string) => {
+    onChange({
+      ...draft,
+      profile: {
+        ...draft.profile,
+        socialNames: {
+          ...socialNames,
+          [key]: value,
+        },
       },
     });
   };
@@ -268,43 +295,43 @@ export const AdminProfileEditor: React.FC<AdminProfileEditorProps> = ({
     }
     if (!isValidPhoneIfPresent(p.whatsappNumber)) {
       return {
-        tab: 'contact',
+        tab: subTab === 'social' ? 'social' : 'contact',
         message: 'WhatsApp number must contain 6–18 digits (e.g. +880 1XXX-XXXXXX).',
       };
     }
     if (!sanitizePublicUrl(p.githubUrl, '', false)) {
       return {
-        tab: 'contact',
+        tab: 'social',
         message: 'GitHub Profile URL must start with https:// or http://.',
       };
     }
     if (p.twitterUrl.trim() && !sanitizePublicUrl(p.twitterUrl, '', false)) {
       return {
-        tab: 'contact',
+        tab: 'social',
         message: 'Twitter / X URL must start with https:// or http://.',
       };
     }
     if (p.behanceUrl.trim() && !sanitizePublicUrl(p.behanceUrl, '', false)) {
       return {
-        tab: 'contact',
+        tab: 'social',
         message: 'Behance URL must start with https:// or http://.',
       };
     }
     if (p.facebookUrl.trim() && !sanitizePublicUrl(p.facebookUrl, '', false)) {
       return {
-        tab: 'contact',
+        tab: 'social',
         message: 'Facebook URL must start with https:// or http://.',
       };
     }
     if (p.linkedinUrl.trim() && !sanitizePublicUrl(p.linkedinUrl, '', false)) {
       return {
-        tab: 'contact',
+        tab: 'social',
         message: 'LinkedIn URL must start with https:// or http://.',
       };
     }
     if (p.instagramUrl.trim() && !sanitizePublicUrl(p.instagramUrl, '', false)) {
       return {
-        tab: 'contact',
+        tab: 'social',
         message: 'Instagram URL must start with https:// or http://.',
       };
     }
@@ -445,6 +472,7 @@ export const AdminProfileEditor: React.FC<AdminProfileEditorProps> = ({
           [
             { id: 'identity', label: t.nav.subProfile.identity },
             { id: 'contact', label: t.nav.subProfile.contact },
+            { id: 'social', label: t.nav.subProfile.social },
             { id: 'metrics', label: t.nav.subProfile.metrics },
             { id: 'process', label: t.nav.subProfile.process },
             { id: 'viewer', label: t.nav.subProfile.viewer },
@@ -630,11 +658,21 @@ export const AdminProfileEditor: React.FC<AdminProfileEditorProps> = ({
         <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
           <div className="space-y-4">
             <div className="space-y-4 rounded-xl border border-white/10 bg-[#090A0F] p-4">
-              <p className="font-mono text-[11px] uppercase tracking-wider text-zinc-400">
-                {lang === 'bn'
-                  ? 'ওয়েবসাইটের নিচের কন্টাক্ট ডিটেইলস'
-                  : 'Footer Direct Contact Details'}
-              </p>
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <p className="font-mono text-[11px] uppercase tracking-wider text-zinc-400">
+                  {lang === 'bn'
+                    ? 'ওয়েবসাইটের নিচের কন্টাক্ট ডিটেইলস'
+                    : 'Footer Direct Contact Details'}
+                </p>
+                <button
+                  type="button"
+                  onClick={() => setSubTab('social')}
+                  className="inline-flex items-center gap-1.5 rounded-md border border-accent/40 bg-accent/10 px-2.5 py-1 text-[11px] font-semibold text-accent-light hover:bg-accent/20"
+                >
+                  <Share2 className="h-3 w-3" aria-hidden="true" />
+                  {lang === 'bn' ? 'সোশ্যাল মিডিয়া যোগ করুন' : 'Social Media Links →'}
+                </button>
+              </div>
 
               <LimitedInput
                 id="prof-email"
@@ -675,66 +713,12 @@ export const AdminProfileEditor: React.FC<AdminProfileEditorProps> = ({
                 placeholder="Dhaka, Bangladesh"
                 onChange={(v) => updateProfile('location', v)}
               />
-
-              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-                <SafeUrlInput
-                  id="prof-linkedin"
-                  label={lang === 'bn' ? 'লিংকডইন লিংক (LinkedIn)' : 'LinkedIn URL (optional)'}
-                  value={p.linkedinUrl}
-                  maxLength={300}
-                  placeholder="https://linkedin.com/in/..."
-                  autoPrefixHttps
-                  lang={lang}
-                  onChange={(v) => updateProfile('linkedinUrl', v)}
-                />
-                <SafeUrlInput
-                  id="prof-twitter"
-                  label={lang === 'bn' ? 'টুইটার / X লিংক' : 'Twitter / X URL (optional)'}
-                  value={p.twitterUrl}
-                  maxLength={300}
-                  placeholder="https://x.com/..."
-                  autoPrefixHttps
-                  lang={lang}
-                  onChange={(v) => updateProfile('twitterUrl', v)}
-                />
-                <SafeUrlInput
-                  id="prof-behance"
-                  label={lang === 'bn' ? 'বিহ্যান্স লিংক (Behance)' : 'Behance URL (optional)'}
-                  value={p.behanceUrl}
-                  maxLength={300}
-                  placeholder="https://behance.net/..."
-                  autoPrefixHttps
-                  lang={lang}
-                  onChange={(v) => updateProfile('behanceUrl', v)}
-                />
-                <SafeUrlInput
-                  id="prof-facebook"
-                  label={lang === 'bn' ? 'ফেসবুক লিংক (Facebook)' : 'Facebook URL (optional)'}
-                  value={p.facebookUrl}
-                  maxLength={300}
-                  placeholder="https://facebook.com/..."
-                  autoPrefixHttps
-                  lang={lang}
-                  onChange={(v) => updateProfile('facebookUrl', v)}
-                />
-              </div>
-
-              <SafeUrlInput
-                id="prof-instagram"
-                label={lang === 'bn' ? 'ইনস্টাগ্রাম লিংক (Instagram)' : 'Instagram URL (optional)'}
-                value={p.instagramUrl}
-                maxLength={300}
-                placeholder="https://instagram.com/..."
-                autoPrefixHttps
-                lang={lang}
-                onChange={(v) => updateProfile('instagramUrl', v)}
-              />
             </div>
 
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
               <LimitedInput
                 id="prof-gh-handle"
-                label="GitHub Handle Label"
+                label={lang === 'bn' ? 'গিটহাব হ্যান্ডেল (CV-এর জন্য)' : 'GitHub Handle Label'}
                 value={p.githubHandle}
                 maxLength={40}
                 required
@@ -749,16 +733,6 @@ export const AdminProfileEditor: React.FC<AdminProfileEditorProps> = ({
                 onChange={(v) => updateProfile('availability', v)}
               />
             </div>
-            <SafeUrlInput
-              id="prof-gh-url"
-              label="GitHub Profile URL"
-              value={p.githubUrl}
-              maxLength={300}
-              required
-              autoPrefixHttps
-              lang={lang}
-              onChange={(v) => updateProfile('githubUrl', v)}
-            />
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
               <LimitedInput
                 id="prof-disc"
@@ -825,6 +799,204 @@ export const AdminProfileEditor: React.FC<AdminProfileEditorProps> = ({
               required
               onChange={(v) => updateProfile('manifestoAvailability', v)}
             />
+          </div>
+        </div>
+      )}
+
+      {subTab === 'social' && (
+        <div className="space-y-5">
+          <div className="rounded-xl border border-white/10 bg-[#090A0F] p-4">
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <div>
+                <h3 className="text-sm font-semibold text-white">
+                  {lang === 'bn'
+                    ? 'সোশ্যাল মিডিয়া লিংক ও অ্যাকাউন্টের নাম'
+                    : 'Social Media Links & Account Display Names'}
+                </h3>
+                <p className="mt-1 text-xs leading-relaxed text-zinc-400">
+                  {lang === 'bn'
+                    ? 'প্রতিটি প্ল্যাটফর্মের লিংক এবং আপনার অ্যাকাউন্টের নাম (যেমন: Shanto) লিখুন। মেইন ওয়েবসাইটে লোগোর পাশে সেই নাম দেখা যাবে।'
+                    : 'Add your social profile link and optional account display name (e.g. Shanto). Your public site shows the brand logo right next to your account name.'}
+                </p>
+              </div>
+              <span className="rounded border border-white/10 bg-[#12131A] px-2.5 py-1 font-mono text-[11px] text-zinc-300">
+                {[
+                  p.facebookUrl,
+                  formatWhatsappHref(p.whatsappNumber),
+                  p.instagramUrl,
+                  p.linkedinUrl,
+                  p.twitterUrl,
+                  p.behanceUrl,
+                  p.githubUrl,
+                ].filter(Boolean).length}{' '}
+                / 7 {lang === 'bn' ? 'সক্রিয়' : 'Active'}
+              </span>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+            {(
+              [
+                {
+                  id: 'facebook',
+                  title: 'Facebook',
+                  bnTitle: 'ফেসবুক (Facebook)',
+                  urlKey: 'facebookUrl',
+                  placeholder: 'https://facebook.com/your.profile',
+                  namePlaceholder: 'Shanto',
+                },
+                {
+                  id: 'whatsapp',
+                  title: 'WhatsApp',
+                  bnTitle: 'হোয়াটসঅ্যাপ (WhatsApp)',
+                  isPhone: true,
+                  placeholder: '+880 1XXX-XXXXXX',
+                  namePlaceholder: 'Shanto',
+                },
+                {
+                  id: 'instagram',
+                  title: 'Instagram',
+                  bnTitle: 'ইনস্টাগ্রাম (Instagram)',
+                  urlKey: 'instagramUrl',
+                  placeholder: 'https://instagram.com/your.handle',
+                  namePlaceholder: '@shanto',
+                },
+                {
+                  id: 'linkedin',
+                  title: 'LinkedIn',
+                  bnTitle: 'লিংকডইন (LinkedIn)',
+                  urlKey: 'linkedinUrl',
+                  placeholder: 'https://linkedin.com/in/your-name',
+                  namePlaceholder: 'Shanto',
+                },
+                {
+                  id: 'twitter',
+                  title: 'Twitter / X',
+                  bnTitle: 'টুইটার / X',
+                  urlKey: 'twitterUrl',
+                  placeholder: 'https://x.com/your_handle',
+                  namePlaceholder: '@shanto',
+                },
+                {
+                  id: 'behance',
+                  title: 'Behance',
+                  bnTitle: 'বিহ্যান্স (Behance)',
+                  urlKey: 'behanceUrl',
+                  placeholder: 'https://behance.net/yourname',
+                  namePlaceholder: 'Shanto',
+                },
+                {
+                  id: 'github',
+                  title: 'GitHub',
+                  bnTitle: 'গিটহাব (GitHub)',
+                  urlKey: 'githubUrl',
+                  required: true,
+                  placeholder: 'https://github.com/your-username',
+                  namePlaceholder: p.githubHandle || 'Shanto',
+                },
+              ] as Array<{
+                id: SocialPlatformKey;
+                title: string;
+                bnTitle: string;
+                urlKey?:
+                  | 'facebookUrl'
+                  | 'instagramUrl'
+                  | 'linkedinUrl'
+                  | 'twitterUrl'
+                  | 'behanceUrl'
+                  | 'githubUrl';
+                isPhone?: boolean;
+                required?: boolean;
+                placeholder: string;
+                namePlaceholder: string;
+              }>
+            ).map((platform) => {
+              const urlKey = platform.urlKey;
+              const rawValue = urlKey ? p[urlKey] : '';
+              const isActive = platform.isPhone
+                ? Boolean(formatWhatsappHref(p.whatsappNumber))
+                : Boolean(sanitizePublicUrl(rawValue, '', false));
+              const accountName = socialNames[platform.id] ?? '';
+              const previewLabel =
+                accountName.trim() ||
+                (platform.id === 'github' ? p.githubHandle.trim() || 'GitHub' : platform.title);
+
+              return (
+                <div
+                  key={platform.id}
+                  className={`space-y-3.5 rounded-xl border p-4 transition-colors ${
+                    isActive
+                      ? 'border-white/15 bg-[#090A0F]'
+                      : 'border-white/8 bg-[#08090D]'
+                  }`}
+                >
+                  <div className="flex flex-wrap items-center justify-between gap-2 border-b border-white/10 pb-3">
+                    <div className="flex items-center gap-2 text-sm font-semibold text-white">
+                      <SocialBrandLogo id={platform.id} className="h-4 w-4 shrink-0 fill-current text-accent-light" />
+                      <span>{lang === 'bn' ? platform.bnTitle : platform.title}</span>
+                    </div>
+
+                    {isActive ? (
+                      <span className="inline-flex items-center gap-1.5 rounded-md border border-emerald-500/35 bg-emerald-500/10 px-2.5 py-1 text-[11px] font-medium text-emerald-200">
+                        <SocialBrandLogo id={platform.id} className="h-3.5 w-3.5 shrink-0 fill-current" />
+                        <span>{previewLabel}</span>
+                        <ArrowUpRight className="h-3 w-3 opacity-75" aria-hidden="true" />
+                      </span>
+                    ) : (
+                      <span className="rounded border border-white/10 bg-white/5 px-2 py-0.5 font-mono text-[10px] text-zinc-500">
+                        {lang === 'bn' ? 'যুক্ত নেই' : 'Not Added'}
+                      </span>
+                    )}
+                  </div>
+
+                  {platform.isPhone || !urlKey ? (
+                    <LimitedInput
+                      id={`social-url-${platform.id}`}
+                      label={lang === 'bn' ? 'হোয়াটসঅ্যাপ নম্বর (WhatsApp Number)' : 'WhatsApp Phone Number'}
+                      type="tel"
+                      value={p.whatsappNumber}
+                      maxLength={24}
+                      placeholder={platform.placeholder}
+                      hint={
+                        lang === 'bn'
+                          ? 'Contact & Quote ট্যাবের হোয়াটসঅ্যাপ নম্বরের সাথে যুক্ত থাকবে।'
+                          : 'Synced with the WhatsApp number in Contact & Quote.'
+                      }
+                      onChange={(v) => updateProfile('whatsappNumber', v)}
+                    />
+                  ) : (
+                    <SafeUrlInput
+                      id={`social-url-${platform.id}`}
+                      label={
+                        lang === 'bn'
+                          ? `${platform.title} প্রোফাইল লিংক (URL)`
+                          : `${platform.title} Profile URL`
+                      }
+                      value={p[urlKey]}
+                      maxLength={300}
+                      required={platform.required}
+                      placeholder={platform.placeholder}
+                      autoPrefixHttps
+                      lang={lang}
+                      onChange={(v) => updateProfile(urlKey, v)}
+                    />
+                  )}
+
+                  <LimitedInput
+                    id={`social-name-${platform.id}`}
+                    label={
+                      lang === 'bn'
+                        ? 'অ্যাকাউন্টের নাম (লোগোর পাশে দেখাবে)'
+                        : 'Account Display Name (shown next to logo)'
+                    }
+                    value={accountName}
+                    maxLength={40}
+                    placeholder={platform.namePlaceholder}
+                    onChange={(v) => updateSocialName(platform.id, v)}
+                  />
+                </div>
+              );
+            })}
           </div>
         </div>
       )}

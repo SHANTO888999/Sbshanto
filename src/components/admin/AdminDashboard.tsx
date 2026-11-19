@@ -76,6 +76,7 @@ type AdminTab = 'overview' | 'analytics' | 'profile' | 'projects' | 'career' | '
 const PROFILE_SUB_LABELS: Record<ProfileSubTab, string> = {
   identity: 'Hero & Portrait',
   contact: 'Contact & Quote',
+  social: 'Social Media',
   metrics: 'Metrics & Partners',
   process: 'Services & Stack',
   viewer: 'Viewer Controls',

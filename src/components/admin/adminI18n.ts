@@ -73,6 +73,7 @@ export interface AdminTranslations {
     subProfile: {
       identity: string;
       contact: string;
+      social: string;
       metrics: string;
       process: string;
       viewer: string;
@@ -258,6 +259,7 @@ const EN_COPY: AdminTranslations = {
     subProfile: {
       identity: 'Identity',
       contact: 'Contact & Quote',
+      social: 'Social Media',
       metrics: 'Metrics',
       process: 'Services & Stack',
       viewer: 'Site Settings',
@@ -443,6 +445,7 @@ const BN_COPY: AdminTranslations = {
     subProfile: {
       identity: 'পরিচিতি',
       contact: 'যোগাযোগ ও কোট',
+      social: 'সোশ্যাল মিডিয়া',
       metrics: 'মেট্রিক্স',
       process: 'সার্ভিস ও স্ট্যাক',
       viewer: 'সাইট সেটিংস',
