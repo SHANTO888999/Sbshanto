@@ -100,15 +100,25 @@ function formatDashboardError(err: unknown): string {
       error?: string;
       operationType?: string;
       path?: string | null;
-      authInfo?: { email?: string | null; emailVerified?: boolean | null };
+      authInfo?: {
+        userId?: string | null;
+        email?: string | null;
+        emailVerified?: boolean | null;
+      };
     };
     if (parsed && typeof parsed.error === 'string') {
       const inner = parsed.error;
       const lower = inner.toLowerCase();
       if (lower.includes('missing or insufficient permissions') || lower.includes('permission-denied')) {
         const who = parsed.authInfo?.email ? ` (${parsed.authInfo.email})` : '';
+        const verifiedNote =
+          parsed.authInfo?.emailVerified === false
+            ? ' [emailVerified=false]'
+            : parsed.authInfo?.userId
+              ? ` [uid=${parsed.authInfo.userId.slice(0, 6)}…]`
+              : '';
         const target = parsed.path ? ` on "${parsed.path}"` : '';
-        return `Permission denied${target} by Firestore security rules${who}. Confirm your email is verified and deploy latest rules (firebase deploy --only firestore:rules,hosting).`;
+        return `Permission denied${target} by Firestore security rules${who}${verifiedNote}. Confirm your email is verified and deploy latest rules (firebase deploy --project ai-studio-applet-webapp-bd58b --only firestore:rules,hosting).`;
       }
       if (lower.includes('quota exceeded') || lower.includes('resource-exhausted')) {
         return 'Firestore quota exceeded. Please try again later or upgrade your Firebase plan.';

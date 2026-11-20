@@ -213,12 +213,21 @@ async function ensureFreshVerifiedToken(): Promise<void> {
     if (!current.emailVerified) {
       await current.reload();
     }
-    const tokenResult = await current.getIdTokenResult();
-    if (!tokenResult.claims.email_verified && current.emailVerified) {
+    let tokenResult = await current.getIdTokenResult();
+    if (!tokenResult.claims.email_verified) {
       await current.getIdToken(true);
+      tokenResult = await current.getIdTokenResult();
     }
-  } catch {
-    // Non-fatal token refresh attempt
+    if (!tokenResult.claims.email_verified) {
+      throw new Error(
+        `Email verification is not active in your current auth token (${current.email ?? current.uid}). Verify your email, sign out, and sign back in.`
+      );
+    }
+  } catch (err) {
+    if (err instanceof Error && err.message.includes('Email verification is not active')) {
+      throw err;
+    }
+    // Non-fatal network refresh error; proceed with existing token
   }
 }
 
