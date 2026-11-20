@@ -96,16 +96,27 @@ interface AdminDashboardProps {
 function formatDashboardError(err: unknown): string {
   const raw = err instanceof Error ? err.message : String(err);
   try {
-    const parsed = JSON.parse(raw) as { error?: string; operationType?: string; path?: string | null };
+    const parsed = JSON.parse(raw) as {
+      error?: string;
+      operationType?: string;
+      path?: string | null;
+      authInfo?: { email?: string | null; emailVerified?: boolean | null };
+    };
     if (parsed && typeof parsed.error === 'string') {
       const inner = parsed.error;
-      if (inner.includes('Missing or insufficient permissions')) {
-        return 'Permission denied by Firestore security rules. Confirm your admin email is verified and rules are deployed.';
+      const lower = inner.toLowerCase();
+      if (lower.includes('missing or insufficient permissions') || lower.includes('permission-denied')) {
+        const who = parsed.authInfo?.email ? ` (${parsed.authInfo.email})` : '';
+        const target = parsed.path ? ` on "${parsed.path}"` : '';
+        return `Permission denied${target} by Firestore security rules${who}. Confirm your email is verified and deploy latest rules (firebase deploy --only firestore:rules,hosting).`;
       }
-      if (inner.includes('Quota exceeded')) {
-        return 'Firestore daily quota exceeded. Please try again later or upgrade your Firebase plan.';
+      if (lower.includes('quota exceeded') || lower.includes('resource-exhausted')) {
+        return 'Firestore quota exceeded. Please try again later or upgrade your Firebase plan.';
       }
-      if (inner.includes('client is offline') || inner.includes('unavailable')) {
+      if (lower.includes('exceeds the maximum allowed size') || lower.includes('invalid-argument')) {
+        return 'Document exceeds Firestore size or format limits. Reduce attached media size or count and retry.';
+      }
+      if (lower.includes('client is offline') || lower.includes('unavailable') || lower.includes('failed to fetch')) {
         return 'Network or Firestore connection unavailable. Check your internet connection and retry.';
       }
       return parsed.path ? `${inner} (${parsed.path})` : inner;
@@ -598,20 +609,31 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
   const runMutation = async (fn: () => Promise<void>, successText: string): Promise<boolean> => {
     setSaving(true);
     setNotice(null);
+    let mutationCommitted = false;
     try {
       await fn();
+      mutationCommitted = true;
+    } catch (err) {
+      setNotice({ type: 'error', text: formatDashboardError(err) });
+      setSaving(false);
+      return false;
+    }
+
+    try {
       await loadDashboard();
       if (onContentSaved) {
         await onContentSaved();
       }
-      setNotice({ type: 'success', text: successText });
-      return true;
-    } catch (err) {
-      setNotice({ type: 'error', text: formatDashboardError(err) });
-      return false;
+    } catch {
+      // Save already committed to Firestore; avoid masking success with secondary refresh warnings
     } finally {
       setSaving(false);
     }
+
+    if (mutationCommitted) {
+      setNotice({ type: 'success', text: successText });
+    }
+    return mutationCommitted;
   };
 
   const newInquiriesCount = snapshot.inquiries.filter((i) => i.status === 'new').length;
@@ -1374,13 +1396,15 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
               saving={saving}
               lang={lang}
               hasUnsavedChanges={hasUnsavedProfileChanges}
+              saveNotice={notice}
+              onDismissNotice={() => setNotice(null)}
               subTab={activeProfileSubTab}
               onChangeSubTab={navigateProfileSubTab}
               onBack={handleUiBack}
               onChange={setProfileDraft}
-              onSave={() =>
+              onSave={(overrideBundle) =>
                 runMutation(
-                  () => savePortfolioSettings(profileDraft),
+                  () => savePortfolioSettings(overrideBundle ?? profileDraft),
                   'Profile and site copy saved live to Firestore.'
                 )
               }
@@ -1392,6 +1416,8 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
               projects={snapshot.projects}
               saving={saving}
               lang={lang}
+              saveNotice={notice}
+              onDismissNotice={() => setNotice(null)}
               onSubViewChange={handleSubViewChange}
               exitSubViewNonce={exitSubViewNonce}
               closeDialogNonce={closeChildDialogNonce}

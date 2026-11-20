@@ -19,18 +19,26 @@ import {
   X,
 } from 'lucide-react';
 import type { PreviewTheme, ProjectCategory } from '../../data/contentSchema';
-import { isVideoMediaSource, sanitizePublicUrl } from '../../data/contentSchema';
+import { isVideoMediaSource, normalizeUserUrlInput, sanitizePublicUrl } from '../../data/contentSchema';
 import type { AdminProjectRecord } from '../../firebaseAdmin';
 import { handleFormEnterToNext } from '../../utils/formKeyboardNav';
 import { processGalleryPhotoFile, processProjectVideoFile } from '../../utils/mediaCompressor';
 import { ProductPreviewCanvas } from '../ProductPreviewCanvas';
 import { getAdminCopy, type AdminLang } from './adminI18n';
-import { ConfirmDialog, LimitedInput, LimitedTextarea, SafeUrlInput } from './FieldControls';
+import {
+  ConfirmDialog,
+  LimitedInput,
+  LimitedTextarea,
+  SafeUrlInput,
+  StatusNotice,
+} from './FieldControls';
 
 interface AdminProjectsEditorProps {
   projects: AdminProjectRecord[];
   saving: boolean;
   lang?: AdminLang;
+  saveNotice?: { type: 'success' | 'error'; text: string } | null;
+  onDismissNotice?: () => void;
   onSaveProject: (project: AdminProjectRecord) => Promise<boolean>;
   onDeleteProject: (projectId: string) => Promise<boolean>;
   onSubViewChange?: (label: string | null) => void;
@@ -116,6 +124,8 @@ export const AdminProjectsEditor: React.FC<AdminProjectsEditorProps> = ({
   projects,
   saving,
   lang = 'en',
+  saveNotice = null,
+  onDismissNotice,
   onSaveProject,
   onDeleteProject,
   onSubViewChange,
@@ -138,6 +148,7 @@ export const AdminProjectsEditor: React.FC<AdminProjectsEditorProps> = ({
 
   const photoInputRef = useRef<HTMLInputElement | null>(null);
   const videoInputRef = useRef<HTMLInputElement | null>(null);
+  const formErrorRef = useRef<HTMLDivElement | null>(null);
   const lastExitNonceRef = useRef(exitSubViewNonce);
   const lastCloseDialogNonceRef = useRef(closeDialogNonce);
 
@@ -257,17 +268,17 @@ export const AdminProjectsEditor: React.FC<AdminProjectsEditorProps> = ({
         totalKB += res.sizeKB;
       }
 
-      const nextGallery = [...currentGallery, ...addedUrls].slice(0, MAX_GALLERY_PHOTOS);
-      setEditing((prev) =>
-        prev
-          ? {
-              ...prev,
-              galleryUrls: nextGallery,
-              coverImageUrl: nextGallery[0] ?? '',
-              coverMediaType: 'image',
-            }
-          : prev
-      );
+      setEditing((prev) => {
+        if (!prev) return prev;
+        const latestGallery = getEffectiveGallery(prev);
+        const nextGallery = [...latestGallery, ...addedUrls].slice(0, MAX_GALLERY_PHOTOS);
+        return {
+          ...prev,
+          galleryUrls: nextGallery,
+          coverImageUrl: nextGallery[0] ?? '',
+          coverMediaType: 'image',
+        };
+      });
       setMediaStatusNote(
         lang === 'bn'
           ? `${addedUrls.length}টি ছবি স্লাইডশোতে যোগ হয়েছে (${totalKB} KB)`
@@ -284,7 +295,7 @@ export const AdminProjectsEditor: React.FC<AdminProjectsEditorProps> = ({
     if (!editing) return;
     const raw = photoUrlInput.trim();
     if (!raw) return;
-    const clean = sanitizePublicUrl(raw, '', false);
+    const clean = sanitizePublicUrl(normalizeUserUrlInput(raw), '', false);
     if (!clean) {
       setMediaError(
         lang === 'bn'
@@ -382,7 +393,11 @@ export const AdminProjectsEditor: React.FC<AdminProjectsEditorProps> = ({
 
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!editing || mediaBusyLabel || saving) return;
+    if (!editing || saving) return;
+    if (mediaBusyLabel) {
+      setFormError('Please wait until the photo or video finishes optimizing before saving.');
+      return;
+    }
 
     if (
       !editing.index.trim() ||
@@ -396,26 +411,64 @@ export const AdminProjectsEditor: React.FC<AdminProjectsEditorProps> = ({
       !editing.architectureNotes.trim()
     ) {
       setFormError(t.projects.enterNextError);
+      window.requestAnimationFrame(() => {
+        formErrorRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      });
       return;
     }
 
-    const coverTrimmed = (editing.coverImageUrl ?? '').trim();
-    if (coverTrimmed && !coverTrimmed.startsWith('data:') && !sanitizePublicUrl(coverTrimmed, '')) {
+    const normalizedCover = normalizeUserUrlInput(editing.coverImageUrl ?? '');
+    const normalizedLive = normalizeUserUrlInput(editing.liveUrl ?? '');
+    const normalizedRepo = normalizeUserUrlInput(editing.repoUrl ?? '');
+
+    if (normalizedCover && !normalizedCover.startsWith('data:') && !sanitizePublicUrl(normalizedCover, '')) {
       setFormError('Cover media URL must be a valid https:// link or /assets/... path.');
+      window.requestAnimationFrame(() => {
+        formErrorRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      });
       return;
     }
-    if ((editing.liveUrl ?? '').trim() && !sanitizePublicUrl(editing.liveUrl, '')) {
+    if (normalizedLive && !sanitizePublicUrl(normalizedLive, '')) {
       setFormError('Live Project URL must start with https:// or http://.');
+      window.requestAnimationFrame(() => {
+        formErrorRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      });
       return;
     }
-    if ((editing.repoUrl ?? '').trim() && !sanitizePublicUrl(editing.repoUrl, '')) {
+    if (normalizedRepo && !sanitizePublicUrl(normalizedRepo, '')) {
       setFormError('Source Code URL must start with https:// or http://.');
+      window.requestAnimationFrame(() => {
+        formErrorRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      });
       return;
     }
 
+    const pendingPhotoUrl = normalizeUserUrlInput(photoUrlInput);
+    let nextGallery = Array.isArray(editing.galleryUrls) ? [...editing.galleryUrls] : [];
+    if (
+      pendingPhotoUrl &&
+      editing.coverMediaType !== 'video' &&
+      !isVideoMediaSource(pendingPhotoUrl) &&
+      sanitizePublicUrl(pendingPhotoUrl, '', false) &&
+      nextGallery.length < MAX_GALLERY_PHOTOS &&
+      !nextGallery.includes(pendingPhotoUrl)
+    ) {
+      nextGallery = [...nextGallery, pendingPhotoUrl];
+    }
+
+    const normalizedRecord: AdminProjectRecord = {
+      ...editing,
+      coverImageUrl: normalizedCover || nextGallery[0] || '',
+      galleryUrls: nextGallery,
+      liveUrl: normalizedLive,
+      repoUrl: normalizedRepo,
+      stack: editing.stack.length > 0 ? editing.stack : ['React', 'TypeScript'],
+    };
+
+    setEditing(normalizedRecord);
+    setPhotoUrlInput('');
     setFormError(null);
-    const ensuredStack = editing.stack.length > 0 ? editing.stack : ['React', 'TypeScript'];
-    const ok = await onSaveProject({ ...editing, stack: ensuredStack });
+    const ok = await onSaveProject(normalizedRecord);
     if (ok) {
       setEditing(null);
     }
@@ -488,6 +541,7 @@ export const AdminProjectsEditor: React.FC<AdminProjectsEditorProps> = ({
 
         {formError && (
           <div
+            ref={formErrorRef}
             role="alert"
             className="flex items-center justify-between gap-3 rounded-lg border border-[#DC2626]/40 bg-[#DC2626]/10 px-4 py-3 text-xs text-red-200"
           >
@@ -958,6 +1012,30 @@ export const AdminProjectsEditor: React.FC<AdminProjectsEditorProps> = ({
             </div>
           </div>
         </div>
+
+        {(formError || saveNotice) && (
+          <div className="space-y-2">
+            {formError && (
+              <div
+                role="alert"
+                className="flex items-center justify-between gap-3 rounded-lg border border-[#DC2626]/40 bg-[#DC2626]/10 px-4 py-3 text-xs text-red-200"
+              >
+                <span>{formError}</span>
+                <button
+                  type="button"
+                  onClick={() => setFormError(null)}
+                  aria-label="Dismiss validation error"
+                  className="text-zinc-400 hover:text-white"
+                >
+                  <X className="h-4 w-4" />
+                </button>
+              </div>
+            )}
+            {saveNotice && (
+              <StatusNotice notice={saveNotice} onDismiss={() => onDismissNotice?.()} />
+            )}
+          </div>
+        )}
 
         {/* Bottom Mobile Action Bar */}
         <div className="flex flex-wrap items-center justify-between gap-3 border-t border-white/10 pt-5">

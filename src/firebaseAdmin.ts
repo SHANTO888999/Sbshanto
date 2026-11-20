@@ -44,6 +44,7 @@ import {
   isValidEmailAddress,
   isVideoMediaSource,
   normalizePortfolioContent,
+  normalizeUserUrlInput,
   sanitizeCvSourceUrl,
   sanitizeHexColor,
   sanitizePhoneInput,
@@ -191,16 +192,33 @@ function toMillis(val: unknown): number {
   return Date.now();
 }
 
+function preserveValidFirestoreId(
+  rawId: string | undefined,
+  fallbackInput: string,
+  fallbackPrefix: string
+): string {
+  const trimmed = typeof rawId === 'string' ? rawId.trim() : '';
+  if (trimmed && /^[a-zA-Z0-9_-]{1,128}$/.test(trimmed)) {
+    return trimmed;
+  }
+  return sanitizeFirestoreId(fallbackInput, fallbackPrefix);
+}
+
 async function ensureFreshVerifiedToken(): Promise<void> {
   const current = auth.currentUser;
-  if (!current) return;
+  if (!current) {
+    throw new Error('Your admin session expired. Please sign in again before saving.');
+  }
   try {
+    if (!current.emailVerified) {
+      await current.reload();
+    }
     const tokenResult = await current.getIdTokenResult();
     if (!tokenResult.claims.email_verified && current.emailVerified) {
       await current.getIdToken(true);
     }
   } catch {
-    // Non-fatal
+    // Non-fatal token refresh attempt
   }
 }
 
@@ -713,6 +731,9 @@ function buildSettingsPayload(bundle: PortfolioContentBundle) {
       ? portraitCandidate
       : sanitizePublicUrl(p.portraitUrl, '', false).slice(0, 500);
 
+  const normalizedPhone = sanitizePhoneInput(p.phoneNumber ?? '', 24);
+  const normalizedWhatsapp = sanitizePhoneInput(p.whatsappNumber ?? '', 24);
+
   return {
     greeting: clampText(p.greeting, 40, dp.greeting),
     displayName: clampExact(p.displayName, 24, dp.displayName),
@@ -722,8 +743,8 @@ function buildSettingsPayload(bundle: PortfolioContentBundle) {
     bio: clampText(p.bio, 300, dp.bio),
     portraitUrl: portraitPayload,
     email: clampExact(isValidEmailAddress(p.email) ? p.email : dp.email, 100, dp.email),
-    phoneNumber: sanitizePhoneInput(p.phoneNumber ?? '', 24),
-    whatsappNumber: sanitizePhoneInput(p.whatsappNumber ?? '', 24),
+    phoneNumber: normalizedPhone.length >= 3 ? normalizedPhone : '',
+    whatsappNumber: normalizedWhatsapp.length >= 3 ? normalizedWhatsapp : '',
     location: clampText(p.location, 60, dp.location),
     githubHandle: clampExact(p.githubHandle, 48, dp.githubHandle),
     githubUrl: clampExact(sanitizePublicUrl(p.githubUrl, dp.githubUrl), 300, dp.githubUrl),
@@ -816,16 +837,39 @@ export async function savePortfolioSettings(bundle: PortfolioContentBundle): Pro
   }
 }
 
+const VALID_PROJECT_CATEGORIES: ReadonlyArray<ProjectItem['category']> = [
+  'Websites',
+  'Apps',
+  'Games',
+  'UI/UX Design',
+];
+
+const VALID_PREVIEW_THEMES: ReadonlyArray<ProjectItem['previewTheme']> = [
+  'web-commerce',
+  'app-workspace',
+  'game-rift',
+  'app-realtime',
+  'game-drift',
+  'ui-system',
+];
+
 function buildProjectPayload(project: AdminProjectRecord) {
-  const safeStack = project.stack
+  const safeStack = (Array.isArray(project.stack) ? project.stack : [])
     .map((s) => clampExact(s, 32, ''))
     .filter(Boolean)
     .slice(0, 6);
 
+  const safeCategory = VALID_PROJECT_CATEGORIES.includes(project.category)
+    ? project.category
+    : 'Websites';
+  const safePreviewTheme = VALID_PREVIEW_THEMES.includes(project.previewTheme)
+    ? project.previewTheme
+    : 'web-commerce';
+
   const payload: Record<string, unknown> = {
     index: clampExact(project.index, 8, '01'),
     title: clampText(project.title, 80, 'Untitled Project'),
-    category: project.category,
+    category: safeCategory,
     year: clampExact(project.year, 16, String(new Date().getFullYear())),
     platform: clampText(project.platform, 48, 'Web Build'),
     client: clampText(project.client, 48, 'Independent Build'),
@@ -837,36 +881,46 @@ function buildProjectPayload(project: AdminProjectRecord) {
       360,
       'Modular frontend and responsive layout architecture.'
     ),
-    previewTheme: project.previewTheme,
+    previewTheme: safePreviewTheme,
     dimensions: clampExact(project.dimensions, 24, '1440 × 900'),
     published: Boolean(project.published),
     sortOrder: Math.max(0, Math.min(1000, Math.trunc(Number(project.sortOrder) || 0))),
     updatedAt: serverTimestamp(),
   };
 
-  const cleanedGallery = Array.isArray(project.galleryUrls)
+  const cleanedGalleryRaw = Array.isArray(project.galleryUrls)
     ? project.galleryUrls
-        .map((u) => sanitizePublicUrl(u, '', true))
-        .filter((u) => u && u.length <= 165_000)
+        .map((u) => sanitizePublicUrl(normalizeUserUrlInput(u), '', true))
+        .filter((u) => u && !isVideoMediaSource(u) && u.length <= 165_000)
         .slice(0, 5)
     : [];
 
-  const coverCandidate = sanitizePublicUrl(project.coverImageUrl, '', true);
+  // Keep cumulative gallery payload well inside Firestore's 1 MiB document size limit
+  const cleanedGallery: string[] = [];
+  let runningGalleryChars = 0;
+  for (const slideUrl of cleanedGalleryRaw) {
+    if (runningGalleryChars + slideUrl.length <= 720_000) {
+      cleanedGallery.push(slideUrl);
+      runningGalleryChars += slideUrl.length;
+    }
+  }
+
+  const coverCandidate = sanitizePublicUrl(normalizeUserUrlInput(project.coverImageUrl), '', true);
   const isVideo = Boolean(coverCandidate && isVideoMediaSource(coverCandidate, project.coverMediaType));
 
   if (isVideo) {
     payload.coverImageUrl = coverCandidate.slice(0, 780_000);
     payload.coverMediaType = 'video';
   } else {
-    const galleryTotalChars = cleanedGallery.reduce((sum, u) => sum + u.length, 0);
     if (cleanedGallery.length > 0) {
       payload.galleryUrls = cleanedGallery;
       // Only also store separate coverImageUrl if total payload stays safely well under 1 MiB
-      const preferredCover = coverCandidate || cleanedGallery[0];
+      const preferredCover =
+        coverCandidate && !isVideoMediaSource(coverCandidate) ? coverCandidate : cleanedGallery[0];
       if (
         preferredCover &&
         preferredCover.length <= 320_000 &&
-        galleryTotalChars + preferredCover.length <= 760_000
+        runningGalleryChars + preferredCover.length <= 760_000
       ) {
         payload.coverImageUrl = preferredCover;
       }
@@ -877,17 +931,17 @@ function buildProjectPayload(project: AdminProjectRecord) {
     }
   }
 
-  const live = sanitizePublicUrl(project.liveUrl, '');
+  const live = sanitizePublicUrl(normalizeUserUrlInput(project.liveUrl), '');
   if (live) payload.liveUrl = live.slice(0, 300);
 
-  const repo = sanitizePublicUrl(project.repoUrl, '');
+  const repo = sanitizePublicUrl(normalizeUserUrlInput(project.repoUrl), '');
   if (repo) payload.repoUrl = repo.slice(0, 300);
 
   return payload;
 }
 
 export async function saveAdminProject(project: AdminProjectRecord): Promise<string> {
-  const safeId = sanitizeFirestoreId(project.id || project.title, 'proj');
+  const safeId = preserveValidFirestoreId(project.id, project.title || 'project', 'proj');
   const path = `projects/${safeId}`;
   await ensureFreshVerifiedToken();
   try {
@@ -922,7 +976,7 @@ function buildMilestonePayload(item: AdminMilestoneRecord) {
 }
 
 export async function saveAdminMilestone(item: AdminMilestoneRecord): Promise<string> {
-  const safeId = sanitizeFirestoreId(item.id || item.title, 'ms');
+  const safeId = preserveValidFirestoreId(item.id, item.title || 'milestone', 'ms');
   const path = `milestones/${safeId}`;
   await ensureFreshVerifiedToken();
   try {
@@ -956,7 +1010,7 @@ function buildExperiencePayload(item: AdminExperienceRecord) {
 }
 
 export async function saveAdminExperience(item: AdminExperienceRecord): Promise<string> {
-  const safeId = sanitizeFirestoreId(item.id || item.role, 'exp');
+  const safeId = preserveValidFirestoreId(item.id, item.role || 'experience', 'exp');
   const path = `experience/${safeId}`;
   await ensureFreshVerifiedToken();
   try {

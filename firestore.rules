@@ -292,7 +292,16 @@ service cloud.firestore {
       allow list: if false;
       allow create: if isValidId(settingId) && isAdmin() && isValidPortfolioSettings(incoming());
       allow update: if isValidId(settingId) && isAdmin() && isValidPortfolioSettings(incoming())
-        && incoming().diff(existing()).affectedKeys().hasOnly([
+        && incoming().diff(existing()).addedKeys().hasOnly([
+          'greeting', 'displayName', 'backdropName', 'wordmark', 'role', 'bio',
+          'portraitUrl', 'email', 'phoneNumber', 'whatsappNumber', 'location',
+          'githubHandle', 'githubUrl', 'twitterUrl', 'linkedinUrl', 'behanceUrl', 'facebookUrl', 'instagramUrl', 'socialNames', 'availability',
+          'disciplineSummary', 'craftMetricValue', 'craftMetricSuffix', 'craftMetricLabel',
+          'craftSummary', 'quoteText', 'quoteAuthor', 'quoteRole',
+          'manifestoLead', 'manifestoAvailability', 'prototypeTurnaround',
+          'heroMetrics', 'wireframeScenes', 'techStack', 'services', 'techPartners', 'viewerControls', 'cvSettings', 'updatedAt'
+        ])
+        && incoming().diff(existing()).changedKeys().hasOnly([
           'greeting', 'displayName', 'backdropName', 'wordmark', 'role', 'bio',
           'portraitUrl', 'email', 'phoneNumber', 'whatsappNumber', 'location',
           'githubHandle', 'githubUrl', 'twitterUrl', 'linkedinUrl', 'behanceUrl', 'facebookUrl', 'instagramUrl', 'socialNames', 'availability',
@@ -309,7 +318,12 @@ service cloud.firestore {
       allow list: if isBootstrappedAdmin() || existing().published == true;
       allow create: if isValidId(projectId) && isAdmin() && isValidProject(incoming());
       allow update: if isValidId(projectId) && isAdmin() && isValidProject(incoming())
-        && incoming().diff(existing()).affectedKeys().hasOnly([
+        && incoming().diff(existing()).addedKeys().hasOnly([
+          'index', 'title', 'category', 'year', 'platform', 'client', 'role',
+          'stack', 'summary', 'architectureNotes', 'previewTheme', 'dimensions',
+          'coverImageUrl', 'galleryUrls', 'coverMediaType', 'liveUrl', 'repoUrl', 'published', 'sortOrder', 'updatedAt'
+        ])
+        && incoming().diff(existing()).changedKeys().hasOnly([
           'index', 'title', 'category', 'year', 'platform', 'client', 'role',
           'stack', 'summary', 'architectureNotes', 'previewTheme', 'dimensions',
           'coverImageUrl', 'galleryUrls', 'coverMediaType', 'liveUrl', 'repoUrl', 'published', 'sortOrder', 'updatedAt'
@@ -322,7 +336,10 @@ service cloud.firestore {
       allow list: if isBootstrappedAdmin() || existing().published == true;
       allow create: if isValidId(milestoneId) && isAdmin() && isValidMilestone(incoming());
       allow update: if isValidId(milestoneId) && isAdmin() && isValidMilestone(incoming())
-        && incoming().diff(existing()).affectedKeys().hasOnly([
+        && incoming().diff(existing()).addedKeys().hasOnly([
+          'title', 'context', 'project', 'year', 'outcome', 'published', 'sortOrder', 'updatedAt'
+        ])
+        && incoming().diff(existing()).changedKeys().hasOnly([
           'title', 'context', 'project', 'year', 'outcome', 'published', 'sortOrder', 'updatedAt'
         ]);
       allow delete: if isValidId(milestoneId) && isAdmin();
@@ -333,7 +350,10 @@ service cloud.firestore {
       allow list: if isBootstrappedAdmin() || existing().published == true;
       allow create: if isValidId(experienceId) && isAdmin() && isValidExperience(incoming());
       allow update: if isValidId(experienceId) && isAdmin() && isValidExperience(incoming())
-        && incoming().diff(existing()).affectedKeys().hasOnly([
+        && incoming().diff(existing()).addedKeys().hasOnly([
+          'period', 'role', 'org', 'description', 'published', 'sortOrder', 'updatedAt'
+        ])
+        && incoming().diff(existing()).changedKeys().hasOnly([
           'period', 'role', 'org', 'description', 'published', 'sortOrder', 'updatedAt'
         ]);
       allow delete: if isValidId(experienceId) && isAdmin();

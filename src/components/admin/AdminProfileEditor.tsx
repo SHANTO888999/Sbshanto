@@ -1,4 +1,4 @@
-import React, { useRef, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import {
   ArrowLeft,
   ArrowUpRight,
@@ -38,6 +38,7 @@ import {
   formatWhatsappHref,
   isValidEmailAddress,
   isValidPhoneIfPresent,
+  normalizeUserUrlInput,
   sanitizeCvSourceUrl,
   sanitizeHexColor,
   sanitizePublicUrl,
@@ -49,7 +50,7 @@ import { processProjectPhotoFile } from '../../utils/mediaCompressor';
 import { ACCENT_PRESETS, applyDocumentAccentTheme } from '../../utils/themeAccent';
 import { SocialBrandLogo } from '../SocialBrandLogo';
 import { getAdminCopy, type AdminLang } from './adminI18n';
-import { LimitedInput, LimitedTextarea, SafeUrlInput } from './FieldControls';
+import { LimitedInput, LimitedTextarea, SafeUrlInput, StatusNotice } from './FieldControls';
 
 export type ProfileSubTab =
   | 'identity'
@@ -77,11 +78,13 @@ interface AdminProfileEditorProps {
   saving: boolean;
   lang?: AdminLang;
   hasUnsavedChanges?: boolean;
+  saveNotice?: { type: 'success' | 'error'; text: string } | null;
+  onDismissNotice?: () => void;
   subTab?: ProfileSubTab;
   onChangeSubTab?: (tab: ProfileSubTab) => void;
   onBack?: () => void;
   onChange: (next: PortfolioContentBundle) => void;
-  onSave: () => Promise<boolean>;
+  onSave: (bundleOverride?: PortfolioContentBundle) => Promise<boolean>;
 }
 
 export const AdminProfileEditor: React.FC<AdminProfileEditorProps> = ({
@@ -89,6 +92,8 @@ export const AdminProfileEditor: React.FC<AdminProfileEditorProps> = ({
   saving,
   lang = 'en',
   hasUnsavedChanges = false,
+  saveNotice = null,
+  onDismissNotice,
   subTab: controlledSubTab,
   onChangeSubTab,
   onBack,
@@ -110,13 +115,19 @@ export const AdminProfileEditor: React.FC<AdminProfileEditorProps> = ({
   const [formError, setFormError] = useState<string | null>(null);
   const portraitInputRef = useRef<HTMLInputElement | null>(null);
   const cvFileInputRef = useRef<HTMLInputElement | null>(null);
+  const errorAlertRef = useRef<HTMLDivElement | null>(null);
 
   const p = draft.profile;
   const cv = draft.cvSettings ?? DEFAULT_CV_SETTINGS;
   const socialNames = p.socialNames ?? DEFAULT_SOCIAL_NAMES;
 
+  useEffect(() => {
+    setPortraitLoadFailed(false);
+  }, [p.portraitUrl]);
+
   const updateProfile = <K extends keyof SiteProfile>(key: K, value: SiteProfile[K]) => {
     if (key === 'portraitUrl') setPortraitLoadFailed(false);
+    if (formError) setFormError(null);
     onChange({
       ...draft,
       profile: {
@@ -260,19 +271,43 @@ export const AdminProfileEditor: React.FC<AdminProfileEditorProps> = ({
     }
   };
 
-  const validateBeforeSave = (): { tab: ProfileSubTab; message: string } | null => {
+  const buildNormalizedDraft = (): PortfolioContentBundle => {
+    return {
+      ...draft,
+      profile: {
+        ...p,
+        portraitUrl: normalizeUserUrlInput(p.portraitUrl),
+        githubUrl: normalizeUserUrlInput(p.githubUrl),
+        twitterUrl: normalizeUserUrlInput(p.twitterUrl),
+        linkedinUrl: normalizeUserUrlInput(p.linkedinUrl),
+        behanceUrl: normalizeUserUrlInput(p.behanceUrl),
+        facebookUrl: normalizeUserUrlInput(p.facebookUrl),
+        instagramUrl: normalizeUserUrlInput(p.instagramUrl),
+      },
+      cvSettings: {
+        ...cv,
+        customUrl: normalizeUserUrlInput(cv.customUrl),
+      },
+    };
+  };
+
+  const validateBeforeSave = (
+    targetDraft: PortfolioContentBundle
+  ): { tab: ProfileSubTab; message: string } | null => {
+    const prof = targetDraft.profile;
+    const cvCfg = targetDraft.cvSettings ?? DEFAULT_CV_SETTINGS;
     const reqText = (val: string) => val.trim().length > 0;
     if (
-      !reqText(p.wordmark) ||
-      !reqText(p.greeting) ||
-      !reqText(p.displayName) ||
-      !reqText(p.backdropName) ||
-      !reqText(p.role) ||
-      !reqText(p.bio)
+      !reqText(prof.wordmark) ||
+      !reqText(prof.greeting) ||
+      !reqText(prof.displayName) ||
+      !reqText(prof.backdropName) ||
+      !reqText(prof.role) ||
+      !reqText(prof.bio)
     ) {
       return { tab: 'identity', message: 'Fill in all required Hero & Identity fields before saving.' };
     }
-    const rawPortrait = p.portraitUrl.trim();
+    const rawPortrait = prof.portraitUrl.trim();
     const isValidPortrait =
       rawPortrait === '' ||
       (rawPortrait.startsWith('data:image/') && rawPortrait.length <= 320_000) ||
@@ -284,85 +319,85 @@ export const AdminProfileEditor: React.FC<AdminProfileEditorProps> = ({
       };
     }
 
-    if (!isValidEmailAddress(p.email)) {
+    if (!isValidEmailAddress(prof.email)) {
       return { tab: 'contact', message: 'Enter a valid public studio contact email address.' };
     }
-    if (!isValidPhoneIfPresent(p.phoneNumber)) {
+    if (!isValidPhoneIfPresent(prof.phoneNumber)) {
       return {
         tab: 'contact',
         message: 'Contact / Phone number must contain 6–18 digits (e.g. +880 1XXX-XXXXXX).',
       };
     }
-    if (!isValidPhoneIfPresent(p.whatsappNumber)) {
+    if (!isValidPhoneIfPresent(prof.whatsappNumber)) {
       return {
         tab: subTab === 'social' ? 'social' : 'contact',
         message: 'WhatsApp number must contain 6–18 digits (e.g. +880 1XXX-XXXXXX).',
       };
     }
-    if (!sanitizePublicUrl(p.githubUrl, '', false)) {
+    if (!sanitizePublicUrl(prof.githubUrl, '', false)) {
       return {
         tab: 'social',
         message: 'GitHub Profile URL must start with https:// or http://.',
       };
     }
-    if (p.twitterUrl.trim() && !sanitizePublicUrl(p.twitterUrl, '', false)) {
+    if (prof.twitterUrl.trim() && !sanitizePublicUrl(prof.twitterUrl, '', false)) {
       return {
         tab: 'social',
         message: 'Twitter / X URL must start with https:// or http://.',
       };
     }
-    if (p.behanceUrl.trim() && !sanitizePublicUrl(p.behanceUrl, '', false)) {
+    if (prof.behanceUrl.trim() && !sanitizePublicUrl(prof.behanceUrl, '', false)) {
       return {
         tab: 'social',
         message: 'Behance URL must start with https:// or http://.',
       };
     }
-    if (p.facebookUrl.trim() && !sanitizePublicUrl(p.facebookUrl, '', false)) {
+    if (prof.facebookUrl.trim() && !sanitizePublicUrl(prof.facebookUrl, '', false)) {
       return {
         tab: 'social',
         message: 'Facebook URL must start with https:// or http://.',
       };
     }
-    if (p.linkedinUrl.trim() && !sanitizePublicUrl(p.linkedinUrl, '', false)) {
+    if (prof.linkedinUrl.trim() && !sanitizePublicUrl(prof.linkedinUrl, '', false)) {
       return {
         tab: 'social',
         message: 'LinkedIn URL must start with https:// or http://.',
       };
     }
-    if (p.instagramUrl.trim() && !sanitizePublicUrl(p.instagramUrl, '', false)) {
+    if (prof.instagramUrl.trim() && !sanitizePublicUrl(prof.instagramUrl, '', false)) {
       return {
         tab: 'social',
         message: 'Instagram URL must start with https:// or http://.',
       };
     }
     if (
-      !reqText(p.githubHandle) ||
-      !reqText(p.availability) ||
-      !reqText(p.disciplineSummary) ||
-      !reqText(p.prototypeTurnaround) ||
-      !reqText(p.quoteText) ||
-      !reqText(p.quoteAuthor) ||
-      !reqText(p.quoteRole) ||
-      !reqText(p.manifestoLead) ||
-      !reqText(p.manifestoAvailability)
+      !reqText(prof.githubHandle) ||
+      !reqText(prof.availability) ||
+      !reqText(prof.disciplineSummary) ||
+      !reqText(prof.prototypeTurnaround) ||
+      !reqText(prof.quoteText) ||
+      !reqText(prof.quoteAuthor) ||
+      !reqText(prof.quoteRole) ||
+      !reqText(prof.manifestoLead) ||
+      !reqText(prof.manifestoAvailability)
     ) {
       return { tab: 'contact', message: 'Complete all Contact, Quote & CTA fields before saving.' };
     }
 
     if (
-      !reqText(p.craftMetricValue) ||
-      !reqText(p.craftMetricLabel) ||
-      !reqText(p.craftSummary) ||
-      draft.heroMetrics.some((m) => !reqText(m.value) || !reqText(m.label)) ||
-      draft.techPartners.some((tp) => !reqText(tp))
+      !reqText(prof.craftMetricValue) ||
+      !reqText(prof.craftMetricLabel) ||
+      !reqText(prof.craftSummary) ||
+      targetDraft.heroMetrics.some((m) => !reqText(m.value) || !reqText(m.label)) ||
+      targetDraft.techPartners.some((tp) => !reqText(tp))
     ) {
       return { tab: 'metrics', message: 'Every KPI metric and partner badge needs non-empty text.' };
     }
 
     if (
-      draft.services.some((s) => !reqText(s.index) || !reqText(s.title) || !reqText(s.detail)) ||
-      draft.techStack.some((t) => !reqText(t.name) || !reqText(t.role)) ||
-      draft.wireframeScenes.some((sc) => !reqText(sc.label) || !reqText(sc.specs) || !reqText(sc.notes))
+      targetDraft.services.some((s) => !reqText(s.index) || !reqText(s.title) || !reqText(s.detail)) ||
+      targetDraft.techStack.some((item) => !reqText(item.name) || !reqText(item.role)) ||
+      targetDraft.wireframeScenes.some((sc) => !reqText(sc.label) || !reqText(sc.specs) || !reqText(sc.notes))
     ) {
       return {
         tab: 'process',
@@ -370,7 +405,7 @@ export const AdminProfileEditor: React.FC<AdminProfileEditorProps> = ({
       };
     }
 
-    if (cv.mode === 'custom' && !sanitizeCvSourceUrl(cv.customUrl)) {
+    if (cvCfg.mode === 'custom' && !sanitizeCvSourceUrl(cvCfg.customUrl)) {
       return {
         tab: 'cv',
         message: 'Custom CV mode needs a valid https:// PDF link or an uploaded PDF file.',
@@ -382,15 +417,26 @@ export const AdminProfileEditor: React.FC<AdminProfileEditorProps> = ({
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (portraitBusy) return;
-    const issue = validateBeforeSave();
+    if (saving) return;
+    if (portraitBusy || cvBusy) {
+      setFormError('Please wait a moment for the selected image or PDF to finish preparing.');
+      return;
+    }
+
+    const normalizedDraft = buildNormalizedDraft();
+    onChange(normalizedDraft);
+
+    const issue = validateBeforeSave(normalizedDraft);
     if (issue) {
       setSubTab(issue.tab);
       setFormError(issue.message);
+      window.requestAnimationFrame(() => {
+        errorAlertRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      });
       return;
     }
     setFormError(null);
-    await onSave();
+    await onSave(normalizedDraft);
   };
 
   const isUploadedPortrait = p.portraitUrl.startsWith('data:');
@@ -420,6 +466,10 @@ export const AdminProfileEditor: React.FC<AdminProfileEditorProps> = ({
             disabled={saving}
             onClick={() => {
               applyDocumentAccentTheme(DEFAULT_VIEWER_CONTROLS.accentColor);
+              setPortraitLoadFailed(false);
+              setPortraitNote(null);
+              setCvNote(null);
+              setFormError(null);
               onChange({
                 ...draft,
                 profile: ADMIN_INITIAL_BUNDLE.profile,
@@ -440,7 +490,7 @@ export const AdminProfileEditor: React.FC<AdminProfileEditorProps> = ({
 
           <button
             type="submit"
-            disabled={saving}
+            disabled={saving || portraitBusy || cvBusy}
             className="inline-flex min-h-[42px] items-center gap-2 rounded-md bg-accent px-4 py-2 text-xs font-semibold text-white transition-colors hover:bg-accent-dark disabled:opacity-60 whitespace-nowrap shrink-0"
           >
             <Save className="h-3.5 w-3.5" aria-hidden="true" />
@@ -451,8 +501,9 @@ export const AdminProfileEditor: React.FC<AdminProfileEditorProps> = ({
 
       {formError && (
         <div
+          ref={errorAlertRef}
           role="alert"
-          className="flex items-center justify-between gap-3 rounded-lg border border-accent/40 bg-accent/10 px-4 py-3 text-xs text-red-200"
+          className="flex items-center justify-between gap-3 rounded-lg border border-[#DC2626]/40 bg-[#DC2626]/10 px-4 py-3 text-xs text-red-200"
         >
           <span>{formError}</span>
           <button
@@ -606,6 +657,9 @@ export const AdminProfileEditor: React.FC<AdminProfileEditorProps> = ({
                   label="Portrait Path / URL (optional)"
                   value={p.portraitUrl}
                   maxLength={500}
+                  autoPrefixHttps
+                  lang={lang}
+                  placeholder="/assets/shanto-cutout.png"
                   onChange={(v) => updateProfile('portraitUrl', v)}
                 />
               )}
@@ -619,14 +673,15 @@ export const AdminProfileEditor: React.FC<AdminProfileEditorProps> = ({
               </p>
               <div className="mt-4 flex items-center gap-4 border-b border-white/10 pb-4">
                 <div className="flex h-20 w-16 shrink-0 items-center justify-center overflow-hidden rounded-lg border border-white/10 bg-[#12131A]">
-                  {portraitLoadFailed || !p.portraitUrl ? (
+                  {portraitLoadFailed || !p.portraitUrl.trim() ? (
                     <span className="font-display text-xl font-bold text-zinc-500">
                       {p.displayName.slice(0, 2)}
                     </span>
                   ) : (
                     <img
-                      src={p.portraitUrl}
+                      src={normalizeUserUrlInput(p.portraitUrl)}
                       alt={p.displayName}
+                      onLoad={() => setPortraitLoadFailed(false)}
                       onError={() => setPortraitLoadFailed(true)}
                       className="h-full w-full object-cover object-top"
                     />
@@ -644,9 +699,9 @@ export const AdminProfileEditor: React.FC<AdminProfileEditorProps> = ({
               </div>
               <p className="mt-3 text-xs leading-relaxed text-zinc-300">{p.bio}</p>
               {portraitLoadFailed && (
-                <p className="mt-3 text-xs text-amber-400">
-                  Portrait image URL could not load cleanly—fallback initials will protect the
-                  viewer layout.
+                <p className="mt-3 text-xs text-amber-300">
+                  Preview image could not load in this browser, but saving changes is still allowed—fallback
+                  initials will protect the live hero layout.
                 </p>
               )}
             </div>
@@ -1731,6 +1786,30 @@ export const AdminProfileEditor: React.FC<AdminProfileEditorProps> = ({
         </div>
       )}
 
+      {(formError || saveNotice) && (
+        <div className="space-y-2">
+          {formError && (
+            <div
+              role="alert"
+              className="flex items-center justify-between gap-3 rounded-lg border border-[#DC2626]/40 bg-[#DC2626]/10 px-4 py-3 text-xs text-red-200"
+            >
+              <span>{formError}</span>
+              <button
+                type="button"
+                onClick={() => setFormError(null)}
+                aria-label="Dismiss validation error"
+                className="text-zinc-400 hover:text-white"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+          )}
+          {saveNotice && (
+            <StatusNotice notice={saveNotice} onDismiss={() => onDismissNotice?.()} />
+          )}
+        </div>
+      )}
+
       <div className="flex flex-wrap items-center justify-between gap-3 border-t border-white/10 pt-5">
         {onBack ? (
           <button
@@ -1746,7 +1825,7 @@ export const AdminProfileEditor: React.FC<AdminProfileEditorProps> = ({
         )}
         <button
           type="submit"
-          disabled={saving}
+          disabled={saving || portraitBusy || cvBusy}
           className="inline-flex min-h-[44px] items-center gap-2 rounded-md bg-accent px-5 py-2 text-xs font-semibold text-white transition-colors hover:bg-accent-dark disabled:opacity-60"
         >
           <Save className="h-3.5 w-3.5" aria-hidden="true" />

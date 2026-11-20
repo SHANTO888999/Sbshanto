@@ -80,7 +80,6 @@ function isolateOutputAssetsPlugin(appMode: string | undefined): Plugin {
         rmIfExists('sitemap.xml');
         rmIfExists('assets/og-card.jpg');
         rmIfExists('assets/og-card.png');
-        rmIfExists('assets/shanto-cutout.png');
         const robotsPath = path.join(outDir, 'robots.txt');
         if (fs.existsSync(outDir)) {
           fs.writeFileSync(robotsPath, 'User-agent: *\nDisallow: /\n', 'utf8');
@@ -197,7 +196,7 @@ export default defineConfig(() => {
             ? ['**/*.{js,css,html,woff,woff2}', 'pwa-admin-*.png', 'icon-admin.svg']
             : ['**/*.{js,css,html,ico,svg,woff,woff2}'],
           globIgnores: isAdminBuild
-            ? ['**/aistudio/**', '**/og-card.*', '**/shanto-cutout.*', '**/pwa-192*', '**/pwa-512*', '**/pwa-maskable*']
+            ? ['**/aistudio/**', '**/og-card.*', '**/pwa-192*', '**/pwa-512*', '**/pwa-maskable*']
             : ['**/aistudio/**', '**/pwa-admin-*', '**/icon-admin.svg', '**/apple-touch-icon-admin.png'],
           navigateFallback: '/index.html',
           runtimeCaching: [

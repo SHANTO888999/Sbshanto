@@ -1,6 +1,6 @@
 import React, { useEffect } from 'react';
 import { AlertTriangle, CheckCircle2, X } from 'lucide-react';
-import { sanitizePublicUrl } from '../../data/contentSchema';
+import { normalizeUserUrlInput, sanitizePublicUrl } from '../../data/contentSchema';
 import { getAdminCopy, type AdminLang } from './adminI18n';
 
 type EnterKeyHintValue = 'enter' | 'done' | 'go' | 'next' | 'previous' | 'search' | 'send';
@@ -153,16 +153,24 @@ export const SafeUrlInput: React.FC<SafeUrlInputProps> = ({
   lang = 'en',
 }) => {
   const trimmed = value.trim();
-  const isValid = !trimmed || Boolean(sanitizePublicUrl(trimmed, ''));
+  const normalizedPreview = autoPrefixHttps
+    ? normalizeUserUrlInput(trimmed)
+    : /^assets\//i.test(trimmed)
+      ? `/${trimmed}`
+      : trimmed;
+  const isValid = !trimmed || Boolean(sanitizePublicUrl(normalizedPreview, ''));
 
   const handleBlur = () => {
-    if (!autoPrefixHttps) return;
     const raw = value.trim();
-    if (!raw || raw.startsWith('/') || raw.includes('://') || raw.startsWith('mailto:') || raw.startsWith('data:')) {
+    if (!raw) return;
+    if (/^assets\//i.test(raw)) {
+      onChange(`/${raw}`.slice(0, maxLength));
       return;
     }
-    if (/^[a-z0-9.-]+\.[a-z]{2,}(\/.*)?$/i.test(raw)) {
-      onChange(`https://${raw}`.slice(0, maxLength));
+    if (!autoPrefixHttps) return;
+    const normalized = normalizeUserUrlInput(raw);
+    if (normalized !== value) {
+      onChange(normalized.slice(0, maxLength));
     }
   };
 

@@ -318,13 +318,32 @@ export function sanitizeCvSourceUrl(value: unknown): string {
   return sanitizePublicUrl(trimmed, '', false);
 }
 
+export function normalizeUserUrlInput(value: unknown): string {
+  if (typeof value !== 'string') return '';
+  const trimmed = value.trim();
+  if (!trimmed) return '';
+  if (trimmed.startsWith('data:') || trimmed.startsWith('mailto:')) {
+    return trimmed;
+  }
+  if (/^assets\//i.test(trimmed)) {
+    return `/${trimmed}`;
+  }
+  if (trimmed.startsWith('/') && !trimmed.startsWith('//')) {
+    return trimmed;
+  }
+  if (!trimmed.includes('://') && /^[a-z0-9.-]+\.[a-z]{2,}(\/.*)?$/i.test(trimmed)) {
+    return `https://${trimmed}`;
+  }
+  return trimmed;
+}
+
 export function sanitizePublicUrl(
   value: unknown,
   fallback = '',
   allowMediaDataUrl = false
 ): string {
   if (typeof value !== 'string') return fallback;
-  const trimmed = value.trim();
+  const trimmed = normalizeUserUrlInput(value);
   if (!trimmed) return fallback;
 
   if (allowMediaDataUrl && trimmed.startsWith('data:')) {
@@ -366,7 +385,9 @@ export function normalizePortfolioContent(
   const rawProfile = raw.profile ?? ({} as Partial<SiteProfile>);
   const dp = defaults.profile;
 
-  const candidatePortrait = sanitizePublicUrl(rawProfile.portraitUrl, dp.portraitUrl, true);
+  const hasPortraitProp = Object.prototype.hasOwnProperty.call(rawProfile, 'portraitUrl');
+  const portraitFallback = hasPortraitProp ? '' : dp.portraitUrl;
+  const candidatePortrait = sanitizePublicUrl(rawProfile.portraitUrl, portraitFallback, true);
   const safePortraitUrl =
     candidatePortrait.startsWith('data:') &&
     (!candidatePortrait.startsWith('data:image/') || candidatePortrait.length > 320_000)
