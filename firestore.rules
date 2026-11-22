@@ -275,7 +275,7 @@ service cloud.firestore {
     function isValidPortfolioSettings(data) {
       return data.keys().hasAll([
           'greeting', 'displayName', 'backdropName', 'wordmark', 'role', 'bio',
-          'portraitUrl', 'email', 'githubHandle', 'githubUrl', 'availability',
+          'portraitUrl', 'email', 'githubHandle', 'availability',
           'disciplineSummary', 'craftMetricValue', 'craftMetricSuffix', 'craftMetricLabel',
           'craftSummary', 'quoteText', 'quoteAuthor', 'quoteRole',
           'manifestoLead', 'manifestoAvailability', 'prototypeTurnaround',
@@ -305,7 +305,7 @@ service cloud.firestore {
         && isValidOptionalPhone(data, 'whatsappNumber')
         && (!('location' in data) || (data.location is string && data.location.size() <= 80))
         && data.githubHandle is string && data.githubHandle.size() <= 48
-        && data.githubUrl is string && data.githubUrl.size() <= 300 && data.githubUrl.matches('^(https?://|/|mailto:).*')
+        && isValidOptionalUrl(data, 'githubUrl', 300)
         && isValidOptionalUrl(data, 'twitterUrl', 300)
         && isValidOptionalUrl(data, 'linkedinUrl', 300)
         && isValidOptionalUrl(data, 'behanceUrl', 300)
