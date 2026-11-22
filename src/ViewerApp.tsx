@@ -17,7 +17,6 @@ import { DesignCanvasProvider } from './components/DesignCursorSystem';
 import { Navbar } from './components/Navbar';
 import { HeroSection } from './components/HeroSection';
 import { WorksSection } from './components/WorksSection';
-import { ClientsStrip } from './components/ClientsStrip';
 import { AwardsSection } from './components/AwardsSection';
 import { RawToRealSection } from './components/RawToRealSection';
 import { StorytellingSection } from './components/StorytellingSection';
@@ -443,19 +442,17 @@ function ViewerShell({
             onCategoryChange={handleWorksCategoryChange}
           />
 
-          <ClientsStrip />
-
-          <AwardsSection
-            expandedId={expandedMilestoneId}
-            onExpandedChange={handleMilestoneExpandedChange}
-          />
-
           <RawToRealSection
             selectedSceneId={rawSceneId}
             onSelectedSceneChange={handleRawSceneChange}
           />
 
           <StorytellingSection />
+
+          <AwardsSection
+            expandedId={expandedMilestoneId}
+            onExpandedChange={handleMilestoneExpandedChange}
+          />
 
           <ExperienceSection />
         </main>

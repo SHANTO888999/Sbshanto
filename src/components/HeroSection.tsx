@@ -1,9 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { ArrowUpRight, Download } from 'lucide-react';
+import { ArrowUpRight } from 'lucide-react';
 import { motion } from 'motion/react';
 import { usePortfolioContent } from '../context/PortfolioContentContext';
-import { trackCvDownload } from '../firebaseViewer';
-import { downloadPortfolioCv } from '../utils/cvPdfGenerator';
 import { ResizeDimensionBadge, useDesignCanvas } from './DesignCursorSystem';
 import { cursorAudio } from '../utils/cursorAudio';
 
@@ -26,8 +24,7 @@ export const HeroSection: React.FC<HeroSectionProps> = ({
   onOpenInquiry,
   onExploreProjects,
 }) => {
-  const portfolioContent = usePortfolioContent();
-  const { profile, heroMetrics, viewerControls } = portfolioContent;
+  const { profile, heroMetrics } = usePortfolioContent();
   const FULL_GREETING = profile.greeting;
   const FULL_NAME = profile.displayName;
   const FULL_ROLE = profile.role;
@@ -65,12 +62,11 @@ export const HeroSection: React.FC<HeroSectionProps> = ({
 
   const BTN_EXPLORE = 'Explore Projects';
   const BTN_START = 'Start a Project';
-  const BTN_CV = viewerControls.showCvDownloadOnViewer ? 'Download CV' : '';
 
   const textLength =
     FULL_GREETING.length + FULL_NAME.length + FULL_ROLE.length + FULL_BIO.length;
   const totalLength =
-    textLength + BTN_EXPLORE.length + BTN_START.length + BTN_CV.length;
+    textLength + BTN_EXPLORE.length + BTN_START.length;
 
   useEffect(() => {
     if (!cursorsEnabled) return;
@@ -340,8 +336,6 @@ export const HeroSection: React.FC<HeroSectionProps> = ({
   const btnExploreText = BTN_EXPLORE.slice(0, Math.min(remAfterB, BTN_EXPLORE.length));
   const remAfterBtn1 = Math.max(0, remAfterB - BTN_EXPLORE.length);
   const btnStartText = BTN_START.slice(0, Math.min(remAfterBtn1, BTN_START.length));
-  const remAfterBtn2 = Math.max(0, remAfterBtn1 - BTN_START.length);
-  const btnCvText = BTN_CV.slice(0, Math.min(remAfterBtn2, BTN_CV.length));
 
   const nameDotIndex = FULL_NAME.endsWith('.') ? FULL_NAME.length - 1 : -1;
   const nameMain = nameDotIndex >= 0 ? FULL_NAME.slice(0, nameDotIndex) : FULL_NAME;
@@ -370,20 +364,13 @@ export const HeroSection: React.FC<HeroSectionProps> = ({
     typedChars <= textLength;
   const btn1Visible = !isTyping || typedChars > textLength;
   const btn2Visible = !isTyping || typedChars > textLength + BTN_EXPLORE.length;
-  const btn3Visible =
-    !isTyping || typedChars > textLength + BTN_EXPLORE.length + BTN_START.length;
   const typingBtn1 =
     isTyping &&
     typedChars > textLength &&
     typedChars <= textLength + BTN_EXPLORE.length;
   const typingBtn2 =
     isTyping &&
-    typedChars > textLength + BTN_EXPLORE.length &&
-    typedChars <= textLength + BTN_EXPLORE.length + BTN_START.length;
-  const typingBtn3 =
-    isTyping &&
-    Boolean(BTN_CV) &&
-    typedChars > textLength + BTN_EXPLORE.length + BTN_START.length;
+    typedChars > textLength + BTN_EXPLORE.length;
 
   const isMonochromePhase = isTyping || isResizing || (isColoring && colorStage < 1);
   const shantoSmall = isBlack || isDragBox || isTyping || (isResizing && !resizeEngaged);
@@ -735,62 +722,6 @@ export const HeroSection: React.FC<HeroSectionProps> = ({
                     </span>
                   </span>
                 </motion.button>
-
-                {viewerControls.showCvDownloadOnViewer && (
-                  <motion.button
-                    type="button"
-                    data-cursor-target="hero-btn-2"
-                    initial={false}
-                    animate={{
-                      opacity: btn3Visible ? 1 : 0,
-                      scaleX: btn3Visible ? 1 : 0.72,
-                    }}
-                    transition={{ duration: 0.16 * speedMultiplier, ease: [0.22, 1, 0.36, 1] }}
-                    style={{ transformOrigin: 'left center' }}
-                    onClick={() => {
-                      downloadPortfolioCv(portfolioContent);
-                      void trackCvDownload();
-                    }}
-                    className={`relative inline-flex items-center gap-2 rounded-md border px-4 py-3 text-sm font-medium transition-colors duration-300 whitespace-nowrap shrink-0 ${
-                      typingBtn3
-                        ? 'border-[#38BDF8]/85 bg-[#08101E]/55 text-zinc-200'
-                        : isTyping || isResizing || (isColoring && colorStage < 3)
-                          ? 'border-dashed border-white/25 bg-[#121318] text-zinc-300'
-                          : 'border-accent/45 bg-accent/10 text-white hover:border-accent hover:bg-accent/20'
-                    }`}
-                  >
-                    {typingBtn3 && (
-                      <span
-                        data-hero-btn-draw="true"
-                        aria-hidden="true"
-                        className="pointer-events-none absolute -right-1 -bottom-1 h-1.5 w-1.5 border border-[#38BDF8] bg-white"
-                      />
-                    )}
-                    <Download
-                      className={`h-4 w-4 transition-colors duration-300 ${
-                        isTyping || isResizing || (isColoring && colorStage < 3)
-                          ? 'text-zinc-400'
-                          : 'text-accent-light'
-                      }`}
-                      aria-hidden="true"
-                    />
-                    <span className="relative inline-grid align-baseline">
-                      <span className="col-start-1 row-start-1 invisible select-none" aria-hidden="true">
-                        {BTN_CV}
-                      </span>
-                      <span className="pointer-events-none absolute inset-0 whitespace-nowrap">
-                        {isTyping ? btnCvText : BTN_CV}
-                        {typingBtn3 && (
-                          <span
-                            data-hero-caret="true"
-                            className="ml-0.5 inline-block h-[0.9em] w-[2px] bg-white align-middle"
-                            aria-hidden="true"
-                          />
-                        )}
-                      </span>
-                    </span>
-                  </motion.button>
-                )}
               </motion.div>
             </div>
           </div>

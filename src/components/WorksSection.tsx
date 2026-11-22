@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { ArrowUpRight, ExternalLink, Image as ImageIcon } from 'lucide-react';
+import { ArrowUpRight, Image as ImageIcon } from 'lucide-react';
 import { motion } from 'motion/react';
 import { ProjectCategory, ProjectItem } from '../data/portfolioData';
 import { usePortfolioContent } from '../context/PortfolioContentContext';
@@ -165,33 +165,6 @@ const ProjectCardContent: React.FC<{
           </div>
         </div>
       </button>
-
-      {project.liveUrl && (
-        <div className="mt-2.5 pl-10">
-          <a
-            href={project.liveUrl}
-            target="_blank"
-            rel="noopener noreferrer"
-            data-cursor-color-target="true"
-            className={`inline-flex items-center gap-1.5 rounded-md border px-3 py-1.5 text-xs font-semibold transition-colors duration-300 ${
-              isMonochrome
-                ? 'border-dashed border-white/25 bg-[#101116] text-zinc-300'
-                : 'border-white/15 bg-[#101116] text-zinc-100 hover:border-accent hover:bg-accent/15 hover:text-white'
-            }`}
-          >
-            <TypedText
-              text="Open Live Project"
-              cloneFrom={isCloneCard ? 'Open Live Project' : undefined}
-            />
-            <ExternalLink
-              className={`h-3.5 w-3.5 transition-colors duration-300 ${
-                isMonochrome ? 'text-zinc-500' : 'text-accent-light'
-              }`}
-              aria-hidden="true"
-            />
-          </a>
-        </div>
-      )}
     </article>
   );
 };
@@ -349,7 +322,7 @@ export const WorksSection: React.FC<WorksSectionProps> = ({
   const featuredTimelineProjects = projects.slice(0, 24);
 
   return (
-    <section id="works" className="border-b border-white/10 bg-[#050507] py-20 lg:py-24">
+    <section id="works" className="border-b border-white/10 bg-[#08080A] py-20 lg:py-24">
       <div className="mx-auto max-w-[1280px] px-6">
         <DesignBlock label="Section / Selected Works">
           <div className="flex flex-col justify-between gap-6 border-b border-white/10 pb-8 lg:flex-row lg:items-end">

@@ -75,36 +75,30 @@ const ViewportBadgeOverlay: React.FC = () => {
 };
 
 const ViewportSplitControls: React.FC<{
-  splitPercent: number;
   onChangeSplit: (value: number) => void;
-}> = ({ splitPercent, onChangeSplit }) => {
+}> = ({ onChangeSplit }) => {
   const { isMonochrome } = useCursorBuildPhase();
   return (
-    <div className="mt-4 flex flex-wrap items-center justify-between gap-3">
-      <div className="flex flex-wrap items-center gap-2">
-        {[
-          { label: 'Wireframe 100%', value: 94 },
-          { label: '50 / 50 Split', value: 50 },
-          { label: 'Live Build 100%', value: 6 },
-        ].map((preset) => (
-          <button
-            key={preset.label}
-            type="button"
-            data-cursor-color-target="true"
-            onClick={() => onChangeSplit(preset.value)}
-            className={`rounded-md border px-3 py-1.5 text-xs font-medium transition-colors duration-300 ${
-              isMonochrome
-                ? 'border-dashed border-white/25 bg-[#0E0E12] text-zinc-300'
-                : 'border-white/10 bg-[#111115] text-zinc-300 hover:border-white/25 hover:text-white'
-            }`}
-          >
-            <TypedText text={preset.label} />
-          </button>
-        ))}
-      </div>
-      <span className="font-mono text-xs text-zinc-400 tabular-nums">
-        <TypedText text={`Split: ${Math.round(splitPercent)}%`} />
-      </span>
+    <div className="mt-4 flex flex-wrap items-center gap-2">
+      {[
+        { label: 'Wireframe 100%', value: 94 },
+        { label: '50 / 50 Split', value: 50 },
+        { label: 'Live Build 100%', value: 6 },
+      ].map((preset) => (
+        <button
+          key={preset.label}
+          type="button"
+          data-cursor-color-target="true"
+          onClick={() => onChangeSplit(preset.value)}
+          className={`rounded-md border px-3 py-1.5 text-xs font-medium transition-colors duration-300 ${
+            isMonochrome
+              ? 'border-dashed border-white/25 bg-[#0E0E12] text-zinc-300'
+              : 'border-white/10 bg-[#111115] text-zinc-300 hover:border-white/25 hover:text-white'
+          }`}
+        >
+          <TypedText text={preset.label} />
+        </button>
+      ))}
     </div>
   );
 };
@@ -398,7 +392,7 @@ export const RawToRealSection: React.FC<RawToRealSectionProps> = ({
   }, [isDragging]);
 
   return (
-    <section id="process" className="border-b border-white/10 bg-[#0A0A0D] py-20 lg:py-24">
+    <section id="process" className="border-b border-white/10 bg-[#050507] py-20 lg:py-24">
       <div className="mx-auto max-w-[1280px] px-6">
         <div className="grid grid-cols-1 items-center gap-10 lg:grid-cols-12 lg:gap-12">
           {/* Left Column: Explanation & Mode Controls */}
@@ -491,10 +485,7 @@ export const RawToRealSection: React.FC<RawToRealSectionProps> = ({
               </div>
             </div>
 
-            <ViewportSplitControls
-              splitPercent={splitPercent}
-              onChangeSplit={setSplitPercent}
-            />
+            <ViewportSplitControls onChangeSplit={setSplitPercent} />
           </DesignBlock>
         </div>
       </div>

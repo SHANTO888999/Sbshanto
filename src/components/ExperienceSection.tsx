@@ -1,72 +1,15 @@
 import React from 'react';
 import { usePortfolioContent } from '../context/PortfolioContentContext';
-import { DesignBlock, TypedText, useCursorBuildPhase } from './DesignCursorSystem';
-
-const ManifestoCard: React.FC<{
-  manifestoLead: string;
-  manifestoAvailability: string;
-  prototypeTurnaround: string;
-}> = ({ manifestoLead, manifestoAvailability, prototypeTurnaround }) => {
-  const { isMonochrome } = useCursorBuildPhase();
-
-  return (
-    <div
-      data-cursor-color-target="true"
-      className={`flex h-full flex-col justify-between rounded-2xl border p-8 transition-[border-color,background-image] duration-500 ${
-        isMonochrome ? 'border-white/15 bg-[#0D0E14]' : 'border-accent/40 bg-[#0D0E14]'
-      }`}
-      style={{
-        backgroundImage: isMonochrome
-          ? 'none'
-          : 'linear-gradient(160deg, rgba(var(--accent-rgb), 0.14) 0%, rgba(13, 14, 20, 0.96) 75%)',
-      }}
-    >
-      <div>
-        <p
-          className={`text-xs font-medium transition-colors duration-400 ${
-            isMonochrome ? 'text-zinc-400' : 'text-accent-light'
-          }`}
-        >
-          <TypedText text="Creator Ethos" />
-        </p>
-        <h3 className="mt-3 font-display text-4xl font-bold leading-none tracking-tight text-white">
-          <TypedText
-            text="START SMALL."
-            accentText="SHIP BIG."
-            accentBreak
-            accentClassName="text-accent-light"
-            resizeScale
-          />
-        </h3>
-      </div>
-
-      <div className="my-8 space-y-4 border-y border-white/10 py-6 text-sm text-zinc-300">
-        <p className="break-words">
-          <TypedText text={manifestoLead} />
-        </p>
-        <p className="break-words text-zinc-400">
-          <TypedText text={manifestoAvailability} />
-        </p>
-      </div>
-
-      <div className="flex items-center justify-between text-xs text-zinc-400">
-        <TypedText text="First Prototype" />
-        <span className="font-mono text-white tabular-nums">
-          <TypedText text={prototypeTurnaround} />
-        </span>
-      </div>
-    </div>
-  );
-};
+import { DesignBlock, TypedText } from './DesignCursorSystem';
 
 export const ExperienceSection: React.FC = () => {
-  const { profile, experience } = usePortfolioContent();
+  const { experience } = usePortfolioContent();
   return (
-    <section id="experience" className="border-b border-white/10 bg-[#0A0A0D] py-20 lg:py-24">
+    <section id="experience" className="border-b border-white/10 bg-[#050507] py-20 lg:py-24">
       <div className="mx-auto max-w-[1280px] px-6">
-        <div className="grid grid-cols-1 gap-10 lg:grid-cols-12 lg:gap-12">
-          {/* Left Column: Builder Journey Header + Individual Timeline Blocks */}
-          <div className="lg:col-span-8">
+        <div className="grid grid-cols-1 gap-10 lg:grid-cols-12 lg:gap-16">
+          {/* Left Column: Builder Journey Header */}
+          <div className="lg:col-span-4">
             <DesignBlock shape="panel" slotIndex={0} label="Section / Experience Header">
               <p className="text-xs font-medium text-zinc-400">
                 <TypedText text="Builder Journey" />
@@ -81,66 +24,59 @@ export const ExperienceSection: React.FC = () => {
                 />
               </h2>
             </DesignBlock>
-
-            <div className="mt-10 divide-y divide-white/10 border-y border-white/10">
-              {experience.map((item, idx) => {
-                const firstExp = experience[0] ?? item;
-                return (
-                  <DesignBlock
-                    key={item.id}
-                    shape="row"
-                    slotIndex={idx + 1}
-                    cloneGroup="experience"
-                    isCloneItem={idx > 0}
-                    className="py-6"
-                  >
-                    <div className="grid grid-cols-1 gap-3 sm:grid-cols-12 sm:gap-6">
-                      <div className="sm:col-span-4">
-                        <span className="font-mono text-xs font-medium text-accent-light tabular-nums">
-                          <TypedText
-                            text={item.period}
-                            cloneFrom={idx > 0 ? firstExp.period : undefined}
-                          />
-                        </span>
-                        <div className="mt-1 text-xs text-zinc-400">
-                          <TypedText
-                            text={item.org}
-                            cloneFrom={idx > 0 ? firstExp.org : undefined}
-                          />
-                        </div>
-                      </div>
-
-                      <div className="sm:col-span-8">
-                        <h3 className="text-base font-semibold text-white">
-                          <TypedText
-                            text={item.role}
-                            cloneFrom={idx > 0 ? firstExp.role : undefined}
-                          />
-                        </h3>
-                        <p className="mt-1.5 text-sm leading-relaxed text-zinc-300">
-                          <TypedText
-                            text={item.description}
-                            cloneFrom={idx > 0 ? firstExp.description : undefined}
-                          />
-                        </p>
-                      </div>
-                    </div>
-                  </DesignBlock>
-                );
-              })}
-            </div>
           </div>
 
-          {/* Right Column: Brand Manifesto Card */}
-          <DesignBlock shape="panel" slotIndex={5} label="Manifesto Card" className="lg:col-span-4">
-            <ManifestoCard
-              manifestoLead={profile.manifestoLead}
-              manifestoAvailability={profile.manifestoAvailability}
-              prototypeTurnaround={profile.prototypeTurnaround}
-            />
-          </DesignBlock>
+          {/* Right Column: Individual Timeline Blocks */}
+          <div className="divide-y divide-white/10 border-y border-white/10 lg:col-span-8">
+            {experience.map((item, idx) => {
+              const firstExp = experience[0] ?? item;
+              return (
+                <DesignBlock
+                  key={item.id}
+                  shape="row"
+                  slotIndex={idx + 1}
+                  cloneGroup="experience"
+                  isCloneItem={idx > 0}
+                  className="py-6"
+                >
+                  <div className="grid grid-cols-1 gap-3 sm:grid-cols-12 sm:gap-6">
+                    <div className="sm:col-span-4">
+                      <span className="font-mono text-xs font-medium text-accent-light tabular-nums">
+                        <TypedText
+                          text={item.period}
+                          cloneFrom={idx > 0 ? firstExp.period : undefined}
+                        />
+                      </span>
+                      <div className="mt-1 text-xs text-zinc-400">
+                        <TypedText
+                          text={item.org}
+                          cloneFrom={idx > 0 ? firstExp.org : undefined}
+                        />
+                      </div>
+                    </div>
+
+                    <div className="sm:col-span-8">
+                      <h3 className="text-base font-semibold text-white">
+                        <TypedText
+                          text={item.role}
+                          cloneFrom={idx > 0 ? firstExp.role : undefined}
+                        />
+                      </h3>
+                      <p className="mt-1.5 text-sm leading-relaxed text-zinc-300">
+                        <TypedText
+                          text={item.description}
+                          cloneFrom={idx > 0 ? firstExp.description : undefined}
+                        />
+                      </p>
+                    </div>
+                  </div>
+                </DesignBlock>
+              );
+            })}
+          </div>
         </div>
       </div>
     </section>
   );
 };
+

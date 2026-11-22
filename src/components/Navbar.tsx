@@ -14,9 +14,9 @@ interface NavbarProps {
 
 const NAV_ITEMS = [
   { label: 'Works', href: '#works' },
-  { label: 'Milestones', href: '#milestones' },
   { label: 'Process', href: '#process' },
   { label: 'Stack', href: '#stack' },
+  { label: 'Milestones', href: '#milestones' },
   { label: 'Contact', href: '#contact' },
 ];
 

@@ -1,39 +1,7 @@
 import React, { useEffect, useState } from 'react';
-import { ChevronDown, Trophy } from 'lucide-react';
+import { ChevronDown } from 'lucide-react';
 import { usePortfolioContent } from '../context/PortfolioContentContext';
-import { DesignBlock, TypedText, useBlockStage } from './DesignCursorSystem';
-
-const CraftMetricCounter: React.FC = () => {
-  const { profile } = usePortfolioContent();
-  const { stage, cursorsEnabled } = useBlockStage();
-  const isMonochrome = cursorsEnabled && (stage === 'type-draft' || stage === 'resize-scale');
-
-  return (
-    <div className="relative mt-8 flex items-end gap-4">
-      <span className="relative font-display text-7xl font-bold leading-none text-white tabular-nums sm:text-8xl">
-        <TypedText text={profile.craftMetricValue} />
-        <span
-          className={`transition-colors duration-600 ${
-            isMonochrome ? 'text-zinc-400' : 'text-accent'
-          }`}
-        >
-          <TypedText text={profile.craftMetricSuffix} />
-        </span>
-      </span>
-      <div className="pb-2">
-        <Trophy
-          className={`h-7 w-7 transition-colors duration-500 ${
-            isMonochrome ? 'text-zinc-500' : 'text-accent'
-          }`}
-          aria-hidden="true"
-        />
-        <p className="mt-1 text-xs font-medium text-zinc-400">
-          <TypedText text={profile.craftMetricLabel} />
-        </p>
-      </div>
-    </div>
-  );
-};
+import { DesignBlock, TypedText } from './DesignCursorSystem';
 
 interface AwardsSectionProps {
   expandedId?: string;
@@ -66,11 +34,11 @@ export const AwardsSection: React.FC<AwardsSectionProps> = ({
   return (
     <section
       id="milestones"
-      className="border-b border-white/10 bg-[#08080A] py-20 lg:py-24"
+      className="border-b border-white/10 bg-[#0A0A0D] py-20 lg:py-24"
     >
       <div className="mx-auto max-w-[1280px] px-6">
         <div className="grid grid-cols-1 gap-12 lg:grid-cols-12 lg:gap-16">
-          {/* Left Column: Statement & 60+ built & typed line by line */}
+          {/* Left Column: Statement */}
           <DesignBlock shape="panel" slotIndex={0} label="Section / Craft & Impact" className="lg:col-span-5">
             <p className="text-xs font-medium text-zinc-400">
               <TypedText text="Shipped Builds & Honors" />
@@ -84,8 +52,6 @@ export const AwardsSection: React.FC<AwardsSectionProps> = ({
                 resizeScale
               />
             </h2>
-
-            <CraftMetricCounter />
 
             <p className="mt-6 max-w-md break-words text-sm leading-relaxed text-zinc-300">
               <TypedText text={profile.craftSummary} />

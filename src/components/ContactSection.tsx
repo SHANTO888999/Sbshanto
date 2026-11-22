@@ -47,14 +47,12 @@ interface ContactCardConfig {
 const ContactHeroContent: React.FC<{
   disciplineSummary: string;
   availability: string;
-  whatsappHref: string | null;
   showCvDownload: boolean;
   onOpenInquiry: () => void;
   onDownloadCv: () => void;
 }> = ({
   disciplineSummary,
   availability,
-  whatsappHref,
   showCvDownload,
   onOpenInquiry,
   onDownloadCv,
@@ -99,30 +97,6 @@ const ContactHeroContent: React.FC<{
             <TypedText text="Start a Project Brief" />
             <ArrowUpRight className="h-4 w-4" aria-hidden="true" />
           </button>
-
-          {whatsappHref && (
-            <a
-              href={whatsappHref}
-              target="_blank"
-              rel="noopener noreferrer"
-              data-cursor-color-target="true"
-              className={`inline-flex items-center gap-2 rounded-md border px-4 py-3 text-xs font-semibold transition-colors duration-300 whitespace-nowrap shrink-0 ${
-                isWireframe
-                  ? 'border-dashed border-white/25 bg-transparent text-zinc-400'
-                  : isMonochrome
-                    ? 'border-white/20 bg-white/5 text-zinc-300'
-                    : 'border-emerald-500/40 bg-emerald-500/10 text-emerald-200 hover:border-emerald-400 hover:bg-emerald-500/20'
-              }`}
-            >
-              <MessageCircle
-                className={`h-4 w-4 transition-colors duration-300 ${
-                  isMonochrome ? 'text-zinc-400' : 'text-emerald-400'
-                }`}
-                aria-hidden="true"
-              />
-              <TypedText text="WhatsApp Chat" />
-            </a>
-          )}
 
           {showCvDownload && (
             <button
@@ -174,8 +148,7 @@ const ContactHeroContent: React.FC<{
 const DirectContactHeader: React.FC<{
   displayName: string;
   locationText: string;
-  availability: string;
-}> = ({ displayName, locationText, availability }) => {
+}> = ({ displayName, locationText }) => {
   const { isMonochrome } = useCursorBuildPhase();
 
   return (
@@ -209,16 +182,6 @@ const DirectContactHeader: React.FC<{
             aria-hidden="true"
           />
           <TypedText text={locationText} />
-        </span>
-        <span
-          data-cursor-color-target="true"
-          className={`inline-flex items-center gap-1.5 rounded-md border px-3 py-1.5 transition-colors duration-300 ${
-            isMonochrome
-              ? 'border-white/20 bg-white/5 text-zinc-300'
-              : 'border-emerald-500/25 bg-emerald-500/10 text-emerald-300'
-          }`}
-        >
-          <TypedText text={availability} />
         </span>
       </div>
     </div>
@@ -355,23 +318,14 @@ const ContactCardContent: React.FC<{
 
 const SocialLinksBar: React.FC<{
   socialLinks: SocialLinkEntry[];
-  prototypeTurnaround: string;
-}> = ({ socialLinks, prototypeTurnaround }) => {
+}> = ({ socialLinks }) => {
   const { isWireframe, isMonochrome } = useCursorBuildPhase();
 
   return (
     <div className="mt-6 border-t border-white/10 pt-5">
-      <div className="flex flex-wrap items-center justify-between gap-2">
-        <p className="font-mono text-[11px] uppercase tracking-wider text-zinc-400">
-          <TypedText text="Social Media & Profiles" />
-        </p>
-        <span className="text-[11px] text-zinc-500">
-          <TypedText text="First Prototype: " />
-          <span className="font-mono text-zinc-300">
-            <TypedText text={prototypeTurnaround} />
-          </span>
-        </span>
-      </div>
+      <p className="font-mono text-[11px] uppercase tracking-wider text-zinc-400">
+        <TypedText text="Social Media & Profiles" />
+      </p>
       <div className="mt-3 flex flex-wrap gap-2.5">
         {socialLinks.map((item) => {
           const ariaText =
@@ -470,15 +424,6 @@ export const ContactSection: React.FC<ContactSectionProps> = ({ onOpenInquiry })
           hoverClass: 'hover:border-blue-500/50 hover:text-blue-300',
         }
       : null,
-    whatsappHref
-      ? {
-          id: 'whatsapp',
-          platformName: 'WhatsApp',
-          displayName: names.whatsapp.trim() || 'WhatsApp',
-          href: whatsappHref,
-          hoverClass: 'hover:border-emerald-500/50 hover:text-emerald-300',
-        }
-      : null,
     profile.instagramUrl
       ? {
           id: 'instagram',
@@ -543,7 +488,6 @@ export const ContactSection: React.FC<ContactSectionProps> = ({ onOpenInquiry })
           <ContactHeroContent
             disciplineSummary={profile.disciplineSummary}
             availability={profile.availability}
-            whatsappHref={whatsappHref}
             showCvDownload={viewerControls.showCvDownloadOnViewer}
             onOpenInquiry={onOpenInquiry}
             onDownloadCv={() => {
@@ -559,7 +503,6 @@ export const ContactSection: React.FC<ContactSectionProps> = ({ onOpenInquiry })
             <DirectContactHeader
               displayName={profile.displayName}
               locationText={locationText}
-              availability={profile.availability}
             />
           </DesignBlock>
 
@@ -586,10 +529,7 @@ export const ContactSection: React.FC<ContactSectionProps> = ({ onOpenInquiry })
 
           {socialLinks.length > 0 && (
             <DesignBlock shape="panel" slotIndex={5} label="Social Profiles">
-              <SocialLinksBar
-                socialLinks={socialLinks}
-                prototypeTurnaround={profile.prototypeTurnaround}
-              />
+              <SocialLinksBar socialLinks={socialLinks} />
             </DesignBlock>
           )}
         </div>

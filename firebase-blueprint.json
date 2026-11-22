@@ -12,7 +12,7 @@
         "role": { "type": "string", "maxLength": 80 },
         "bio": { "type": "string", "maxLength": 300 },
         "portraitUrl": { "type": "string", "maxLength": 320000 },
-        "email": { "type": "string", "maxLength": 100 },
+        "email": { "type": "string", "maxLength": 120 },
         "phoneNumber": { "type": "string", "maxLength": 28 },
         "whatsappNumber": { "type": "string", "maxLength": 28 },
         "location": { "type": "string", "maxLength": 80 },
