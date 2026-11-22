@@ -81,6 +81,7 @@ export const AwardsSection: React.FC<AwardsSectionProps> = ({
                 accentText="THE IMPACT."
                 accentBreak
                 accentClassName="text-accent"
+                resizeScale
               />
             </h2>
 

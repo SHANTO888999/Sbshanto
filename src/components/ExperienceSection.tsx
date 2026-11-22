@@ -1,6 +1,63 @@
 import React from 'react';
 import { usePortfolioContent } from '../context/PortfolioContentContext';
-import { DesignBlock, TypedText } from './DesignCursorSystem';
+import { DesignBlock, TypedText, useCursorBuildPhase } from './DesignCursorSystem';
+
+const ManifestoCard: React.FC<{
+  manifestoLead: string;
+  manifestoAvailability: string;
+  prototypeTurnaround: string;
+}> = ({ manifestoLead, manifestoAvailability, prototypeTurnaround }) => {
+  const { isMonochrome } = useCursorBuildPhase();
+
+  return (
+    <div
+      data-cursor-color-target="true"
+      className={`flex h-full flex-col justify-between rounded-2xl border p-8 transition-[border-color,background-image] duration-500 ${
+        isMonochrome ? 'border-white/15 bg-[#0D0E14]' : 'border-accent/40 bg-[#0D0E14]'
+      }`}
+      style={{
+        backgroundImage: isMonochrome
+          ? 'none'
+          : 'linear-gradient(160deg, rgba(var(--accent-rgb), 0.14) 0%, rgba(13, 14, 20, 0.96) 75%)',
+      }}
+    >
+      <div>
+        <p
+          className={`text-xs font-medium transition-colors duration-400 ${
+            isMonochrome ? 'text-zinc-400' : 'text-accent-light'
+          }`}
+        >
+          <TypedText text="Creator Ethos" />
+        </p>
+        <h3 className="mt-3 font-display text-4xl font-bold leading-none tracking-tight text-white">
+          <TypedText
+            text="START SMALL."
+            accentText="SHIP BIG."
+            accentBreak
+            accentClassName="text-accent-light"
+            resizeScale
+          />
+        </h3>
+      </div>
+
+      <div className="my-8 space-y-4 border-y border-white/10 py-6 text-sm text-zinc-300">
+        <p className="break-words">
+          <TypedText text={manifestoLead} />
+        </p>
+        <p className="break-words text-zinc-400">
+          <TypedText text={manifestoAvailability} />
+        </p>
+      </div>
+
+      <div className="flex items-center justify-between text-xs text-zinc-400">
+        <TypedText text="First Prototype" />
+        <span className="font-mono text-white tabular-nums">
+          <TypedText text={prototypeTurnaround} />
+        </span>
+      </div>
+    </div>
+  );
+};
 
 export const ExperienceSection: React.FC = () => {
   const { profile, experience } = usePortfolioContent();
@@ -20,6 +77,7 @@ export const ExperienceSection: React.FC = () => {
                   accentText="KEEP SHIPPING."
                   accentBreak
                   accentClassName="text-accent"
+                  resizeScale
                 />
               </h2>
             </DesignBlock>
@@ -75,43 +133,11 @@ export const ExperienceSection: React.FC = () => {
 
           {/* Right Column: Brand Manifesto Card */}
           <DesignBlock shape="panel" slotIndex={5} label="Manifesto Card" className="lg:col-span-4">
-            <div
-              className="flex h-full flex-col justify-between rounded-2xl border border-accent/40 bg-[#0D0E14] p-8"
-              style={{
-                backgroundImage:
-                  'linear-gradient(160deg, rgba(var(--accent-rgb), 0.14) 0%, rgba(13, 14, 20, 0.96) 75%)',
-              }}
-            >
-              <div>
-                <p className="text-xs font-medium text-accent-light">
-                  <TypedText text="Creator Ethos" />
-                </p>
-                <h3 className="mt-3 font-display text-4xl font-bold leading-none tracking-tight text-white">
-                  <TypedText
-                    text="START SMALL."
-                    accentText="SHIP BIG."
-                    accentBreak
-                    accentClassName="text-accent-light"
-                  />
-                </h3>
-              </div>
-
-              <div className="my-8 space-y-4 border-y border-white/10 py-6 text-sm text-zinc-300">
-                <p className="break-words">
-                  <TypedText text={profile.manifestoLead} />
-                </p>
-                <p className="break-words text-zinc-400">
-                  <TypedText text={profile.manifestoAvailability} />
-                </p>
-              </div>
-
-              <div className="flex items-center justify-between text-xs text-zinc-400">
-                <TypedText text="First Prototype" />
-                <span className="font-mono text-white tabular-nums">
-                  <TypedText text={profile.prototypeTurnaround} />
-                </span>
-              </div>
-            </div>
+            <ManifestoCard
+              manifestoLead={profile.manifestoLead}
+              manifestoAvailability={profile.manifestoAvailability}
+              prototypeTurnaround={profile.prototypeTurnaround}
+            />
           </DesignBlock>
         </div>
       </div>

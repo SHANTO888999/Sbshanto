@@ -2,12 +2,112 @@ import React, { useEffect, useRef, useState } from 'react';
 import { SlidersHorizontal } from 'lucide-react';
 import { usePortfolioContent } from '../context/PortfolioContentContext';
 import { computeAccentPalette } from '../utils/themeAccent';
-import { DesignBlock, TypedText } from './DesignCursorSystem';
+import { DesignBlock, TypedText, useCursorBuildPhase } from './DesignCursorSystem';
+import type { WireframeRealScene } from '../data/contentSchema';
 
 interface RawToRealSectionProps {
   selectedSceneId?: string;
   onSelectedSceneChange?: (id: string) => void;
 }
+
+const SceneSelectorList: React.FC<{
+  scenes: WireframeRealScene[];
+  selectedId: string;
+  onSelect: (id: string) => void;
+}> = ({ scenes, selectedId, onSelect }) => {
+  const { isMonochrome } = useCursorBuildPhase();
+
+  return (
+    <div className="mt-6 space-y-2">
+      {scenes.map((scene) => {
+        const active = selectedId === scene.id;
+        return (
+          <button
+            key={scene.id}
+            type="button"
+            data-cursor-color-target="true"
+            onClick={() => onSelect(scene.id)}
+            className={`w-full rounded-lg border px-4 py-3 text-left transition-colors duration-300 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent ${
+              isMonochrome
+                ? active
+                  ? 'border-dashed border-white/35 bg-white/5 text-zinc-200'
+                  : 'border-dashed border-white/15 bg-[#0E0E12] text-zinc-400'
+                : active
+                  ? 'border-accent bg-accent/12 text-white'
+                  : 'border-white/10 bg-[#111115] text-zinc-300 hover:border-white/25 hover:text-white'
+            }`}
+          >
+            <div className="text-sm font-semibold">
+              <TypedText text={scene.label} />
+            </div>
+            <div className="mt-0.5 font-mono text-xs text-zinc-400">
+              <TypedText text={scene.specs} />
+            </div>
+          </button>
+        );
+      })}
+    </div>
+  );
+};
+
+const ViewportBadgeOverlay: React.FC = () => {
+  const { isMonochrome } = useCursorBuildPhase();
+  return (
+    <>
+      <span
+        data-cursor-color-target="true"
+        className={`pointer-events-none absolute top-4 left-4 rounded px-2.5 py-1 font-mono text-[11px] font-medium text-white transition-colors duration-300 ${
+          isMonochrome ? 'border border-white/25 bg-[#121318]' : 'bg-[#3B82F6]/90'
+        }`}
+      >
+        <TypedText text="WIREFRAME / GREYBOX" />
+      </span>
+      <span
+        data-cursor-color-target="true"
+        className={`pointer-events-none absolute top-4 right-4 rounded px-2.5 py-1 font-mono text-[11px] font-medium text-white transition-colors duration-300 ${
+          isMonochrome ? 'border border-white/25 bg-[#121318]' : 'bg-accent/90'
+        }`}
+      >
+        <TypedText text="SHIPPED BUILD" />
+      </span>
+    </>
+  );
+};
+
+const ViewportSplitControls: React.FC<{
+  splitPercent: number;
+  onChangeSplit: (value: number) => void;
+}> = ({ splitPercent, onChangeSplit }) => {
+  const { isMonochrome } = useCursorBuildPhase();
+  return (
+    <div className="mt-4 flex flex-wrap items-center justify-between gap-3">
+      <div className="flex flex-wrap items-center gap-2">
+        {[
+          { label: 'Wireframe 100%', value: 94 },
+          { label: '50 / 50 Split', value: 50 },
+          { label: 'Live Build 100%', value: 6 },
+        ].map((preset) => (
+          <button
+            key={preset.label}
+            type="button"
+            data-cursor-color-target="true"
+            onClick={() => onChangeSplit(preset.value)}
+            className={`rounded-md border px-3 py-1.5 text-xs font-medium transition-colors duration-300 ${
+              isMonochrome
+                ? 'border-dashed border-white/25 bg-[#0E0E12] text-zinc-300'
+                : 'border-white/10 bg-[#111115] text-zinc-300 hover:border-white/25 hover:text-white'
+            }`}
+          >
+            <TypedText text={preset.label} />
+          </button>
+        ))}
+      </div>
+      <span className="font-mono text-xs text-zinc-400 tabular-nums">
+        <TypedText text={`Split: ${Math.round(splitPercent)}%`} />
+      </span>
+    </div>
+  );
+};
 
 export const RawToRealSection: React.FC<RawToRealSectionProps> = ({
   selectedSceneId: controlledSelectedId,
@@ -312,6 +412,7 @@ export const RawToRealSection: React.FC<RawToRealSectionProps> = ({
                 accentText="TO LIVE PRODUCT."
                 accentBreak
                 accentClassName="text-accent"
+                resizeScale
               />
             </h2>
 
@@ -322,30 +423,11 @@ export const RawToRealSection: React.FC<RawToRealSectionProps> = ({
             </p>
 
             {/* Scene Selector */}
-            <div className="mt-6 space-y-2">
-              {wireframeScenes.map((scene) => {
-                const active = selectedScene.id === scene.id;
-                return (
-                  <button
-                    key={scene.id}
-                    type="button"
-                    onClick={() => setSelectedId(scene.id)}
-                    className={`w-full rounded-lg border px-4 py-3 text-left transition-colors duration-150 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent ${
-                      active
-                        ? 'border-accent bg-accent/12 text-white'
-                        : 'border-white/10 bg-[#111115] text-zinc-300 hover:border-white/25 hover:text-white'
-                    }`}
-                  >
-                    <div className="text-sm font-semibold">
-                      <TypedText text={scene.label} />
-                    </div>
-                    <div className="mt-0.5 font-mono text-xs text-zinc-400">
-                      <TypedText text={scene.specs} />
-                    </div>
-                  </button>
-                );
-              })}
-            </div>
+            <SceneSelectorList
+              scenes={wireframeScenes}
+              selectedId={selectedScene.id}
+              onSelect={setSelectedId}
+            />
 
             <p className="mt-5 text-xs leading-relaxed text-zinc-400">
               <TypedText text={selectedScene.notes} />
@@ -382,12 +464,7 @@ export const RawToRealSection: React.FC<RawToRealSectionProps> = ({
                 />
               </div>
 
-              <span className="pointer-events-none absolute top-4 left-4 rounded bg-[#3B82F6]/90 px-2.5 py-1 font-mono text-[11px] font-medium text-white">
-                WIREFRAME / GREYBOX
-              </span>
-              <span className="pointer-events-none absolute top-4 right-4 rounded bg-accent/90 px-2.5 py-1 font-mono text-[11px] font-medium text-white">
-                SHIPPED BUILD
-              </span>
+              <ViewportBadgeOverlay />
 
               {/* Draggable Accent Divider */}
               <div
@@ -414,27 +491,10 @@ export const RawToRealSection: React.FC<RawToRealSectionProps> = ({
               </div>
             </div>
 
-            <div className="mt-4 flex flex-wrap items-center justify-between gap-3">
-              <div className="flex items-center gap-2">
-                {[
-                  { label: 'Wireframe 100%', value: 94 },
-                  { label: '50 / 50 Split', value: 50 },
-                  { label: 'Live Build 100%', value: 6 },
-                ].map((preset) => (
-                  <button
-                    key={preset.label}
-                    type="button"
-                    onClick={() => setSplitPercent(preset.value)}
-                    className="rounded-md border border-white/10 bg-[#111115] px-3 py-1.5 text-xs font-medium text-zinc-300 transition-colors hover:border-white/25 hover:text-white"
-                  >
-                    {preset.label}
-                  </button>
-                ))}
-              </div>
-              <span className="font-mono text-xs text-zinc-400 tabular-nums">
-                Split: {Math.round(splitPercent)}%
-              </span>
-            </div>
+            <ViewportSplitControls
+              splitPercent={splitPercent}
+              onChangeSplit={setSplitPercent}
+            />
           </DesignBlock>
         </div>
       </div>

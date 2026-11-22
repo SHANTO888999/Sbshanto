@@ -9,6 +9,7 @@ import {
   query,
   serverTimestamp,
   setDoc,
+  setLogLevel,
   updateDoc,
   where,
   type Firestore,
@@ -35,6 +36,7 @@ import {
 import { detectVisitorCountry } from './utils/visitorGeo';
 
 const db: Firestore = (() => {
+  setLogLevel('silent');
   try {
     return initializeFirestore(
       app,
@@ -91,8 +93,16 @@ export async function fetchLivePortfolioContent(): Promise<Partial<PortfolioCont
       return await fn();
     } catch (firstErr) {
       if (!isTransientOfflineError(firstErr)) throw firstErr;
-      await waitMs(1000);
-      return await fn();
+      if (typeof navigator !== 'undefined' && navigator.onLine === false) throw firstErr;
+      await waitMs(800);
+      try {
+        return await fn();
+      } catch (secondErr) {
+        if (!isTransientOfflineError(secondErr)) throw secondErr;
+        if (typeof navigator !== 'undefined' && navigator.onLine === false) throw secondErr;
+        await waitMs(1600);
+        return await fn();
+      }
     }
   };
 
@@ -560,18 +570,25 @@ export function startLivePresenceHeartbeat(): () => void {
   }, 25_000);
 
   const onActive = () => {
-    if (document.visibilityState === 'visible') {
+    if (!stopped && document.visibilityState === 'visible') {
       void pushHeartbeat();
     }
   };
+  const onUnload = () => {
+    stopped = true;
+  };
   document.addEventListener('visibilitychange', onActive);
   window.addEventListener('focus', onActive);
+  window.addEventListener('pagehide', onUnload);
+  window.addEventListener('beforeunload', onUnload);
 
   return () => {
     stopped = true;
     window.clearInterval(intervalId);
     document.removeEventListener('visibilitychange', onActive);
     window.removeEventListener('focus', onActive);
+    window.removeEventListener('pagehide', onUnload);
+    window.removeEventListener('beforeunload', onUnload);
   };
 }
 

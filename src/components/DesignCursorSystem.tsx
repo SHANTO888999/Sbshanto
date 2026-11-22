@@ -5,7 +5,6 @@ import React, {
   useEffect,
   useId,
   useLayoutEffect,
-  useMemo,
   useRef,
   useState,
 } from 'react';
@@ -37,15 +36,6 @@ const BASE_STAGE_DURATIONS: Record<Exclude<BlockStage, 'hidden' | 'done'>, numbe
 
 const MAX_CONCURRENT_BLOCKS = 4;
 const STAGGER_DISPATCH_MS = 380;
-
-const ORTHOGONAL_OFFSETS = [
-  { x: 0, y: -12 },
-  { x: 0, y: -10 },
-  { x: 0, y: -14 },
-  { x: 0, y: -8 },
-  { x: 0, y: -12 },
-  { x: 0, y: -10 },
-];
 
 interface RegisteredBlockMeta {
   cloneGroup?: string;
@@ -257,6 +247,7 @@ export const TypedText: React.FC<{
   accentClassName?: string;
   className?: string;
   showCursor?: boolean;
+  resizeScale?: boolean;
 }> = ({
   text,
   cloneFrom,
@@ -265,6 +256,7 @@ export const TypedText: React.FC<{
   accentClassName = 'text-accent',
   className = '',
   showCursor = true,
+  resizeScale = false,
 }) => {
   const lineId = useId();
   const spanRef = useRef<HTMLSpanElement | null>(null);
@@ -319,21 +311,26 @@ export const TypedText: React.FC<{
   const cursorOnAccent = isTyping && !showClonedSelection && isActiveLine && charCount > text.length;
   const cursorOnBase = isTyping && !showClonedSelection && isActiveLine && charCount <= text.length;
 
+  const scaleDownDraft =
+    resizeScale &&
+    cursorsEnabled &&
+    (stage === 'hidden' || stage === 'layout-drag' || stage === 'type-draft');
+
   return (
     <span
       ref={spanRef}
       data-typed-line={lineId}
       data-char-len={fullText.length}
-      className={`inline-grid ${className}`}
+      className={`relative inline-grid max-w-full align-baseline ${className}`}
     >
-      <span className="col-start-1 row-start-1 invisible" aria-hidden="true">
+      <span className="col-start-1 row-start-1 invisible pointer-events-none select-none" aria-hidden="true">
         {text}
         {accentBreak && <br />}
         {accentText}
       </span>
 
       {showClonedSelection ? (
-        <span className="col-start-1 row-start-1 font-mono opacity-95">
+        <span className="pointer-events-none absolute top-0 right-0 left-0 max-h-full overflow-hidden opacity-95">
           <span
             className={`rounded-[2px] px-0.5 transition-colors duration-200 ${
               clonePhase === 'selected'
@@ -346,12 +343,20 @@ export const TypedText: React.FC<{
         </span>
       ) : (
         <span
-          className={`col-start-1 row-start-1 transition-colors duration-400 ${
+          style={
+            resizeScale
+              ? {
+                  transform: scaleDownDraft ? 'scale(0.86)' : 'scale(1)',
+                  transformOrigin: 'left center',
+                }
+              : undefined
+          }
+          className={`pointer-events-none absolute inset-0 transition-[color,opacity,transform] duration-500 ease-out ${
             stage === 'hidden' || stage === 'layout-drag'
               ? 'opacity-0'
               : isTyping
                 ? charCount > 0 || isActiveLine
-                  ? 'font-mono opacity-95 text-zinc-300'
+                  ? 'opacity-95 text-zinc-300'
                   : 'opacity-0'
                 : 'opacity-100'
           }`}
@@ -369,7 +374,7 @@ export const TypedText: React.FC<{
           {accentBreak && <br />}
           {accentText && (
             <span
-              className={`transition-colors duration-400 ${
+              className={`transition-colors duration-300 ${
                 isMonochromeDraft ? 'text-zinc-300' : accentClassName
               }`}
             >
@@ -390,6 +395,35 @@ export const TypedText: React.FC<{
     </span>
   );
 };
+
+export type CursorButtonVariant = 'accent' | 'emerald' | 'subtle' | 'secondary' | 'outline';
+
+/**
+ * Helper hook for buttons/surfaces inside a DesignBlock so cursors visibly:
+ * 1) draw wireframe outline (layout-drag), 2) type monochrome label (type-draft),
+ * 3) scale cleanly (resize-scale), 4) paint real brand color (style-color), 5) place cleanly.
+ */
+export function useCursorBuildPhase() {
+  const { stage, cursorsEnabled } = useBlockStage();
+  const active = cursorsEnabled && stage !== 'done';
+  const isWireframe = active && (stage === 'hidden' || stage === 'layout-drag');
+  const isMonochrome =
+    active && (stage === 'hidden' || stage === 'layout-drag' || stage === 'type-draft' || stage === 'resize-scale');
+  const isResizing = active && stage === 'resize-scale';
+  const isColoring = active && stage === 'style-color';
+  const isPlacing = active && stage === 'place-drop';
+
+  return {
+    stage,
+    cursorsEnabled,
+    active,
+    isWireframe,
+    isMonochrome,
+    isResizing,
+    isColoring,
+    isPlacing,
+  };
+}
 
 type RoleKind = 'layout' | 'type' | 'resize' | 'style' | 'place';
 
@@ -438,17 +472,17 @@ const easeOutCubic = (p: number) => 1 - Math.pow(1 - clamp01(p), 3);
  * Finds the best visible source card in the same cloneGroup (Card #1 if visible on screen,
  * otherwise the nearest completed visible card in that group when scrolled deep through many rows).
  */
-function findVisibleCloneSourceRect(
+function findVisibleCloneSource(
   cloneGroup: string | undefined,
   dstRect: DOMRect
-): DOMRect | null {
+): { el: HTMLElement; rect: DOMRect } | null {
   if (typeof window === 'undefined' || !cloneGroup) return null;
   const vh = window.innerHeight;
   const vw = window.innerWidth;
   const isVisible = (r: DOMRect) =>
     r.width > 0 &&
     r.height > 0 &&
-    r.bottom > 68 &&
+    r.bottom > 20 &&
     r.top < vh - 16 &&
     r.right > 0 &&
     r.left < vw;
@@ -456,16 +490,20 @@ function findVisibleCloneSourceRect(
   const templateEl = document.querySelector(
     `[data-clone-template="${cloneGroup}"]`
   ) as HTMLElement | null;
+  let nearTopTemplate: { el: HTMLElement; rect: DOMRect } | null = null;
   if (templateEl) {
     const tRect = templateEl.getBoundingClientRect();
-    if (isVisible(tRect)) return tRect;
+    if (isVisible(tRect)) return { el: templateEl, rect: tRect };
+    if (tRect.width > 0 && tRect.height > 0 && tRect.bottom > -240 && tRect.top < vh) {
+      nearTopTemplate = { el: templateEl, rect: tRect };
+    }
   }
 
   const doneEls = Array.from(
     document.querySelectorAll(`[data-clone-done="${cloneGroup}"]`)
   ) as HTMLElement[];
 
-  let bestRect: DOMRect | null = null;
+  let best: { el: HTMLElement; rect: DOMRect } | null = null;
   let bestDist = Infinity;
   for (const el of doneEls) {
     const r = el.getBoundingClientRect();
@@ -473,14 +511,16 @@ function findVisibleCloneSourceRect(
     const d = Math.hypot(r.left - dstRect.left, r.top - dstRect.top);
     if (d > 8 && d < bestDist) {
       bestDist = d;
-      bestRect = r;
+      best = { el, rect: r };
     }
   }
-  return bestRect;
+  return best ?? nearTopTemplate;
 }
 
+const MAX_TETHER_SLOTS = 6;
+
 /**
- * Clean 18-Cursor Circular Orbit & Live Work Dispatcher:
+ * Clean 18-Cursor Circular Orbit & Live Work Dispatcher + 60fps SVG Copy-Paste Tether Overlay:
  * Smoothly orbits in clean concentric rings around center on boot, then peels out
  * cleanly to drag/copy-paste/type/resize/color/drop each visible block on screen.
  */
@@ -493,6 +533,7 @@ const CollaborativeCursorRosterOverlay: React.FC<{
   blocksRef: React.MutableRefObject<Map<string, RegisteredBlock>>;
 }> = ({ active, heroStep, speedMultiplier, accentLightHex, heroStepStartedAtRef, blocksRef }) => {
   const cursorRefs = useRef<Array<HTMLDivElement | null>>([]);
+  const tetherGroupRefs = useRef<Array<SVGGElement | null>>([]);
   const heroStepRef = useRef(heroStep);
   heroStepRef.current = heroStep;
   const speedMultRef = useRef(speedMultiplier);
@@ -587,6 +628,10 @@ const CollaborativeCursorRosterOverlay: React.FC<{
 
       const stepElapsed = now - heroStepStartedAtRef.current;
 
+      const tetherItems: Array<{
+        srcRect: DOMRect;
+      }> = [];
+
       // PHASE A: HERO ORCHESTRATION (steps 1..5)
       if (step === 1) {
         const p = easeOutCubic(stepElapsed / (1000 * sMult));
@@ -605,11 +650,16 @@ const CollaborativeCursorRosterOverlay: React.FC<{
         }
       } else if (step === 2) {
         const caretRect = queryRect('[data-hero-caret="true"]');
+        const btnDrawRect = queryRect('[data-hero-btn-draw="true"]');
         const shantoCaretRect = queryRect('[data-hero-shanto-caret="true"]');
         const kpiCaretRect = queryRect('[data-hero-kpi-caret="true"]');
+        const navCaretRect = queryRect('[data-nav-caret="true"]');
         const leftRect = queryRect('[data-cursor-target="hero-left"]');
         const shantoRect = queryRect('[data-cursor-target="hero-shanto"]');
 
+        if (btnDrawRect) {
+          assignTarget(0, btnDrawRect.right, btnDrawRect.bottom - 2, true);
+        }
         if (caretRect) {
           assignTarget(4, caretRect.right + 2, caretRect.bottom - 1, true);
         } else if (leftRect) {
@@ -623,42 +673,71 @@ const CollaborativeCursorRosterOverlay: React.FC<{
         if (kpiCaretRect) {
           assignTarget(6, kpiCaretRect.right + 2, kpiCaretRect.bottom - 1, true);
         }
+        if (navCaretRect) {
+          assignTarget(7, navCaretRect.right + 2, navCaretRect.bottom - 1, true);
+        }
       } else if (step === 3) {
-        const p = easeOutCubic((stepElapsed - 220 * sMult) / (820 * sMult));
-        const titleRect = queryRect('[data-cursor-target="hero-title-box"]');
-        const leftRect = queryRect('[data-cursor-target="hero-left"]');
-        const shantoRect = queryRect('[data-cursor-target="hero-shanto"]');
+        const titleHandleRect = queryRect('[data-resize-handle="hero-title"]');
+        const titleRect = titleHandleRect ?? queryRect('[data-cursor-target="hero-title-box"]');
+        const shantoHandleRect = queryRect('[data-resize-handle="hero-shanto"]');
+        const shantoRect = shantoHandleRect ?? queryRect('[data-cursor-target="hero-shanto"]');
+        const btnHandleRect = queryRect('[data-resize-handle="hero-buttons"]');
+        const btnRect = btnHandleRect ?? queryRect('[data-cursor-target="hero-buttons"]');
+        const kpi0Rect = queryRect('[data-cursor-target="hero-kpi-0"]');
 
         if (titleRect) {
-          assignTarget(8, titleRect.right - 2, titleRect.bottom - 2, true);
+          assignTarget(
+            8,
+            titleHandleRect ? titleRect.left + titleRect.width * 0.5 : titleRect.right - 2,
+            titleHandleRect ? titleRect.top + titleRect.height * 0.5 : titleRect.bottom - 2,
+            true
+          );
         }
         if (shantoRect) {
-          assignTarget(9, shantoRect.right - 2, shantoRect.bottom - 2, true);
+          assignTarget(
+            9,
+            shantoHandleRect ? shantoRect.left + shantoRect.width * 0.5 : shantoRect.right - 2,
+            shantoHandleRect ? shantoRect.top + shantoRect.height * 0.5 : shantoRect.bottom - 2,
+            true
+          );
         }
-        if (leftRect) {
-          assignTarget(10, leftRect.left + leftRect.width * (0.62 + 0.38 * p), leftRect.bottom - 6, true);
+        if (btnRect) {
+          assignTarget(
+            10,
+            btnHandleRect ? btnRect.left + btnRect.width * 0.5 : btnRect.right - 2,
+            btnHandleRect ? btnRect.top + btnRect.height * 0.5 : btnRect.bottom - 2,
+            true
+          );
         }
-        const kpi0Rect = queryRect('[data-cursor-target="hero-kpi-0"]');
         if (kpi0Rect) {
-          assignTarget(8, kpi0Rect.right - 2, kpi0Rect.bottom - 2, true);
+          assignTarget(14, kpi0Rect.right - 2, kpi0Rect.top + kpi0Rect.height * 0.5, true);
         }
       } else if (step === 4) {
-        const p = easeOutCubic(stepElapsed / (1150 * sMult));
+        const p = easeOutCubic(stepElapsed / (1250 * sMult));
         const titleRect = queryRect('[data-cursor-target="hero-title-box"]');
         const leftRect = queryRect('[data-cursor-target="hero-left"]');
         const shantoRect = queryRect('[data-cursor-target="hero-shanto"]');
+        const btnRect = queryRect('[data-cursor-target="hero-buttons"]');
+        const navBtnRect = queryRect('[data-cursor-target="nav-hire-btn"]');
 
-        if (titleRect) {
+        if (btnRect && stepElapsed > 380 * sMult) {
+          const bp = easeOutCubic((stepElapsed - 380 * sMult) / (760 * sMult));
+          assignTarget(11, btnRect.left + bp * btnRect.width, btnRect.top + btnRect.height * 0.5, true);
+        } else if (titleRect) {
           assignTarget(11, titleRect.left + p * (titleRect.width + 14), titleRect.bottom + 2);
         }
-        if (shantoRect) {
-          assignTarget(12, shantoRect.left + p * (shantoRect.width - 10), shantoRect.bottom + 2);
+        if (navBtnRect && stepElapsed > 520 * sMult) {
+          const np = easeOutCubic((stepElapsed - 520 * sMult) / (650 * sMult));
+          assignTarget(12, navBtnRect.left + np * navBtnRect.width, navBtnRect.top + navBtnRect.height * 0.5, true);
+        } else if (shantoRect) {
+          const sp = easeOutCubic(stepElapsed / (500 * sMult));
+          assignTarget(12, shantoRect.left + sp * Math.max(24, shantoRect.width - 10), shantoRect.top + shantoRect.height * 0.55, true);
         }
         if (leftRect) {
           assignTarget(13, leftRect.left + p * (leftRect.width * 0.72), leftRect.bottom - 10);
         }
         const kpi0Rect = queryRect('[data-cursor-target="hero-kpi-0"]');
-        if (stepElapsed < 360 * sMult) {
+        if (stepElapsed < 440 * sMult) {
           [0, 1, 2].forEach((slotOffset) => {
             if (kpi0Rect) {
               assignTarget(
@@ -679,13 +758,33 @@ const CollaborativeCursorRosterOverlay: React.FC<{
                 kpiRect.top + 12,
                 true
               );
+              if (kpi0Rect) {
+                tetherItems.push({
+                  srcRect: kpi0Rect,
+                });
+              }
             }
           });
         }
+        const cutoutAssetGrab = queryRect('[data-cursor-target="hero-cutout-grab"]');
+        if (cutoutAssetGrab && stepElapsed > 520 * sMult) {
+          assignTarget(
+            14,
+            cutoutAssetGrab.left + cutoutAssetGrab.width * 0.5,
+            Math.max(16, cutoutAssetGrab.top + cutoutAssetGrab.height * 0.5),
+            true
+          );
+        }
       } else if (step === 5) {
-        const cutoutRect = queryRect('[data-cursor-target="hero-cutout"]');
+        const cutoutGrabRect = queryRect('[data-cursor-target="hero-cutout-grab"]');
+        const cutoutRect = cutoutGrabRect ?? queryRect('[data-cursor-target="hero-cutout"]');
         if (cutoutRect) {
-          assignTarget(14, cutoutRect.left + cutoutRect.width * 0.5, cutoutRect.top + 12, true);
+          assignTarget(
+            14,
+            cutoutRect.left + cutoutRect.width * 0.5,
+            Math.max(16, cutoutRect.top + cutoutRect.height * 0.5),
+            true
+          );
         }
         const kpiEditCaret = queryRect('[data-hero-kpi-edit-caret="true"]');
         if (kpiEditCaret) {
@@ -712,7 +811,13 @@ const CollaborativeCursorRosterOverlay: React.FC<{
         const frameEl = block.el.querySelector('[data-block-frame="true"]') as HTMLElement | null;
         const targetEl = frameEl ?? block.el;
         const rect = targetEl.getBoundingClientRect();
-        if (rect.bottom < -60 || rect.top > vh + 60 || rect.width === 0) return;
+        const outerRect = block.el.getBoundingClientRect();
+        if (
+          (rect.bottom < -220 || rect.top > vh + 60 || rect.width === 0) &&
+          (outerRect.bottom < -60 || outerRect.top > vh + 60 || outerRect.width === 0)
+        ) {
+          return;
+        }
 
         const duration = Math.max(1, block.stageDurationMs);
         const rawP = clamp01((now - block.stageStartedAt) / duration);
@@ -726,14 +831,20 @@ const CollaborativeCursorRosterOverlay: React.FC<{
           if (isCloneBlock) {
             const elapsedStageMs = now - block.stageStartedAt;
             const amberCloneId = 14 + (block.slotLane % 4);
-            let dragX = rect.left + Math.min(28, rect.width * 0.24);
-            let dragY = rect.top + 14;
+            let dragX = rect.left + Math.min(24, rect.width * 0.22);
+            let dragY = Math.max(12, rect.top + 12);
 
-            if (elapsedStageMs < 220 * sMult && block.cloneGroup) {
-              const srcRect = findVisibleCloneSourceRect(block.cloneGroup, rect);
-              if (srcRect) {
-                dragX = srcRect.left + Math.min(40, srcRect.width * 0.35);
-                dragY = srcRect.top + 16;
+            const srcFound = block.cloneGroup
+              ? findVisibleCloneSource(block.cloneGroup, outerRect)
+              : null;
+
+            if (srcFound) {
+              tetherItems.push({
+                srcRect: srcFound.rect,
+              });
+              if (elapsedStageMs < 220 * sMult) {
+                dragX = srcFound.rect.left + Math.min(34, srcFound.rect.width * 0.28);
+                dragY = Math.max(12, srcFound.rect.top + 14);
               }
             }
 
@@ -763,23 +874,93 @@ const CollaborativeCursorRosterOverlay: React.FC<{
             });
           }
         } else if (block.stage === 'resize-scale') {
+          const rightHandleRect = block.el
+            .querySelector('[data-block-resize-right="true"]')
+            ?.getBoundingClientRect();
+          const handleX = rightHandleRect
+            ? rightHandleRect.left + rightHandleRect.width * 0.5
+            : rect.right - 2;
+          const handleY = rightHandleRect
+            ? rightHandleRect.top + rightHandleRect.height * 0.5
+            : rect.top + rect.height * 0.5;
           cursorIds.forEach((cid) => {
-            assignTarget(cid, rect.right - 2, rect.bottom - 2, true);
+            assignTarget(cid, handleX, handleY, true);
           });
         } else if (block.stage === 'style-color') {
-          cursorIds.forEach((cid) => {
-            assignTarget(
-              cid,
-              rect.left + 8 + p * Math.max(20, rect.width - 16),
-              rect.top + 6
+          const mediaGrabEl = block.el.querySelector('[data-media-drop-grab="true"]');
+          const colorTargets = block.el.querySelectorAll('[data-cursor-color-target="true"]');
+          if (mediaGrabEl) {
+            const mRect = mediaGrabEl.getBoundingClientRect();
+            const firstCid = cursorIds[0];
+            if (firstCid !== undefined) {
+              assignTarget(firstCid, mRect.left + mRect.width * 0.5, mRect.top + 10, true);
+            }
+          }
+          if (colorTargets.length > 0) {
+            const idxTarget = Math.min(
+              colorTargets.length - 1,
+              Math.floor(p * colorTargets.length)
             );
-          });
+            const tRect = colorTargets[idxTarget].getBoundingClientRect();
+            const localP = (p * colorTargets.length) - idxTarget;
+            cursorIds.forEach((cid, cIdx) => {
+              if (mediaGrabEl && cIdx === 0) return;
+              assignTarget(
+                cid,
+                tRect.left + Math.max(6, localP * Math.max(16, tRect.width)),
+                tRect.top + tRect.height * 0.5,
+                true
+              );
+            });
+          } else if (!mediaGrabEl) {
+            cursorIds.forEach((cid) => {
+              assignTarget(
+                cid,
+                rect.left + 8 + p * Math.max(20, rect.width - 16),
+                rect.top + Math.min(rect.height * 0.4, 28 + p * Math.max(12, rect.height * 0.45))
+              );
+            });
+          }
         } else if (block.stage === 'place-drop') {
-          cursorIds.forEach((cid) => {
-            assignTarget(cid, rect.left + rect.width * 0.5, rect.top + 4, true);
-          });
+          const mediaGrabEl = block.el.querySelector('[data-media-drop-grab="true"]');
+          if (mediaGrabEl) {
+            const mRect = mediaGrabEl.getBoundingClientRect();
+            cursorIds.forEach((cid) => {
+              assignTarget(cid, mRect.left + mRect.width * 0.5, mRect.top + 8, true);
+            });
+          } else {
+            cursorIds.forEach((cid) => {
+              assignTarget(cid, rect.left + rect.width * 0.5, rect.top + 4, true);
+            });
+          }
         }
       });
+
+      // Update 60fps Source Highlight Boxes (zero React re-renders; no tether lines or pre-drawn destination boxes)
+      for (let tIdx = 0; tIdx < MAX_TETHER_SLOTS; tIdx += 1) {
+        const g = tetherGroupRefs.current[tIdx];
+        if (!g) continue;
+        const item = tetherItems[tIdx];
+        if (!item) {
+          g.style.opacity = '0';
+          continue;
+        }
+        g.style.opacity = '1';
+        const { srcRect } = item;
+        const srcBox = g.querySelector('[data-tether-src-box]') as SVGRectElement | null;
+        const srcTag = g.querySelector('[data-tether-src-tag]') as SVGGElement | null;
+
+        if (srcBox) {
+          srcBox.setAttribute('x', `${srcRect.left - 3}`);
+          srcBox.setAttribute('y', `${srcRect.top - 3}`);
+          srcBox.setAttribute('width', `${Math.max(12, srcRect.width + 6)}`);
+          srcBox.setAttribute('height', `${Math.max(12, srcRect.height + 6)}`);
+        }
+        if (srcTag) {
+          const tagY = Math.max(4, srcRect.top - 18);
+          srcTag.setAttribute('transform', `translate(${Math.max(6, srcRect.left)}, ${tagY})`);
+        }
+      }
 
       ROSTER_18.forEach((_, idx) => {
         const target = targets[idx];
@@ -822,6 +1003,43 @@ const CollaborativeCursorRosterOverlay: React.FC<{
 
   return (
     <div aria-hidden="true" className="pointer-events-none fixed inset-0 z-30 overflow-hidden">
+      {/* Live 60fps Source Card Marker Layer */}
+      <svg className="fixed inset-0 h-full w-full overflow-visible">
+        {Array.from({ length: MAX_TETHER_SLOTS }).map((_, tIdx) => (
+          <g
+            key={`tether-${tIdx}`}
+            ref={(el) => {
+              tetherGroupRefs.current[tIdx] = el;
+            }}
+            style={{ opacity: 0 }}
+          >
+            <rect
+              data-tether-src-box=""
+              rx="12"
+              fill="rgba(56, 189, 248, 0.06)"
+              stroke="#38BDF8"
+              strokeWidth="1.5"
+              strokeDasharray="6 3"
+            />
+            <g data-tether-src-tag="">
+              <rect rx="3" width="50" height="14" fill="#38BDF8" />
+              <text
+                x="25"
+                y="10"
+                textAnchor="middle"
+                fill="#050507"
+                fontSize="8"
+                fontWeight="700"
+                fontFamily="ui-monospace, SFMono-Regular, monospace"
+                letterSpacing="0.06em"
+              >
+                SOURCE
+              </text>
+            </g>
+          </g>
+        ))}
+      </svg>
+
       {ROSTER_18.map((agent, idx) => (
         <div
           key={`cur-${agent.id}`}
@@ -1336,8 +1554,8 @@ function computeTypeDurationMs(blockEl: HTMLElement): number {
   lineEls.forEach((n) => {
     totalChars += Number(n.getAttribute('data-char-len') || 0);
   });
-  const cloneSelectDelayMs = blockEl.getAttribute('data-clone-item') === 'true' ? 460 : 0;
-  return cloneSelectDelayMs + Math.max(980, Math.min(2200, 480 + totalChars * 13));
+  const cloneSelectDelayMs = blockEl.getAttribute('data-clone-item') === 'true' ? 440 : 0;
+  return cloneSelectDelayMs + Math.max(980, Math.min(2600, 480 + totalChars * 13));
 }
 
 export const DesignCanvasProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
@@ -1493,12 +1711,12 @@ export const DesignCanvasProvider: React.FC<{ children: React.ReactNode }> = ({ 
     advanceHero(0);
 
     const m = speedMultRef.current;
-    const t1 = window.setTimeout(() => advanceHero(1), Math.round(900 * m));
-    const t2 = window.setTimeout(() => advanceHero(2), Math.round(2000 * m));
-    const t3 = window.setTimeout(() => advanceHero(3), Math.round(4250 * m));
-    const t4 = window.setTimeout(() => advanceHero(4), Math.round(5600 * m));
-    const t5 = window.setTimeout(() => advanceHero(5), Math.round(7000 * m));
-    const t6 = window.setTimeout(() => advanceHero(6), Math.round(9400 * m));
+    const t1 = window.setTimeout(() => advanceHero(1), Math.round(750 * m));
+    const t2 = window.setTimeout(() => advanceHero(2), Math.round(1700 * m));
+    const t3 = window.setTimeout(() => advanceHero(3), Math.round(4050 * m));
+    const t4 = window.setTimeout(() => advanceHero(4), Math.round(5350 * m));
+    const t5 = window.setTimeout(() => advanceHero(5), Math.round(6850 * m));
+    const t6 = window.setTimeout(() => advanceHero(6), Math.round(9100 * m));
 
     heroTimersRef.current = [t1, t2, t3, t4, t5, t6];
 
@@ -1516,6 +1734,19 @@ export const DesignCanvasProvider: React.FC<{ children: React.ReactNode }> = ({ 
       }
     };
 
+    const onEarlyUserInteraction = (e: Event) => {
+      if (e.target instanceof Element && e.target.closest('[data-autoscroll-control]')) {
+        return;
+      }
+      setAutoScrollEnabled(false);
+    };
+
+    const onEarlyScrollKey = (e: KeyboardEvent) => {
+      if (['ArrowDown', 'ArrowUp', 'PageDown', 'PageUp', 'Space', 'Home', 'End'].includes(e.code)) {
+        setAutoScrollEnabled(false);
+      }
+    };
+
     const onHashJump = () => {
       setAutoScrollEnabled(false);
       lastDispatchAtRef.current = 0;
@@ -1523,9 +1754,15 @@ export const DesignCanvasProvider: React.FC<{ children: React.ReactNode }> = ({ 
     };
 
     window.addEventListener('scroll', onManualScrollPastHero, { passive: true });
+    window.addEventListener('wheel', onEarlyUserInteraction, { passive: true });
+    window.addEventListener('touchmove', onEarlyUserInteraction, { passive: true });
+    window.addEventListener('keydown', onEarlyScrollKey);
     window.addEventListener('hashchange', onHashJump);
     return () => {
       window.removeEventListener('scroll', onManualScrollPastHero);
+      window.removeEventListener('wheel', onEarlyUserInteraction);
+      window.removeEventListener('touchmove', onEarlyUserInteraction);
+      window.removeEventListener('keydown', onEarlyScrollKey);
       window.removeEventListener('hashchange', onHashJump);
     };
   }, [cursorsEnabled, completeHeroImmediately]);
@@ -1605,11 +1842,11 @@ export const DesignCanvasProvider: React.FC<{ children: React.ReactNode }> = ({ 
       const timers: number[] = [];
       const m = speedMultRef.current;
 
-      const dLayout = Math.round((block.isCloneItem ? 880 : BASE_STAGE_DURATIONS['layout-drag']) * m);
+      const dLayout = Math.round((block.isCloneItem ? 860 : BASE_STAGE_DURATIONS['layout-drag']) * m);
       const typeDur = Math.round(computeTypeDurationMs(block.el) * m);
       const dResize = Math.round(BASE_STAGE_DURATIONS['resize-scale'] * m);
-      const dColor = Math.round(BASE_STAGE_DURATIONS['style-color'] * m);
-      const dDrop = Math.round((block.isCloneItem ? 440 : BASE_STAGE_DURATIONS['place-drop']) * m);
+      const dColor = Math.round((block.isCloneItem ? 440 : BASE_STAGE_DURATIONS['style-color']) * m);
+      const dDrop = Math.round((block.isCloneItem ? 380 : BASE_STAGE_DURATIONS['place-drop']) * m);
 
       const setBlockStage = (
         nextStage: BlockStage,
@@ -1640,11 +1877,13 @@ export const DesignCanvasProvider: React.FC<{ children: React.ReactNode }> = ({ 
       if (block.isCloneItem) {
         const d1 = dLayout;
         const d2 = d1 + typeDur;
-        const d3 = d2 + dDrop;
+        const d3 = d2 + dColor;
+        const d4 = d3 + dDrop;
 
         timers.push(window.setTimeout(() => setBlockStage('type-draft', typeDur), d1));
-        timers.push(window.setTimeout(() => setBlockStage('place-drop', dDrop), d2));
-        timers.push(window.setTimeout(() => setBlockStage('done', 0), d3));
+        timers.push(window.setTimeout(() => setBlockStage('style-color', dColor), d2));
+        timers.push(window.setTimeout(() => setBlockStage('place-drop', dDrop), d3));
+        timers.push(window.setTimeout(() => setBlockStage('done', 0), d4));
       } else {
         const d1 = dLayout;
         const d2 = d1 + typeDur;
@@ -1698,7 +1937,14 @@ export const DesignCanvasProvider: React.FC<{ children: React.ReactNode }> = ({ 
           continue;
         }
         const rect = b.el.getBoundingClientRect();
-        if (rect.bottom < -140 || rect.top > vh + 220) {
+        if (rect.bottom < -140) {
+          clearBlockTimers(b.id);
+          b.stage = 'done';
+          b.slotLane = null;
+          b.stageStartedAt = 0;
+          b.setStage('done');
+          progressChanged = true;
+        } else if (rect.top > vh + 220) {
           clearBlockTimers(b.id);
           const resetToHidden = b.stage === 'layout-drag' && elapsedStage < 450;
           b.stage = resetToHidden ? 'hidden' : 'done';
@@ -1741,9 +1987,15 @@ export const DesignCanvasProvider: React.FC<{ children: React.ReactNode }> = ({ 
             );
             if (templateBlock && templateBlock.stage !== 'done') {
               const tr = templateBlock.el.getBoundingClientRect();
-              const templateVisibleOrActive =
-                templateBlock.stage !== 'hidden' || (tr.bottom > topSafe && tr.top < vh);
-              if (templateVisibleOrActive) {
+              const tVisiblePx = Math.min(bottomSafe, tr.bottom) - Math.max(topSafe, tr.top);
+              const tMinVisibleRequired = Math.min(110, Math.max(36, tr.height * 0.45));
+              const templateEligibleToBuild =
+                tr.width > 0 &&
+                tr.height > 0 &&
+                (atPageBottom
+                  ? tr.top < vh - 12 && tr.bottom > topSafe
+                  : tr.top < vh * 0.78 && tr.bottom > topSafe && tVisiblePx >= tMinVisibleRequired);
+              if (templateBlock.stage !== 'hidden' || templateEligibleToBuild) {
                 return false;
               }
             }
@@ -1793,12 +2045,23 @@ export const DesignCanvasProvider: React.FC<{ children: React.ReactNode }> = ({ 
     let rafId = 0;
     let lastTime = performance.now();
     let exactY = window.scrollY;
+    let lastAppliedY = Math.round(exactY);
+    let currentSpeed = 0;
 
     const pauseOnUserIntent = (e: Event) => {
       if (e.target instanceof Element && e.target.closest('[data-autoscroll-control]')) {
         return;
       }
       setAutoScrollEnabled(false);
+    };
+
+    const pauseOnScrollbarDrag = (e: PointerEvent) => {
+      if (e.target instanceof Element && e.target.closest('[data-autoscroll-control]')) {
+        return;
+      }
+      if (e.clientX >= document.documentElement.clientWidth - 22) {
+        setAutoScrollEnabled(false);
+      }
     };
 
     const pauseOnScrollKey = (e: KeyboardEvent) => {
@@ -1808,13 +2071,19 @@ export const DesignCanvasProvider: React.FC<{ children: React.ReactNode }> = ({ 
     };
 
     window.addEventListener('wheel', pauseOnUserIntent, { passive: true });
-    window.addEventListener('touchstart', pauseOnUserIntent, { passive: true });
-    window.addEventListener('pointerdown', pauseOnUserIntent, { passive: true });
+    window.addEventListener('touchmove', pauseOnUserIntent, { passive: true });
+    window.addEventListener('pointerdown', pauseOnScrollbarDrag, { passive: true });
     window.addEventListener('keydown', pauseOnScrollKey);
 
     const stepScroll = (now: number) => {
       const dt = Math.min(0.05, (now - lastTime) / 1000);
       lastTime = now;
+
+      // Stop cleanly only if the user visibly dragged the scrollbar while scrolling
+      if (currentSpeed > 0.5 && Math.abs(window.scrollY - lastAppliedY) > 150) {
+        setAutoScrollEnabled(false);
+        return;
+      }
 
       const vh = window.innerHeight;
       const maxScroll = Math.max(0, document.documentElement.scrollHeight - vh);
@@ -1843,15 +2112,23 @@ export const DesignCanvasProvider: React.FC<{ children: React.ReactNode }> = ({ 
         }
       });
 
-      // Pause scrolling completely while visible sections finish building cleanly in view!
-      const speedPxPerSec =
-        hasWaitingVisible || activeCount > 0 ? 0 : Math.round(120 / speedMultRef.current);
+      const targetSpeed =
+        hasWaitingVisible || activeCount > 0 ? 0 : Math.round(108 / speedMultRef.current);
+      currentSpeed += (targetSpeed - currentSpeed) * 0.12;
+      if (Math.abs(currentSpeed) < 1 && targetSpeed === 0) {
+        currentSpeed = 0;
+      }
 
-      if (speedPxPerSec > 0) {
-        exactY = Math.min(maxScroll, exactY + speedPxPerSec * dt);
-        window.scrollTo({ top: exactY, behavior: 'instant' as ScrollBehavior });
+      if (currentSpeed > 0.5) {
+        exactY = Math.min(maxScroll, exactY + currentSpeed * dt);
+        const roundedY = Math.round(exactY);
+        if (roundedY !== lastAppliedY) {
+          window.scrollTo({ top: roundedY, behavior: 'instant' as ScrollBehavior });
+          lastAppliedY = roundedY;
+        }
       } else {
         exactY = window.scrollY;
+        lastAppliedY = Math.round(exactY);
       }
 
       rafId = window.requestAnimationFrame(stepScroll);
@@ -1862,8 +2139,8 @@ export const DesignCanvasProvider: React.FC<{ children: React.ReactNode }> = ({ 
     return () => {
       window.cancelAnimationFrame(rafId);
       window.removeEventListener('wheel', pauseOnUserIntent);
-      window.removeEventListener('touchstart', pauseOnUserIntent);
-      window.removeEventListener('pointerdown', pauseOnUserIntent);
+      window.removeEventListener('touchmove', pauseOnUserIntent);
+      window.removeEventListener('pointerdown', pauseOnScrollbarDrag);
       window.removeEventListener('keydown', pauseOnScrollKey);
     };
   }, [isAutoScrolling]);
@@ -1982,7 +2259,6 @@ interface DesignBlockProps {
 export const DesignBlock: React.FC<DesignBlockProps> = ({
   children,
   className = '',
-  slotIndex = 0,
   shape = 'panel',
   cloneGroup,
   isCloneItem = false,
@@ -2002,20 +2278,19 @@ export const DesignBlock: React.FC<DesignBlockProps> = ({
     const prefersReduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
     return cursorsEnabled && !prefersReduced ? 'hidden' : 'done';
   });
-  const [isCloneHighlight, setIsCloneHighlight] = useState(false);
-  const [clonePhase, setClonePhase] = useState<ClonePhase>('none');
+  const [typeState, setTypeState] = useState<{
+    forStage: BlockStage;
+    highlight: boolean;
+    phase: ClonePhase;
+    charProgress: number;
+  }>({
+    forStage: 'hidden',
+    highlight: false,
+    phase: 'none',
+    charProgress: 0,
+  });
   const [cloneDragOrigin, setCloneDragOrigin] = useState<{ x: number; y: number }>({ x: 0, y: 0 });
   const [cloneDragStep, setCloneDragStep] = useState<'idle' | 'at-source' | 'dragging'>('idle');
-  const [isNarrow, setIsNarrow] = useState(() =>
-    typeof window !== 'undefined' ? window.innerWidth < 640 : false
-  );
-
-  useEffect(() => {
-    if (typeof window === 'undefined') return;
-    const onResize = () => setIsNarrow(window.innerWidth < 640);
-    window.addEventListener('resize', onResize, { passive: true });
-    return () => window.removeEventListener('resize', onResize);
-  }, []);
 
   // Measure Card #1 position so clone cards spawn AT Card #1 and physically get dragged to their destination slot
   useLayoutEffect(() => {
@@ -2029,10 +2304,10 @@ export const DesignBlock: React.FC<DesignBlockProps> = ({
     let dy = -18;
     if (blockRef.current) {
       const dstRect = blockRef.current.getBoundingClientRect();
-      const srcRect = findVisibleCloneSourceRect(cloneGroup, dstRect);
-      if (srcRect) {
-        dx = srcRect.left - dstRect.left;
-        dy = srcRect.top - dstRect.top;
+      const srcFound = findVisibleCloneSource(cloneGroup, dstRect);
+      if (srcFound) {
+        dx = srcFound.rect.left - dstRect.left;
+        dy = srcFound.rect.top - dstRect.top;
       } else if (typeof window !== 'undefined') {
         const vw = window.innerWidth;
         dx =
@@ -2057,7 +2332,6 @@ export const DesignBlock: React.FC<DesignBlockProps> = ({
   const linesMapRef = useRef<Map<string, TypedLineRecord>>(new Map());
   const orderedLinesRef = useRef<Array<{ id: string; start: number; len: number }>>([]);
   const totalCharsRef = useRef<number>(0);
-  const [charProgress, setCharProgress] = useState<number>(0);
 
   const rebuildLineOrder = useCallback(() => {
     const entries = Array.from(linesMapRef.current.values()).sort((a, b) => {
@@ -2094,61 +2368,97 @@ export const DesignBlock: React.FC<DesignBlockProps> = ({
     [rebuildLineOrder]
   );
 
-  const getLineSlice = useCallback((id: string, len: number) => {
-    const ordered = orderedLinesRef.current;
-    const idx = ordered.findIndex((item) => item.id === id);
-    if (idx === -1) {
-      return { visibleChars: len, isActiveLine: false };
-    }
-    const item = ordered[idx];
-    const end = item.start + item.len;
-    const isLast = idx === ordered.length - 1;
-    const visibleChars = Math.max(0, Math.min(item.len, charProgress - item.start));
-    const isActiveLine = isLast
-      ? charProgress >= item.start
-      : charProgress >= item.start && charProgress < end;
-    return { visibleChars, isActiveLine };
-  }, [charProgress]);
+  const effectiveCloneHighlight = !cursorsEnabled
+    ? false
+    : stage === 'layout-drag'
+      ? isCloneItem
+      : stage === 'type-draft'
+        ? typeState.forStage === 'type-draft'
+          ? typeState.highlight
+          : isCloneItem
+        : false;
+
+  const effectiveClonePhase: ClonePhase = !cursorsEnabled
+    ? 'none'
+    : stage === 'layout-drag'
+      ? isCloneItem
+        ? 'pasted'
+        : 'none'
+      : stage === 'type-draft'
+        ? typeState.forStage === 'type-draft'
+          ? typeState.phase
+          : isCloneItem
+            ? 'selected'
+            : 'none'
+        : 'none';
+
+  const effectiveCharProgress = !cursorsEnabled
+    ? totalCharsRef.current + 100
+    : stage === 'hidden' || stage === 'layout-drag'
+      ? isCloneItem && stage === 'layout-drag'
+        ? -1
+        : 0
+      : stage === 'type-draft'
+        ? typeState.forStage === 'type-draft'
+          ? typeState.charProgress
+          : isCloneItem
+            ? -1
+            : 0
+        : totalCharsRef.current + 100;
+
+  const getLineSlice = useCallback(
+    (id: string, len: number) => {
+      const ordered = orderedLinesRef.current;
+      const idx = ordered.findIndex((item) => item.id === id);
+      if (idx === -1) {
+        return { visibleChars: len, isActiveLine: false };
+      }
+      const item = ordered[idx];
+      const end = item.start + item.len;
+      const isLast = idx === ordered.length - 1;
+      const visibleChars = Math.max(0, Math.min(item.len, effectiveCharProgress - item.start));
+      const isActiveLine = isLast
+        ? effectiveCharProgress >= item.start
+        : effectiveCharProgress >= item.start && effectiveCharProgress < end;
+      return { visibleChars, isActiveLine };
+    },
+    [effectiveCharProgress]
+  );
 
   // Run sequential character ticker + forward-only Copy-Paste -> Select-All -> Edit on cloned blocks
   useEffect(() => {
     if (!cursorsEnabled) {
-      setIsCloneHighlight(false);
-      setClonePhase('none');
-      setCharProgress(totalCharsRef.current + 100);
-      return;
-    }
-
-    if (stage === 'layout-drag') {
-      if (isCloneItem) {
-        // Show pasted duplicate of Card #1 immediately inside the #38BDF8 paste frame!
-        setIsCloneHighlight(true);
-        setClonePhase('pasted');
-        setCharProgress(-1);
-      } else {
-        setIsCloneHighlight(false);
-        setClonePhase('none');
-        setCharProgress(0);
-      }
+      setTypeState({
+        forStage: 'done',
+        highlight: false,
+        phase: 'none',
+        charProgress: totalCharsRef.current + 100,
+      });
       return;
     }
 
     if (stage !== 'type-draft') {
-      setIsCloneHighlight(false);
-      setClonePhase('none');
-      if (stage === 'hidden') {
-        setCharProgress(0);
-      } else {
-        setCharProgress(totalCharsRef.current + 100);
-      }
+      setTypeState({
+        forStage: stage,
+        highlight: isCloneItem && stage === 'layout-drag',
+        phase: isCloneItem && stage === 'layout-drag' ? 'pasted' : 'none',
+        charProgress:
+          stage === 'hidden'
+            ? 0
+            : stage === 'layout-drag'
+              ? isCloneItem
+                ? -1
+                : 0
+              : totalCharsRef.current + 100,
+      });
       return;
     }
 
     rebuildLineOrder();
     const totalChars = Math.max(1, totalCharsRef.current);
-    const arrivalLeadMs = Math.round(160 * speedMultiplier);
+    const arrivalLeadMs = Math.round(140 * speedMultiplier);
     const totalWindowMs =
-      Math.max(980, Math.min(2200, 480 + totalChars * 13)) * 0.85 * speedMultiplier;
+      Math.max(980, Math.min(2600, 480 + totalChars * 13)) * 0.85 * speedMultiplier;
     const step = totalChars > 105 ? Math.ceil(totalChars / 78) : 1;
     const ticksNeeded = Math.ceil(totalChars / step);
     const intervalMs = Math.max(10, Math.floor(totalWindowMs / Math.max(1, ticksNeeded)));
@@ -2157,31 +2467,41 @@ export const DesignBlock: React.FC<DesignBlockProps> = ({
     let cloneTimerId: number | null = null;
 
     const startTyping = () => {
-      setIsCloneHighlight(false);
-      setClonePhase('none');
-      setCharProgress(0);
+      setTypeState({
+        forStage: 'type-draft',
+        highlight: false,
+        phase: 'none',
+        charProgress: 0,
+      });
       intervalId = window.setInterval(() => {
-        setCharProgress((prev) => {
-          if (prev >= totalChars) {
+        setTypeState((prev) => {
+          if (prev.forStage !== 'type-draft' || prev.highlight) return prev;
+          if (prev.charProgress >= totalChars) {
             if (intervalId !== null) window.clearInterval(intervalId);
-            return totalChars;
+            return prev;
           }
-          const next = Math.min(totalChars, prev + step);
+          const next = Math.min(totalChars, prev.charProgress + step);
           cursorAudio.playTypeTick(next);
-          return next;
+          return { ...prev, charProgress: next };
         });
       }, intervalMs);
     };
 
     if (isCloneItem) {
-      setIsCloneHighlight(true);
-      setClonePhase('selected');
-      setCharProgress(-1);
+      setTypeState({
+        forStage: 'type-draft',
+        highlight: true,
+        phase: 'selected',
+        charProgress: -1,
+      });
       cloneTimerId = window.setTimeout(startTyping, Math.round(460 * speedMultiplier));
     } else {
-      setIsCloneHighlight(false);
-      setClonePhase('none');
-      setCharProgress(0);
+      setTypeState({
+        forStage: 'type-draft',
+        highlight: false,
+        phase: 'none',
+        charProgress: 0,
+      });
       cloneTimerId = window.setTimeout(startTyping, arrivalLeadMs);
     }
 
@@ -2190,14 +2510,6 @@ export const DesignBlock: React.FC<DesignBlockProps> = ({
       if (intervalId !== null) window.clearInterval(intervalId);
     };
   }, [stage, cursorsEnabled, isCloneItem, speedMultiplier, rebuildLineOrder]);
-
-  const scatter = useMemo(() => {
-    let hash = slotIndex;
-    for (let i = 0; i < reactId.length; i += 1) {
-      hash = (hash * 31 + reactId.charCodeAt(i)) >>> 0;
-    }
-    return ORTHOGONAL_OFFSETS[hash % ORTHOGONAL_OFFSETS.length];
-  }, [reactId, slotIndex]);
 
   useEffect(() => {
     const el = blockRef.current;
@@ -2235,44 +2547,27 @@ export const DesignBlock: React.FC<DesignBlockProps> = ({
   const isStyleColor = cursorsEnabled && stage === 'style-color';
   const isPlaceDrop = cursorsEnabled && stage === 'place-drop';
 
+  const isClonePreSource = isCloneItem && isLayoutDrag && cloneDragStep === 'idle';
   const isCloneAtSource = isCloneItem && isLayoutDrag && cloneDragStep === 'at-source';
   const isCloneDragging = isCloneItem && isLayoutDrag && cloneDragStep === 'dragging';
 
   const showSelectionBox =
     isLayoutDrag || isTypeDraft || isResizeScale || isStyleColor || isPlaceDrop;
 
-  const targetScale = isCloneItem
-    ? isHidden
-      ? 0.96
-      : isCloneAtSource
-        ? 0.985
-        : 1
-    : isHidden || isLayoutDrag || isTypeDraft
-      ? 0.94
-      : 1;
-  const targetX = isCloneAtSource ? cloneDragOrigin.x : 0;
-  const targetY = isCloneAtSource
-    ? cloneDragOrigin.y
-    : isCloneItem
-      ? isTypeDraft
-        ? -2
-        : 0
-      : isHidden || isLayoutDrag || isTypeDraft
-        ? isNarrow
-          ? scatter.y * 0.65
-          : scatter.y
-        : isResizeScale || isStyleColor
-          ? -4
-          : 0;
+  const isShortenedRight = !isCloneItem && (isHidden || isLayoutDrag || isTypeDraft);
+  const targetScaleX = isShortenedRight ? 0.84 : 1;
+  const targetScaleY = 1;
+  const targetX = isCloneAtSource || isClonePreSource ? cloneDragOrigin.x : 0;
+  const targetY = isCloneAtSource || isClonePreSource ? cloneDragOrigin.y : isHidden ? -4 : 0;
 
   return (
     <DesignBlockStageContext.Provider
       value={{
         stage: cursorsEnabled ? stage : 'done',
         cursorsEnabled,
-        isCloneHighlight,
-        clonePhase,
-        charProgress,
+        isCloneHighlight: effectiveCloneHighlight,
+        clonePhase: effectiveClonePhase,
+        charProgress: effectiveCharProgress,
         registerTypedLine,
         unregisterTypedLine,
         getLineSlice,
@@ -2286,13 +2581,13 @@ export const DesignBlock: React.FC<DesignBlockProps> = ({
         className={`relative ${isCloneItem && isLayoutDrag ? 'z-20' : ''} ${className}`}
       >
         {(isResizeScale || isPlaceDrop) && (
-          <div aria-hidden="true" className="pointer-events-none absolute inset-0 z-10">
-            <div className="absolute top-0 -left-5 -right-5 h-px bg-accent-light/40" />
-            <div className="absolute -top-5 -bottom-5 left-0 w-px bg-[#38BDF8]/40" />
+          <div aria-hidden="true" className="pointer-events-none absolute inset-0 z-10 overflow-hidden">
+            <div className="absolute inset-x-0 top-0 h-px bg-accent-light/40" />
+            <div className="absolute inset-y-0 left-0 w-px bg-[#38BDF8]/40" />
             {isPlaceDrop && (
               <>
-                <div className="absolute bottom-0 -left-5 -right-5 h-px bg-[#F59E0B]/45" />
-                <div className="absolute -top-5 -bottom-5 right-0 w-px bg-[#F59E0B]/45" />
+                <div className="absolute inset-x-0 bottom-0 h-px bg-[#F59E0B]/45" />
+                <div className="absolute inset-y-0 right-0 w-px bg-[#F59E0B]/45" />
               </>
             )}
           </div>
@@ -2303,35 +2598,38 @@ export const DesignBlock: React.FC<DesignBlockProps> = ({
           data-block-frame="true"
           initial={false}
           animate={{
-            opacity: isHidden ? 0 : isCloneAtSource ? 0.96 : 1,
-            scale: targetScale,
+            opacity: isHidden || isClonePreSource ? 0 : isCloneAtSource ? 0.96 : 1,
+            scaleX: targetScaleX,
+            scaleY: targetScaleY,
             x: targetX,
             y: targetY,
             rotate: 0,
           }}
           transition={
-            isCloneAtSource
+            isCloneAtSource || isClonePreSource
               ? {
                   x: { duration: 0 },
                   y: { duration: 0 },
-                  opacity: { duration: 0.14 * speedMultiplier },
-                  scale: { duration: 0.14 * speedMultiplier },
+                  opacity: { duration: 0.08 * speedMultiplier },
+                  scaleX: { duration: 0.08 * speedMultiplier },
+                  scaleY: { duration: 0.08 * speedMultiplier },
                 }
               : isCloneDragging
                 ? {
                     x: { duration: 0.58 * speedMultiplier, ease: [0.22, 1, 0.36, 1] },
                     y: { duration: 0.58 * speedMultiplier, ease: [0.22, 1, 0.36, 1] },
                     opacity: { duration: 0.2 * speedMultiplier },
-                    scale: { duration: 0.48 * speedMultiplier, ease: [0.22, 1, 0.36, 1] },
+                    scaleX: { duration: 0.42 * speedMultiplier, ease: [0.22, 1, 0.36, 1] },
+                    scaleY: { duration: 0.42 * speedMultiplier, ease: [0.22, 1, 0.36, 1] },
                   }
                 : {
                     duration:
-                      (isResizeScale ? 0.62 : isPlaceDrop ? 0.56 : 0.42) * speedMultiplier,
-                    delay: (isResizeScale ? 0.14 : isPlaceDrop ? 0.1 : 0) * speedMultiplier,
-                    ease: isResizeScale ? [0.22, 1, 0.36, 1] : [0.16, 1, 0.3, 1],
+                      (isResizeScale ? 0.52 : isPlaceDrop ? 0.45 : 0.38) * speedMultiplier,
+                    delay: 0,
+                    ease: [0.22, 1, 0.36, 1],
                   }
           }
-          style={{ transformOrigin: 'top left' }}
+          style={{ transformOrigin: 'left center' }}
           className="relative h-full"
         >
           {showSelectionBox && (
@@ -2355,6 +2653,14 @@ export const DesignBlock: React.FC<DesignBlockProps> = ({
               <span className="absolute -top-1 -right-1 h-2 w-2 border border-current bg-white" />
               <span className="absolute -bottom-1 -left-1 h-2 w-2 border border-current bg-white" />
               <span className="absolute -bottom-1 -right-1 h-2 w-2 border border-current bg-white" />
+              <span
+                data-block-resize-right="true"
+                className={`absolute top-1/2 -right-1 -translate-y-1/2 border bg-white transition-all ${
+                  isResizeScale
+                    ? 'h-3.5 w-2 border-accent-light shadow-[0_0_8px_rgba(255,255,255,0.65)]'
+                    : 'h-1.5 w-1.5 border-current opacity-80'
+                }`}
+              />
 
               {isCloneItem && isLayoutDrag && (
                 <span className="absolute -top-5 left-2 rounded-[3px] bg-[#38BDF8] px-1.5 py-0.5 font-mono text-[9px] font-bold tracking-wider text-[#050507] shadow-[0_2px_8px_rgba(56,189,248,0.45)]">
@@ -2366,12 +2672,12 @@ export const DesignBlock: React.FC<DesignBlockProps> = ({
                 <ResizeDimensionBadge
                   targetRef={frameRef}
                   active={isResizeScale}
-                  fromScaleX={0.92}
+                  fromScaleX={0.84}
                   toScaleX={1}
-                  fromScaleY={0.92}
+                  fromScaleY={1}
                   toScaleY={1}
-                  durationMs={Math.round(620 * speedMultiplier)}
-                  delayMs={Math.round(140 * speedMultiplier)}
+                  durationMs={Math.round(520 * speedMultiplier)}
+                  delayMs={0}
                 />
               )}
 
@@ -2421,6 +2727,10 @@ export const DesignBlock: React.FC<DesignBlockProps> = ({
                       <div className="h-3 w-1/3 border border-[#38BDF8]/45 bg-[#38BDF8]/12" />
                       <div className="h-6 w-3/4 border border-[#38BDF8]/40" />
                       <div className="h-3 w-1/2 border border-[#38BDF8]/30" />
+                      <div className="flex gap-2 pt-1">
+                        <div className="h-7 w-24 rounded border border-[#38BDF8]/60 bg-[#38BDF8]/15" />
+                        <div className="h-7 w-20 rounded border border-[#38BDF8]/40 bg-[#38BDF8]/5" />
+                      </div>
                     </div>
                   )}
                 </div>

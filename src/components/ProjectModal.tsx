@@ -152,6 +152,7 @@ export const ProjectModal: React.FC<ProjectModalProps> = ({
             title={project.title}
             isAnimating={isAnimating}
             controlPlayback
+            fitMode="natural"
             activeSlideIndex={slidesCount > 1 ? slideIdx : undefined}
             onSlideChange={slidesCount > 1 ? setSlideIdx : undefined}
           />

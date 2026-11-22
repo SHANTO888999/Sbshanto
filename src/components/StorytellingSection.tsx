@@ -1,6 +1,48 @@
 import React from 'react';
 import { usePortfolioContent } from '../context/PortfolioContentContext';
-import { DesignBlock, TypedText } from './DesignCursorSystem';
+import { DesignBlock, TypedText, useCursorBuildPhase } from './DesignCursorSystem';
+
+const BrandQuoteCard: React.FC<{
+  quoteText: string;
+  quoteAuthor: string;
+  quoteRole: string;
+}> = ({ quoteText, quoteAuthor, quoteRole }) => {
+  const { isMonochrome } = useCursorBuildPhase();
+
+  return (
+    <div
+      data-cursor-color-target="true"
+      className={`flex h-full flex-col justify-between rounded-2xl border p-8 text-white transition-[border-color,background-image] duration-500 ${
+        isMonochrome ? 'border-white/15 bg-[#0D0E14]' : 'border-accent/45 bg-[#0D0E14]'
+      }`}
+      style={{
+        backgroundImage: isMonochrome
+          ? 'none'
+          : 'linear-gradient(155deg, rgba(var(--accent-rgb), 0.34) 0%, rgba(var(--accent-rgb), 0.14) 55%, rgba(13, 14, 20, 0.96) 100%)',
+      }}
+    >
+      <div
+        className={`font-display text-5xl font-bold leading-none transition-colors duration-400 ${
+          isMonochrome ? 'text-zinc-600' : 'text-accent-light/70'
+        }`}
+        aria-hidden="true"
+      >
+        &ldquo;
+      </div>
+      <blockquote className="my-6 break-words text-xl font-medium leading-snug tracking-tight sm:text-2xl">
+        <TypedText text={quoteText} />
+      </blockquote>
+      <div className="border-t border-white/15 pt-4">
+        <p className="text-base font-semibold italic">
+          <TypedText text={quoteAuthor} />
+        </p>
+        <p className="text-xs text-zinc-300">
+          <TypedText text={quoteRole} />
+        </p>
+      </div>
+    </div>
+  );
+};
 
 export const StorytellingSection: React.FC = () => {
   const { profile, techStack, services } = usePortfolioContent();
@@ -17,6 +59,7 @@ export const StorytellingSection: React.FC = () => {
               accentText="COMPLETE EXPERIENCES."
               accentBreak
               accentClassName="text-accent"
+              resizeScale
             />
           </h2>
         </DesignBlock>
@@ -99,31 +142,11 @@ export const StorytellingSection: React.FC = () => {
 
           {/* Column 3: Signature Brand Quote Card */}
           <DesignBlock shape="panel" slotIndex={7} label="Quote Frame" className="lg:col-span-4">
-            <div
-              className="flex h-full flex-col justify-between rounded-2xl border border-accent/45 bg-[#0D0E14] p-8 text-white"
-              style={{
-                backgroundImage:
-                  'linear-gradient(155deg, rgba(var(--accent-rgb), 0.34) 0%, rgba(var(--accent-rgb), 0.14) 55%, rgba(13, 14, 20, 0.96) 100%)',
-              }}
-            >
-              <div
-                className="font-display text-5xl font-bold leading-none text-accent-light/70"
-                aria-hidden="true"
-              >
-                &ldquo;
-              </div>
-              <blockquote className="my-6 break-words text-xl font-medium leading-snug tracking-tight sm:text-2xl">
-                <TypedText text={profile.quoteText} />
-              </blockquote>
-              <div className="border-t border-white/15 pt-4">
-                <p className="text-base font-semibold italic">
-                  <TypedText text={profile.quoteAuthor} />
-                </p>
-                <p className="text-xs text-zinc-300">
-                  <TypedText text={profile.quoteRole} />
-                </p>
-              </div>
-            </div>
+            <BrandQuoteCard
+              quoteText={profile.quoteText}
+              quoteAuthor={profile.quoteAuthor}
+              quoteRole={profile.quoteRole}
+            />
           </DesignBlock>
         </div>
       </div>

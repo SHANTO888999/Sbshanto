@@ -18,7 +18,7 @@ import {
 import { trackCvDownload } from '../firebaseViewer';
 import { copyTextSafely } from '../utils/clipboard';
 import { downloadPortfolioCv } from '../utils/cvPdfGenerator';
-import { DesignBlock, TypedText } from './DesignCursorSystem';
+import { DesignBlock, TypedText, useCursorBuildPhase } from './DesignCursorSystem';
 import { SocialBrandLogo } from './SocialBrandLogo';
 
 interface ContactSectionProps {
@@ -33,6 +33,382 @@ interface SocialLinkEntry {
   hoverClass: string;
 }
 
+interface ContactCardConfig {
+  id: 'email' | 'whatsapp' | 'phone';
+  label: string;
+  value: string;
+  href: string;
+  actionLabel: string;
+  copyValue: string;
+  external?: boolean;
+  tone: 'accent' | 'emerald';
+}
+
+const ContactHeroContent: React.FC<{
+  disciplineSummary: string;
+  availability: string;
+  whatsappHref: string | null;
+  showCvDownload: boolean;
+  onOpenInquiry: () => void;
+  onDownloadCv: () => void;
+}> = ({
+  disciplineSummary,
+  availability,
+  whatsappHref,
+  showCvDownload,
+  onOpenInquiry,
+  onDownloadCv,
+}) => {
+  const { isWireframe, isMonochrome } = useCursorBuildPhase();
+
+  return (
+    <div className="grid grid-cols-1 items-end gap-8 lg:grid-cols-12 lg:gap-12">
+      <div className="lg:col-span-7">
+        <p className="text-xs font-medium text-zinc-400">
+          <TypedText text="New Builds & Collaborations" />
+        </p>
+        <h2 className="mt-2 font-display text-5xl font-bold leading-[0.98] tracking-tight text-white sm:text-6xl [text-wrap:balance]">
+          <TypedText
+            text="LET'S BUILD"
+            accentText="TOGETHER."
+            accentBreak
+            accentClassName="text-accent"
+            resizeScale
+          />
+        </h2>
+
+        <p className="mt-5 max-w-xl text-sm leading-relaxed text-zinc-300 sm:text-base">
+          <TypedText text="Need a custom website, full-stack web or mobile application, or an interactive game built from scratch? Send your project idea and get a build plan within 24 hours." />
+        </p>
+      </div>
+
+      <div className="flex flex-col justify-between gap-6 lg:col-span-5">
+        <div className="flex flex-wrap items-center gap-3">
+          <button
+            type="button"
+            onClick={onOpenInquiry}
+            data-cursor-color-target="true"
+            className={`inline-flex items-center gap-2 rounded-md px-6 py-3 text-sm font-semibold transition-colors duration-300 whitespace-nowrap shrink-0 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white ${
+              isWireframe
+                ? 'border border-dashed border-white/30 bg-transparent text-zinc-400'
+                : isMonochrome
+                  ? 'border border-white/25 bg-white/10 text-zinc-200'
+                  : 'bg-accent text-white hover:bg-accent-dark'
+            }`}
+          >
+            <TypedText text="Start a Project Brief" />
+            <ArrowUpRight className="h-4 w-4" aria-hidden="true" />
+          </button>
+
+          {whatsappHref && (
+            <a
+              href={whatsappHref}
+              target="_blank"
+              rel="noopener noreferrer"
+              data-cursor-color-target="true"
+              className={`inline-flex items-center gap-2 rounded-md border px-4 py-3 text-xs font-semibold transition-colors duration-300 whitespace-nowrap shrink-0 ${
+                isWireframe
+                  ? 'border-dashed border-white/25 bg-transparent text-zinc-400'
+                  : isMonochrome
+                    ? 'border-white/20 bg-white/5 text-zinc-300'
+                    : 'border-emerald-500/40 bg-emerald-500/10 text-emerald-200 hover:border-emerald-400 hover:bg-emerald-500/20'
+              }`}
+            >
+              <MessageCircle
+                className={`h-4 w-4 transition-colors duration-300 ${
+                  isMonochrome ? 'text-zinc-400' : 'text-emerald-400'
+                }`}
+                aria-hidden="true"
+              />
+              <TypedText text="WhatsApp Chat" />
+            </a>
+          )}
+
+          {showCvDownload && (
+            <button
+              type="button"
+              onClick={onDownloadCv}
+              data-cursor-color-target="true"
+              className={`inline-flex items-center gap-2 rounded-md border px-4 py-3 text-xs font-semibold transition-colors duration-300 whitespace-nowrap shrink-0 ${
+                isWireframe
+                  ? 'border-dashed border-white/25 bg-transparent text-zinc-400'
+                  : isMonochrome
+                    ? 'border-white/20 bg-white/5 text-zinc-300'
+                    : 'border-accent/45 bg-accent/10 text-white hover:border-accent hover:bg-accent/20'
+              }`}
+            >
+              <Download
+                className={`h-4 w-4 transition-colors duration-300 ${
+                  isMonochrome ? 'text-zinc-400' : 'text-accent-light'
+                }`}
+                aria-hidden="true"
+              />
+              <TypedText text="Download CV (PDF)" />
+            </button>
+          )}
+        </div>
+
+        <div className="grid grid-cols-2 gap-6 border-t border-white/10 pt-5">
+          <div>
+            <div className="text-xs text-zinc-500">
+              <TypedText text="Discipline" />
+            </div>
+            <p className="mt-1 text-xs font-medium text-zinc-200">
+              <TypedText text={disciplineSummary} />
+            </p>
+          </div>
+          <div>
+            <div className="text-xs text-zinc-500">
+              <TypedText text="Availability" />
+            </div>
+            <p className="mt-1 text-xs font-medium text-zinc-200">
+              <TypedText text={availability} />
+            </p>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+const DirectContactHeader: React.FC<{
+  displayName: string;
+  locationText: string;
+  availability: string;
+}> = ({ displayName, locationText, availability }) => {
+  const { isMonochrome } = useCursorBuildPhase();
+
+  return (
+    <div className="flex flex-wrap items-center justify-between gap-3 border-b border-white/10 pb-5">
+      <div>
+        <p
+          data-cursor-color-target="true"
+          className={`font-mono text-[11px] uppercase tracking-wider transition-colors duration-300 ${
+            isMonochrome ? 'text-zinc-400' : 'text-accent-light'
+          }`}
+        >
+          <TypedText text="Direct Contact Details" />
+        </p>
+        <h3 className="mt-1 font-display text-2xl font-semibold tracking-tight text-white">
+          <TypedText text={`${displayName} — Reach Out Directly`} />
+        </h3>
+      </div>
+      <div className="flex flex-wrap items-center gap-2 text-xs text-zinc-400">
+        <span
+          data-cursor-color-target="true"
+          className={`inline-flex items-center gap-1.5 rounded-md border px-3 py-1.5 transition-colors duration-300 ${
+            isMonochrome
+              ? 'border-white/20 bg-white/5 text-zinc-300'
+              : 'border-white/10 bg-[#121319] text-zinc-300'
+          }`}
+        >
+          <MapPin
+            className={`h-3.5 w-3.5 transition-colors duration-300 ${
+              isMonochrome ? 'text-zinc-400' : 'text-accent-light'
+            }`}
+            aria-hidden="true"
+          />
+          <TypedText text={locationText} />
+        </span>
+        <span
+          data-cursor-color-target="true"
+          className={`inline-flex items-center gap-1.5 rounded-md border px-3 py-1.5 transition-colors duration-300 ${
+            isMonochrome
+              ? 'border-white/20 bg-white/5 text-zinc-300'
+              : 'border-emerald-500/25 bg-emerald-500/10 text-emerald-300'
+          }`}
+        >
+          <TypedText text={availability} />
+        </span>
+      </div>
+    </div>
+  );
+};
+
+const ContactCardContent: React.FC<{
+  card: ContactCardConfig;
+  templateCard: ContactCardConfig;
+  isClone: boolean;
+  copiedField: 'email' | 'phone' | 'whatsapp' | null;
+  onCopy: (field: 'email' | 'phone' | 'whatsapp', value: string) => void;
+}> = ({ card, templateCard, isClone, copiedField, onCopy }) => {
+  const { isWireframe, isMonochrome } = useCursorBuildPhase();
+  const isEmerald = card.tone === 'emerald';
+  const isCopied = copiedField === card.id;
+
+  return (
+    <div
+      data-cursor-color-target="true"
+      className={`flex h-full flex-col justify-between rounded-xl border p-4 transition-colors duration-300 ${
+        isWireframe
+          ? 'border-dashed border-white/20 bg-[#0D0D12]'
+          : isMonochrome
+            ? 'border-white/20 bg-[#111218]'
+            : isEmerald
+              ? 'border-emerald-500/25 bg-[#111218]'
+              : 'border-white/10 bg-[#111218]'
+      }`}
+    >
+      <div>
+        <div
+          className={`flex items-center gap-2 text-xs transition-colors duration-300 ${
+            isMonochrome
+              ? 'text-zinc-400'
+              : isEmerald
+                ? 'text-emerald-300'
+                : 'text-zinc-400'
+          }`}
+        >
+          {card.id === 'email' && (
+            <Mail
+              className={`h-4 w-4 transition-colors duration-300 ${
+                isMonochrome ? 'text-zinc-400' : 'text-accent-light'
+              }`}
+              aria-hidden="true"
+            />
+          )}
+          {card.id === 'whatsapp' && (
+            <MessageCircle
+              className={`h-4 w-4 transition-colors duration-300 ${
+                isMonochrome ? 'text-zinc-400' : 'text-emerald-400'
+              }`}
+              aria-hidden="true"
+            />
+          )}
+          {card.id === 'phone' && (
+            <Phone
+              className={`h-4 w-4 transition-colors duration-300 ${
+                isMonochrome ? 'text-zinc-400' : 'text-accent-light'
+              }`}
+              aria-hidden="true"
+            />
+          )}
+          <TypedText
+            text={card.label}
+            cloneFrom={isClone ? templateCard.label : undefined}
+          />
+        </div>
+        <a
+          href={card.href}
+          target={card.external ? '_blank' : undefined}
+          rel={card.external ? 'noopener noreferrer' : undefined}
+          className={`mt-2 block truncate text-sm font-medium text-white transition-colors ${
+            card.id !== 'email' ? 'font-mono tabular-nums' : ''
+          } ${isEmerald ? 'hover:text-emerald-300' : 'hover:text-accent-light'}`}
+          title={card.value}
+        >
+          <TypedText
+            text={card.value}
+            cloneFrom={isClone ? templateCard.value : undefined}
+          />
+        </a>
+      </div>
+
+      <div className="mt-4 flex items-center gap-2">
+        <a
+          href={card.href}
+          target={card.external ? '_blank' : undefined}
+          rel={card.external ? 'noopener noreferrer' : undefined}
+          data-cursor-color-target="true"
+          className={`inline-flex items-center gap-1 rounded border px-2.5 py-1 text-[11px] font-medium transition-colors duration-300 whitespace-nowrap shrink-0 ${
+            isWireframe
+              ? 'border-dashed border-white/25 bg-transparent text-zinc-400'
+              : isMonochrome
+                ? 'border-white/20 bg-white/5 text-zinc-200'
+                : isEmerald
+                  ? 'border-emerald-500/40 bg-emerald-500/15 text-emerald-200 hover:bg-emerald-500/25'
+                  : 'border-white/15 text-zinc-200 hover:border-white/30 hover:text-white'
+          }`}
+        >
+          <TypedText
+            text={card.actionLabel}
+            cloneFrom={isClone ? templateCard.actionLabel : undefined}
+          />
+          <ArrowUpRight className="h-3 w-3" aria-hidden="true" />
+        </a>
+        <button
+          type="button"
+          onClick={() => onCopy(card.id, card.copyValue)}
+          data-cursor-color-target="true"
+          className={`inline-flex items-center gap-1 rounded border px-2.5 py-1 text-[11px] transition-colors duration-300 whitespace-nowrap shrink-0 ${
+            isWireframe
+              ? 'border-dashed border-white/20 bg-transparent text-zinc-400'
+              : 'border-white/10 bg-white/5 text-zinc-300 hover:text-white'
+          }`}
+        >
+          {isCopied ? (
+            <>
+              <Check className="h-3 w-3 text-emerald-400" aria-hidden="true" />
+              <span>Copied</span>
+            </>
+          ) : (
+            <>
+              <Copy className="h-3 w-3" aria-hidden="true" />
+              <TypedText text="Copy" cloneFrom={isClone ? 'Copy' : undefined} />
+            </>
+          )}
+        </button>
+      </div>
+    </div>
+  );
+};
+
+const SocialLinksBar: React.FC<{
+  socialLinks: SocialLinkEntry[];
+  prototypeTurnaround: string;
+}> = ({ socialLinks, prototypeTurnaround }) => {
+  const { isWireframe, isMonochrome } = useCursorBuildPhase();
+
+  return (
+    <div className="mt-6 border-t border-white/10 pt-5">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <p className="font-mono text-[11px] uppercase tracking-wider text-zinc-400">
+          <TypedText text="Social Media & Profiles" />
+        </p>
+        <span className="text-[11px] text-zinc-500">
+          <TypedText text="First Prototype: " />
+          <span className="font-mono text-zinc-300">
+            <TypedText text={prototypeTurnaround} />
+          </span>
+        </span>
+      </div>
+      <div className="mt-3 flex flex-wrap gap-2.5">
+        {socialLinks.map((item) => {
+          const ariaText =
+            item.displayName !== item.platformName
+              ? `${item.platformName} — ${item.displayName}`
+              : item.platformName;
+          return (
+            <a
+              key={item.id}
+              href={item.href}
+              target="_blank"
+              rel="noopener noreferrer"
+              aria-label={ariaText}
+              title={ariaText}
+              data-cursor-color-target="true"
+              className={`group inline-flex min-h-[40px] items-center gap-2.5 rounded-lg border px-3.5 py-2 text-xs font-medium transition-colors duration-300 ${
+                isWireframe
+                  ? 'border-dashed border-white/25 bg-transparent text-zinc-400'
+                  : isMonochrome
+                    ? 'border-white/20 bg-white/5 text-zinc-300'
+                    : `border-white/10 bg-[#111218] text-zinc-200 ${item.hoverClass}`
+              }`}
+            >
+              <SocialBrandLogo id={item.id} />
+              <TypedText text={item.displayName} />
+              <ArrowUpRight
+                className="h-3.5 w-3.5 text-zinc-500 transition-transform group-hover:translate-x-0.5 group-hover:-translate-y-0.5 group-hover:text-current"
+                aria-hidden="true"
+              />
+            </a>
+          );
+        })}
+      </div>
+    </div>
+  );
+};
+
 export const ContactSection: React.FC<ContactSectionProps> = ({ onOpenInquiry }) => {
   const [copiedField, setCopiedField] = useState<'email' | 'phone' | 'whatsapp' | null>(null);
   const portfolioContent = usePortfolioContent();
@@ -42,6 +418,47 @@ export const ContactSection: React.FC<ContactSectionProps> = ({ onOpenInquiry })
   const whatsappHref = formatWhatsappHref(profile.whatsappNumber);
   const locationText = profile.location || 'Dhaka, Bangladesh';
   const names = profile.socialNames;
+
+  const contactCards: ContactCardConfig[] = [
+    {
+      id: 'email',
+      label: 'Email',
+      value: email,
+      href: `mailto:${email}`,
+      actionLabel: 'Send Mail',
+      copyValue: email,
+      tone: 'accent',
+    },
+    ...(whatsappHref
+      ? [
+          {
+            id: 'whatsapp' as const,
+            label: 'WhatsApp',
+            value: profile.whatsappNumber,
+            href: whatsappHref,
+            actionLabel: 'Message',
+            copyValue: profile.whatsappNumber,
+            external: true,
+            tone: 'emerald' as const,
+          },
+        ]
+      : []),
+    ...(telHref
+      ? [
+          {
+            id: 'phone' as const,
+            label: 'Contact Number',
+            value: profile.phoneNumber,
+            href: telHref,
+            actionLabel: 'Call Now',
+            copyValue: profile.phoneNumber,
+            tone: 'accent' as const,
+          },
+        ]
+      : []),
+  ];
+
+  const templateCard = contactCards[0];
 
   const socialLinks: SocialLinkEntry[] = [
     profile.facebookUrl
@@ -123,288 +540,70 @@ export const ContactSection: React.FC<ContactSectionProps> = ({ onOpenInquiry })
     <footer id="contact" className="bg-[#08080A] pt-20 pb-12 lg:pt-24">
       <div className="mx-auto max-w-[1280px] px-6">
         <DesignBlock shape="panel" slotIndex={0} label="Section / Contact">
-          <div className="grid grid-cols-1 items-end gap-8 lg:grid-cols-12 lg:gap-12">
-            <div className="lg:col-span-7">
-              <p className="text-xs font-medium text-zinc-400">
-                <TypedText text="New Builds & Collaborations" />
-              </p>
-              <h2 className="mt-2 font-display text-5xl font-bold leading-[0.98] tracking-tight text-white sm:text-6xl [text-wrap:balance]">
-                <TypedText
-                  text="LET'S BUILD"
-                  accentText="TOGETHER."
-                  accentBreak
-                  accentClassName="text-accent"
-                />
-              </h2>
-
-              <p className="mt-5 max-w-xl text-sm leading-relaxed text-zinc-300 sm:text-base">
-                <TypedText text="Need a custom website, full-stack web or mobile application, or an interactive game built from scratch? Send your project idea and get a build plan within 24 hours." />
-              </p>
-            </div>
-
-            <div className="flex flex-col justify-between gap-6 lg:col-span-5">
-              <div className="flex flex-wrap items-center gap-3">
-                <button
-                  type="button"
-                  onClick={onOpenInquiry}
-                  className="inline-flex items-center gap-2 rounded-md bg-accent px-6 py-3 text-sm font-semibold text-white transition-colors duration-150 hover:bg-accent-dark whitespace-nowrap shrink-0 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white"
-                >
-                  Start a Project Brief
-                  <ArrowUpRight className="h-4 w-4" aria-hidden="true" />
-                </button>
-
-                {whatsappHref && (
-                  <a
-                    href={whatsappHref}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="inline-flex items-center gap-2 rounded-md border border-emerald-500/40 bg-emerald-500/10 px-4 py-3 text-xs font-semibold text-emerald-200 transition-colors hover:border-emerald-400 hover:bg-emerald-500/20 whitespace-nowrap shrink-0"
-                  >
-                    <MessageCircle className="h-4 w-4 text-emerald-400" aria-hidden="true" />
-                    <span>WhatsApp Chat</span>
-                  </a>
-                )}
-
-                {viewerControls.showCvDownloadOnViewer && (
-                  <button
-                    type="button"
-                    onClick={() => {
-                      downloadPortfolioCv(portfolioContent);
-                      void trackCvDownload();
-                    }}
-                    className="inline-flex items-center gap-2 rounded-md border border-accent/45 bg-accent/10 px-4 py-3 text-xs font-semibold text-white transition-colors hover:border-accent hover:bg-accent/20 whitespace-nowrap shrink-0"
-                  >
-                    <Download className="h-4 w-4 text-accent-light" aria-hidden="true" />
-                    <span>Download CV (PDF)</span>
-                  </button>
-                )}
-              </div>
-
-              <div className="grid grid-cols-2 gap-6 border-t border-white/10 pt-5">
-                <div>
-                  <div className="text-xs text-zinc-500">Discipline</div>
-                  <p className="mt-1 text-xs font-medium text-zinc-200">
-                    <TypedText text={profile.disciplineSummary} />
-                  </p>
-                </div>
-                <div>
-                  <div className="text-xs text-zinc-500">Availability</div>
-                  <p className="mt-1 text-xs font-medium text-zinc-200">
-                    <TypedText text={profile.availability} />
-                  </p>
-                </div>
-              </div>
-            </div>
-          </div>
+          <ContactHeroContent
+            disciplineSummary={profile.disciplineSummary}
+            availability={profile.availability}
+            whatsappHref={whatsappHref}
+            showCvDownload={viewerControls.showCvDownloadOnViewer}
+            onOpenInquiry={onOpenInquiry}
+            onDownloadCv={() => {
+              downloadPortfolioCv(portfolioContent);
+              void trackCvDownload();
+            }}
+          />
         </DesignBlock>
 
         {/* Dedicated Bottom Owner Contact Details & Social Media Section */}
-        <DesignBlock shape="panel" slotIndex={1} label="Contact Details" delay={120}>
-          <div className="mt-12 rounded-2xl border border-white/10 bg-[#0D0D12] p-6 sm:p-8">
-            <div className="flex flex-wrap items-center justify-between gap-3 border-b border-white/10 pb-5">
-              <div>
-                <p className="font-mono text-[11px] uppercase tracking-wider text-accent-light">
-                  Direct Contact Details
-                </p>
-                <h3 className="mt-1 font-display text-2xl font-semibold tracking-tight text-white">
-                  {profile.displayName} — Reach Out Directly
-                </h3>
-              </div>
-              <div className="flex flex-wrap items-center gap-2 text-xs text-zinc-400">
-                <span className="inline-flex items-center gap-1.5 rounded-md border border-white/10 bg-[#121319] px-3 py-1.5 text-zinc-300">
-                  <MapPin className="h-3.5 w-3.5 text-accent-light" aria-hidden="true" />
-                  {locationText}
-                </span>
-                <span className="inline-flex items-center gap-1.5 rounded-md border border-emerald-500/25 bg-emerald-500/10 px-3 py-1.5 text-emerald-300">
-                  {profile.availability}
-                </span>
-              </div>
-            </div>
+        <div className="mt-12 rounded-2xl border border-white/10 bg-[#0D0D12] p-6 sm:p-8">
+          <DesignBlock shape="panel" slotIndex={1} label="Contact Header" delay={80}>
+            <DirectContactHeader
+              displayName={profile.displayName}
+              locationText={locationText}
+              availability={profile.availability}
+            />
+          </DesignBlock>
 
-            <div className="mt-6 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
-              {/* Email Card */}
-              <div className="flex flex-col justify-between rounded-xl border border-white/10 bg-[#111218] p-4">
-                <div>
-                  <div className="flex items-center gap-2 text-xs text-zinc-400">
-                    <Mail className="h-4 w-4 text-accent-light" aria-hidden="true" />
-                    <span>Email</span>
-                  </div>
-                  <a
-                    href={`mailto:${email}`}
-                    className="mt-2 block truncate text-sm font-medium text-white transition-colors hover:text-accent-light"
-                    title={email}
-                  >
-                    {email}
-                  </a>
-                </div>
-                <div className="mt-4 flex items-center gap-2">
-                  <a
-                    href={`mailto:${email}`}
-                    className="inline-flex items-center gap-1 rounded border border-white/15 px-2.5 py-1 text-[11px] font-medium text-zinc-200 hover:border-white/30 hover:text-white"
-                  >
-                    Send Mail
-                    <ArrowUpRight className="h-3 w-3" aria-hidden="true" />
-                  </a>
-                  <button
-                    type="button"
-                    onClick={() => void handleCopyField('email', email)}
-                    className="inline-flex items-center gap-1 rounded border border-white/10 bg-white/5 px-2.5 py-1 text-[11px] text-zinc-300 hover:text-white"
-                  >
-                    {copiedField === 'email' ? (
-                      <>
-                        <Check className="h-3 w-3 text-emerald-400" aria-hidden="true" />
-                        <span>Copied</span>
-                      </>
-                    ) : (
-                      <>
-                        <Copy className="h-3 w-3" aria-hidden="true" />
-                        <span>Copy</span>
-                      </>
-                    )}
-                  </button>
-                </div>
-              </div>
-
-              {/* WhatsApp Card */}
-              {whatsappHref && (
-                <div className="flex flex-col justify-between rounded-xl border border-emerald-500/25 bg-[#111218] p-4">
-                  <div>
-                    <div className="flex items-center gap-2 text-xs text-emerald-300">
-                      <MessageCircle className="h-4 w-4 text-emerald-400" aria-hidden="true" />
-                      <span>WhatsApp</span>
-                    </div>
-                    <a
-                      href={whatsappHref}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="mt-2 block font-mono text-sm font-medium tabular-nums text-white transition-colors hover:text-emerald-300"
-                    >
-                      {profile.whatsappNumber}
-                    </a>
-                  </div>
-                  <div className="mt-4 flex items-center gap-2">
-                    <a
-                      href={whatsappHref}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="inline-flex items-center gap-1 rounded border border-emerald-500/40 bg-emerald-500/15 px-2.5 py-1 text-[11px] font-medium text-emerald-200 hover:bg-emerald-500/25"
-                    >
-                      Message
-                      <ArrowUpRight className="h-3 w-3" aria-hidden="true" />
-                    </a>
-                    <button
-                      type="button"
-                      onClick={() => void handleCopyField('whatsapp', profile.whatsappNumber)}
-                      className="inline-flex items-center gap-1 rounded border border-white/10 bg-white/5 px-2.5 py-1 text-[11px] text-zinc-300 hover:text-white"
-                    >
-                      {copiedField === 'whatsapp' ? (
-                        <>
-                          <Check className="h-3 w-3 text-emerald-400" aria-hidden="true" />
-                          <span>Copied</span>
-                        </>
-                      ) : (
-                        <>
-                          <Copy className="h-3 w-3" aria-hidden="true" />
-                          <span>Copy</span>
-                        </>
-                      )}
-                    </button>
-                  </div>
-                </div>
-              )}
-
-              {/* Contact / Phone Card */}
-              {telHref && (
-                <div className="flex flex-col justify-between rounded-xl border border-white/10 bg-[#111218] p-4">
-                  <div>
-                    <div className="flex items-center gap-2 text-xs text-zinc-400">
-                      <Phone className="h-4 w-4 text-accent-light" aria-hidden="true" />
-                      <span>Contact Number</span>
-                    </div>
-                    <a
-                      href={telHref}
-                      className="mt-2 block font-mono text-sm font-medium tabular-nums text-white transition-colors hover:text-accent-light"
-                    >
-                      {profile.phoneNumber}
-                    </a>
-                  </div>
-                  <div className="mt-4 flex items-center gap-2">
-                    <a
-                      href={telHref}
-                      className="inline-flex items-center gap-1 rounded border border-white/15 px-2.5 py-1 text-[11px] font-medium text-zinc-200 hover:border-white/30 hover:text-white"
-                    >
-                      Call Now
-                      <ArrowUpRight className="h-3 w-3" aria-hidden="true" />
-                    </a>
-                    <button
-                      type="button"
-                      onClick={() => void handleCopyField('phone', profile.phoneNumber)}
-                      className="inline-flex items-center gap-1 rounded border border-white/10 bg-white/5 px-2.5 py-1 text-[11px] text-zinc-300 hover:text-white"
-                    >
-                      {copiedField === 'phone' ? (
-                        <>
-                          <Check className="h-3 w-3 text-emerald-400" aria-hidden="true" />
-                          <span>Copied</span>
-                        </>
-                      ) : (
-                        <>
-                          <Copy className="h-3 w-3" aria-hidden="true" />
-                          <span>Copy</span>
-                        </>
-                      )}
-                    </button>
-                  </div>
-                </div>
-              )}
-            </div>
-
-            {/* Social Media Links Bar with Brand Logos */}
-            {socialLinks.length > 0 && (
-              <div className="mt-6 border-t border-white/10 pt-5">
-                <div className="flex flex-wrap items-center justify-between gap-2">
-                  <p className="font-mono text-[11px] uppercase tracking-wider text-zinc-400">
-                    Social Media &amp; Profiles
-                  </p>
-                  <span className="text-[11px] text-zinc-500">
-                    First Prototype: <span className="font-mono text-zinc-300">{profile.prototypeTurnaround}</span>
-                  </span>
-                </div>
-                <div className="mt-3 flex flex-wrap gap-2.5">
-                  {socialLinks.map((item) => {
-                    const ariaText =
-                      item.displayName !== item.platformName
-                        ? `${item.platformName} — ${item.displayName}`
-                        : item.platformName;
-                    return (
-                      <a
-                        key={item.id}
-                        href={item.href}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        aria-label={ariaText}
-                        title={ariaText}
-                        className={`group inline-flex min-h-[40px] items-center gap-2.5 rounded-lg border border-white/10 bg-[#111218] px-3.5 py-2 text-xs font-medium text-zinc-200 transition-colors ${item.hoverClass}`}
-                      >
-                        <SocialBrandLogo id={item.id} />
-                        <span>{item.displayName}</span>
-                        <ArrowUpRight className="h-3.5 w-3.5 text-zinc-500 transition-transform group-hover:translate-x-0.5 group-hover:-translate-y-0.5 group-hover:text-current" aria-hidden="true" />
-                      </a>
-                    );
-                  })}
-                </div>
-              </div>
-            )}
+          <div className="mt-6 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+            {contactCards.map((card, idx) => (
+              <DesignBlock
+                key={card.id}
+                shape="card"
+                slotIndex={idx + 2}
+                cloneGroup="contact-cards"
+                isCloneItem={idx > 0}
+                label={card.label}
+              >
+                <ContactCardContent
+                  card={card}
+                  templateCard={templateCard}
+                  isClone={idx > 0}
+                  copiedField={copiedField}
+                  onCopy={(field, val) => void handleCopyField(field, val)}
+                />
+              </DesignBlock>
+            ))}
           </div>
-        </DesignBlock>
+
+          {socialLinks.length > 0 && (
+            <DesignBlock shape="panel" slotIndex={5} label="Social Profiles">
+              <SocialLinksBar
+                socialLinks={socialLinks}
+                prototypeTurnaround={profile.prototypeTurnaround}
+              />
+            </DesignBlock>
+          )}
+        </div>
 
         {/* Bottom Copyright Row */}
-        <DesignBlock shape="row" slotIndex={2} label="Footer Bar">
+        <DesignBlock shape="row" slotIndex={6} label="Footer Bar">
           <div className="mt-10 flex flex-col items-start justify-between gap-2 border-t border-white/10 pt-6 text-xs text-zinc-500 sm:flex-row sm:items-center">
             <p>
-              &copy; {new Date().getFullYear()} <TypedText text={`${profile.backdropName}. All rights reserved.`} />
+              <TypedText
+                text={`© ${new Date().getFullYear()} ${profile.backdropName}. All rights reserved.`}
+              />
             </p>
             <p className="font-mono text-[11px] text-zinc-500">
-              {locationText}
+              <TypedText text={locationText} />
             </p>
           </div>
         </DesignBlock>

@@ -26,12 +26,16 @@
     font-family: var(--font-sans);
     scroll-behavior: smooth;
     scroll-padding-top: 84px;
+    overflow-x: clip;
+    overscroll-behavior-x: none;
+    scrollbar-gutter: stable;
   }
 
   body {
     background-color: #050507;
-    overflow-x: hidden;
+    overflow-x: clip;
     overflow-y: auto;
+    overscroll-behavior-x: none;
     -webkit-overflow-scrolling: touch;
   }
 }

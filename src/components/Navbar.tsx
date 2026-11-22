@@ -45,7 +45,7 @@ export const Navbar: React.FC<NavbarProps> = ({
     return () => window.removeEventListener('keydown', onKeyDown);
   }, [mobileOpen, onMobileOpenChange]);
   const { profile } = usePortfolioContent();
-  const { cursorsEnabled, heroStep, prepareSectionJump } = useDesignCanvas();
+  const { cursorsEnabled, heroStep, prepareSectionJump, speedMultiplier } = useDesignCanvas();
   const wordmarkBase = profile.wordmark.endsWith('.')
     ? profile.wordmark.slice(0, -1)
     : profile.wordmark;
@@ -53,6 +53,108 @@ export const Navbar: React.FC<NavbarProps> = ({
 
   const isBlack = cursorsEnabled && heroStep === 0;
   const isDrawingNav = cursorsEnabled && heroStep === 1;
+  const isTypingNav = cursorsEnabled && heroStep === 2;
+  const isResizingNav = cursorsEnabled && heroStep === 3;
+  const isMonochromeNav = cursorsEnabled && (heroStep === 1 || heroStep === 2 || heroStep === 3);
+
+  const navHireLabel = 'Hire Me';
+  const totalNavChars =
+    profile.wordmark.length +
+    NAV_ITEMS.reduce((acc, item) => acc + item.label.length, 0) +
+    navHireLabel.length;
+
+  const [navTypedChars, setNavTypedChars] = useState(totalNavChars);
+
+  useEffect(() => {
+    if (!cursorsEnabled || heroStep >= 3) {
+      setNavTypedChars(totalNavChars);
+      return;
+    }
+    if (heroStep < 2) {
+      setNavTypedChars(0);
+      return;
+    }
+
+    setNavTypedChars(0);
+    let intervalId: number | null = null;
+    const stepDelay = Math.round(140 * speedMultiplier);
+    const intervalMs = Math.max(14, Math.round(28 * speedMultiplier));
+    const stepSize = Math.max(1, Math.ceil(totalNavChars / 40));
+
+    const leadTimer = window.setTimeout(() => {
+      intervalId = window.setInterval(() => {
+        setNavTypedChars((prev) => {
+          if (prev >= totalNavChars) {
+            if (intervalId !== null) window.clearInterval(intervalId);
+            return prev;
+          }
+          return Math.min(totalNavChars, prev + stepSize);
+        });
+      }, intervalMs);
+    }, stepDelay);
+
+    return () => {
+      window.clearTimeout(leadTimer);
+      if (intervalId !== null) window.clearInterval(intervalId);
+    };
+  }, [cursorsEnabled, heroStep, totalNavChars, speedMultiplier]);
+
+  const renderNavSlice = (full: string, startOffset: number, accentLastChar = false) => {
+    if (!isTypingNav && !isDrawingNav) {
+      if (accentLastChar && wordmarkDot) {
+        return (
+          <>
+            {wordmarkBase}
+            <span
+              className={`transition-colors duration-400 ${
+                isResizingNav ? 'text-zinc-400' : 'text-accent'
+              }`}
+            >
+              {wordmarkDot}
+            </span>
+          </>
+        );
+      }
+      return full;
+    }
+    const endOffset = startOffset + full.length;
+    const localCount = isDrawingNav
+      ? 0
+      : Math.max(0, Math.min(full.length, navTypedChars - startOffset));
+    const isActiveSlice =
+      isTypingNav &&
+      navTypedChars >= startOffset &&
+      (navTypedChars < endOffset ||
+        (endOffset === totalNavChars && navTypedChars >= totalNavChars));
+
+    return (
+      <span className="relative inline-grid align-baseline">
+        <span className="col-start-1 row-start-1 invisible select-none" aria-hidden="true">
+          {full}
+        </span>
+        <span className="pointer-events-none absolute inset-0 whitespace-nowrap">
+          {full.slice(0, localCount)}
+          {isActiveSlice && (
+            <span
+              data-nav-caret="true"
+              className="ml-0.5 inline-block h-[0.88em] w-[2px] bg-white align-middle"
+              aria-hidden="true"
+            />
+          )}
+        </span>
+      </span>
+    );
+  };
+
+  let runningOffset = 0;
+  const wordmarkOffset = runningOffset;
+  runningOffset += profile.wordmark.length;
+  const navOffsets = NAV_ITEMS.map((item) => {
+    const start = runningOffset;
+    runningOffset += item.label.length;
+    return start;
+  });
+  const hireOffset = runningOffset;
 
   return (
     <header
@@ -72,9 +174,7 @@ export const Navbar: React.FC<NavbarProps> = ({
             opacity: isBlack ? 0 : 1,
             clipPath: isBlack
               ? 'inset(0 100% 0 0)'
-              : isDrawingNav
-                ? 'inset(0 0% 0 0)'
-                : 'inset(0 0% 0 0)',
+              : 'inset(0 0% 0 0)',
           }}
           transition={{ duration: 0.72, ease: [0.22, 1, 0.36, 1] }}
           className="flex items-center justify-between gap-8"
@@ -86,15 +186,25 @@ export const Navbar: React.FC<NavbarProps> = ({
               onNavigateSection?.('#top');
               prepareSectionJump();
             }}
-            className="font-display text-xl font-bold tracking-tight text-white whitespace-nowrap shrink-0 focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-accent"
+            style={
+              isMonochromeNav
+                ? { transform: isResizingNav ? 'scale(0.96)' : 'scale(0.9)', transformOrigin: 'left center' }
+                : undefined
+            }
+            className={`font-display text-xl font-bold tracking-tight whitespace-nowrap shrink-0 transition-[color,transform] duration-400 focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-accent ${
+              isDrawingNav
+                ? 'rounded border border-dashed border-[#38BDF8]/65 bg-[#08101E]/40 px-1.5 text-transparent'
+                : isTypingNav
+                  ? 'text-zinc-300'
+                  : 'text-white'
+            }`}
           >
-            {wordmarkBase}
-            {wordmarkDot && <span className="text-accent">{wordmarkDot}</span>}
+            {renderNavSlice(profile.wordmark, wordmarkOffset, true)}
           </a>
 
           {/* Zone 2: Navigation links */}
           <nav className="hidden items-center gap-7 md:flex" aria-label="Primary navigation">
-            {NAV_ITEMS.map((item) => (
+            {NAV_ITEMS.map((item, idx) => (
               <a
                 key={item.href}
                 href={item.href}
@@ -102,9 +212,15 @@ export const Navbar: React.FC<NavbarProps> = ({
                   onNavigateSection?.(item.href);
                   prepareSectionJump();
                 }}
-                className="text-sm font-medium text-zinc-300 transition-colors duration-150 hover:text-white whitespace-nowrap shrink-0 focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-accent"
+                className={`text-sm font-medium whitespace-nowrap shrink-0 transition-colors duration-150 focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-accent ${
+                  isDrawingNav
+                    ? 'rounded border border-dashed border-[#38BDF8]/45 px-1.5 text-transparent'
+                    : isTypingNav
+                      ? 'text-zinc-300'
+                      : 'text-zinc-300 hover:text-white'
+                }`}
               >
-                {item.label}
+                {renderNavSlice(item.label, navOffsets[idx])}
               </a>
             ))}
           </nav>
@@ -115,10 +231,22 @@ export const Navbar: React.FC<NavbarProps> = ({
 
             <button
               type="button"
+              data-cursor-target="nav-hire-btn"
               onClick={onOpenInquiry}
-              className="hidden sm:inline-flex items-center justify-center rounded-md bg-accent px-4 py-2 text-xs font-semibold text-white transition-colors duration-150 hover:bg-accent-dark whitespace-nowrap shrink-0 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white"
+              style={
+                isMonochromeNav
+                  ? { transform: isResizingNav ? 'scale(0.96)' : 'scale(0.92)', transformOrigin: 'center center' }
+                  : undefined
+              }
+              className={`hidden sm:inline-flex items-center justify-center rounded-md px-4 py-2 text-xs font-semibold whitespace-nowrap shrink-0 transition-[background-color,border-color,color,transform] duration-300 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white ${
+                isDrawingNav
+                  ? 'border border-dashed border-[#38BDF8]/75 bg-[#08101E]/45 text-transparent'
+                  : isTypingNav || isResizingNav
+                    ? 'border border-white/25 bg-[#121318] text-zinc-200'
+                    : 'border border-transparent bg-accent text-white hover:bg-accent-dark'
+              }`}
             >
-              Hire Me
+              {renderNavSlice(navHireLabel, hireOffset)}
             </button>
 
             <button

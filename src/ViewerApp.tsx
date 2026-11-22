@@ -392,7 +392,7 @@ function ViewerShell({
 
   return (
     <DesignCanvasProvider>
-      <div className="min-h-screen bg-[#050507] text-[#F4F4F5]">
+      <div className="min-h-screen overflow-x-clip bg-[#050507] text-[#F4F4F5]">
         {viewerControls.showTopScrollBar && (
           <motion.div
             className="fixed top-0 right-0 left-0 z-50 h-[2px] origin-left bg-accent"

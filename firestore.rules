@@ -158,6 +158,120 @@ service cloud.firestore {
         && (!('instagram' in sn) || (sn.instagram is string && sn.instagram.size() <= 48));
     }
 
+    function isValidHeroMetricItem(item) {
+      return item is map
+        && item.keys().hasAll(['value', 'label'])
+        && item.keys().hasOnly(['value', 'label'])
+        && item.value is string && item.value.size() >= 1 && item.value.size() <= 16
+        && item.label is string && item.label.size() >= 1 && item.label.size() <= 64;
+    }
+
+    function isValidHeroMetricsList(items) {
+      return items is list
+        && items.size() >= 1
+        && items.size() <= 4
+        && isValidHeroMetricItem(items[0])
+        && (items.size() < 2 || isValidHeroMetricItem(items[1]))
+        && (items.size() < 3 || isValidHeroMetricItem(items[2]))
+        && (items.size() < 4 || isValidHeroMetricItem(items[3]));
+    }
+
+    function isValidWireframeSceneItem(item) {
+      return item is map
+        && item.keys().hasAll(['id', 'label', 'specs', 'notes', 'theme'])
+        && item.keys().hasOnly(['id', 'label', 'specs', 'notes', 'theme'])
+        && isValidId(item.id)
+        && item.label is string && item.label.size() >= 1 && item.label.size() <= 64
+        && item.specs is string && item.specs.size() >= 1 && item.specs.size() <= 80
+        && item.notes is string && item.notes.size() >= 1 && item.notes.size() <= 220
+        && item.theme is string && item.theme in ['web-build', 'app-ui', 'game-engine'];
+    }
+
+    function isValidWireframeScenesList(items) {
+      return items is list
+        && items.size() >= 1
+        && items.size() <= 6
+        && isValidWireframeSceneItem(items[0])
+        && (items.size() < 2 || isValidWireframeSceneItem(items[1]))
+        && (items.size() < 3 || isValidWireframeSceneItem(items[2]))
+        && (items.size() < 4 || isValidWireframeSceneItem(items[3]))
+        && (items.size() < 5 || isValidWireframeSceneItem(items[4]))
+        && (items.size() < 6 || isValidWireframeSceneItem(items[5]));
+    }
+
+    function isValidTechStackItem(item) {
+      return item is map
+        && item.keys().hasAll(['name', 'role'])
+        && item.keys().hasOnly(['name', 'role'])
+        && item.name is string && item.name.size() >= 1 && item.name.size() <= 48
+        && item.role is string && item.role.size() >= 1 && item.role.size() <= 64;
+    }
+
+    function isValidTechStackList(items) {
+      return items is list
+        && items.size() >= 1
+        && items.size() <= 8
+        && isValidTechStackItem(items[0])
+        && (items.size() < 2 || isValidTechStackItem(items[1]))
+        && (items.size() < 3 || isValidTechStackItem(items[2]))
+        && (items.size() < 4 || isValidTechStackItem(items[3]))
+        && (items.size() < 5 || isValidTechStackItem(items[4]))
+        && (items.size() < 6 || isValidTechStackItem(items[5]))
+        && (items.size() < 7 || isValidTechStackItem(items[6]))
+        && (items.size() < 8 || isValidTechStackItem(items[7]));
+    }
+
+    function isValidServiceItem(item) {
+      return item is map
+        && item.keys().hasAll(['index', 'title', 'detail'])
+        && item.keys().hasOnly(['index', 'title', 'detail'])
+        && item.index is string && item.index.size() >= 1 && item.index.size() <= 8
+        && item.title is string && item.title.size() >= 1 && item.title.size() <= 64
+        && item.detail is string && item.detail.size() >= 1 && item.detail.size() <= 160;
+    }
+
+    function isValidServicesList(items) {
+      return items is list
+        && items.size() >= 1
+        && items.size() <= 6
+        && isValidServiceItem(items[0])
+        && (items.size() < 2 || isValidServiceItem(items[1]))
+        && (items.size() < 3 || isValidServiceItem(items[2]))
+        && (items.size() < 4 || isValidServiceItem(items[3]))
+        && (items.size() < 5 || isValidServiceItem(items[4]))
+        && (items.size() < 6 || isValidServiceItem(items[5]));
+    }
+
+    function isValidShortTag(val) {
+      return val is string && val.size() >= 1 && val.size() <= 32;
+    }
+
+    function isValidTechPartnersList(items) {
+      return items is list
+        && items.size() >= 1
+        && items.size() <= 8
+        && isValidShortTag(items[0])
+        && (items.size() < 2 || isValidShortTag(items[1]))
+        && (items.size() < 3 || isValidShortTag(items[2]))
+        && (items.size() < 4 || isValidShortTag(items[3]))
+        && (items.size() < 5 || isValidShortTag(items[4]))
+        && (items.size() < 6 || isValidShortTag(items[5]))
+        && (items.size() < 7 || isValidShortTag(items[6]))
+        && (items.size() < 8 || isValidShortTag(items[7]));
+    }
+
+    function isValidProjectStackList(items) {
+      return items is list
+        && items.size() >= 1
+        && items.size() <= 6
+        && isValidShortTag(items[0])
+        && (items.size() < 2 || isValidShortTag(items[1]))
+        && (items.size() < 3 || isValidShortTag(items[2]))
+        && (items.size() < 4 || isValidShortTag(items[3]))
+        && (items.size() < 5 || isValidShortTag(items[4]))
+        && (items.size() < 6 || isValidShortTag(items[5]));
+    }
+
     function isValidPortfolioSettings(data) {
       return data.keys().hasAll([
           'greeting', 'displayName', 'backdropName', 'wordmark', 'role', 'bio',
@@ -209,16 +323,11 @@ service cloud.firestore {
         && data.manifestoLead is string && data.manifestoLead.size() <= 240
         && data.manifestoAvailability is string && data.manifestoAvailability.size() <= 200
         && data.prototypeTurnaround is string && data.prototypeTurnaround.size() <= 32
-        && data.heroMetrics is list && data.heroMetrics.size() >= 1 && data.heroMetrics.size() <= 4
-        && data.heroMetrics[0] is map
-        && data.wireframeScenes is list && data.wireframeScenes.size() >= 1 && data.wireframeScenes.size() <= 6
-        && data.wireframeScenes[0] is map
-        && data.techStack is list && data.techStack.size() >= 1 && data.techStack.size() <= 8
-        && data.techStack[0] is map
-        && data.services is list && data.services.size() >= 1 && data.services.size() <= 6
-        && data.services[0] is map
-        && data.techPartners is list && data.techPartners.size() >= 1 && data.techPartners.size() <= 8
-        && data.techPartners[0] is string
+        && isValidHeroMetricsList(data.heroMetrics)
+        && isValidWireframeScenesList(data.wireframeScenes)
+        && isValidTechStackList(data.techStack)
+        && isValidServicesList(data.services)
+        && isValidTechPartnersList(data.techPartners)
         && data.updatedAt == request.time;
     }
 
@@ -235,16 +344,15 @@ service cloud.firestore {
         ])
         && data.index is string && data.index.size() >= 1 && data.index.size() <= 8
         && data.title is string && data.title.size() >= 1 && data.title.size() <= 80
-        && data.category in ['Websites', 'Apps', 'Games', 'UI/UX Design']
+        && data.category is string && data.category in ['Websites', 'Apps', 'Games', 'UI/UX Design']
         && data.year is string && data.year.size() >= 1 && data.year.size() <= 16
         && data.platform is string && data.platform.size() >= 1 && data.platform.size() <= 48
         && data.client is string && data.client.size() >= 1 && data.client.size() <= 48
         && data.role is string && data.role.size() >= 1 && data.role.size() <= 80
-        && data.stack is list && data.stack.size() >= 1 && data.stack.size() <= 6
-        && data.stack[0] is string && data.stack[0].size() <= 32
+        && isValidProjectStackList(data.stack)
         && data.summary is string && data.summary.size() >= 1 && data.summary.size() <= 340
         && data.architectureNotes is string && data.architectureNotes.size() >= 1 && data.architectureNotes.size() <= 360
-        && data.previewTheme in ['web-commerce', 'app-workspace', 'game-rift', 'app-realtime', 'game-drift', 'ui-system']
+        && data.previewTheme is string && data.previewTheme in ['web-commerce', 'app-workspace', 'game-rift', 'app-realtime', 'game-drift', 'ui-system']
         && data.dimensions is string && data.dimensions.size() >= 1 && data.dimensions.size() <= 24
         && isValidOptionalProjectMedia(data, 'coverImageUrl', 780000)
         && isValidGalleryUrls(data)
@@ -288,7 +396,7 @@ service cloud.firestore {
         && data.email is string && data.email.size() >= 3 && data.email.size() <= 120 && data.email.matches('^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$')
         && data.scope is string && data.scope.size() >= 1 && data.scope.size() <= 80
         && data.brief is string && data.brief.size() >= 1 && data.brief.size() <= 2000
-        && data.status in ['new', 'read', 'replied', 'archived'];
+        && data.status is string && data.status in ['new', 'read', 'replied', 'archived'];
     }
 
     match /site_settings/{settingId} {
@@ -408,7 +516,7 @@ service cloud.firestore {
         && data.keys().hasOnly(['projectId', 'title', 'category', 'clicks', 'updatedAt'])
         && data.projectId is string && data.projectId == projectId && data.projectId.size() <= 80
         && data.title is string && data.title.size() >= 1 && data.title.size() <= 80
-        && data.category in ['Websites', 'Apps', 'Games', 'UI/UX Design']
+        && data.category is string && data.category in ['Websites', 'Apps', 'Games', 'UI/UX Design']
         && data.clicks is int && data.clicks == 1
         && data.updatedAt == request.time;
     }
@@ -418,7 +526,7 @@ service cloud.firestore {
         && data.keys().hasOnly(['projectId', 'title', 'category', 'clicks', 'updatedAt'])
         && data.projectId == prev.projectId
         && data.title is string && data.title.size() >= 1 && data.title.size() <= 80
-        && data.category in ['Websites', 'Apps', 'Games', 'UI/UX Design']
+        && data.category is string && data.category in ['Websites', 'Apps', 'Games', 'UI/UX Design']
         && data.clicks is int && data.clicks >= prev.clicks && data.clicks <= prev.clicks + 1
         && data.updatedAt == request.time;
     }
@@ -437,7 +545,7 @@ service cloud.firestore {
       return data.keys().hasAll(['bucketId', 'bucketType', 'code', 'label', 'count', 'updatedAt'])
         && data.keys().hasOnly(['bucketId', 'bucketType', 'code', 'label', 'count', 'updatedAt'])
         && data.bucketId is string && data.bucketId == bucketId && data.bucketId.size() <= 48
-        && data.bucketType in ['country', 'age']
+        && data.bucketType is string && data.bucketType in ['country', 'age']
         && data.code is string && data.code.size() >= 1 && data.code.size() <= 24
         && data.label is string && data.label.size() >= 1 && data.label.size() <= 60
         && data.count is int && data.count == 1

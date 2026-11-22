@@ -1,9 +1,10 @@
 import React, { useState } from 'react';
-import { ArrowUpRight, ExternalLink } from 'lucide-react';
+import { ArrowUpRight, ExternalLink, Image as ImageIcon } from 'lucide-react';
+import { motion } from 'motion/react';
 import { ProjectCategory, ProjectItem } from '../data/portfolioData';
 import { usePortfolioContent } from '../context/PortfolioContentContext';
 import { ProductPreviewCanvas } from './ProductPreviewCanvas';
-import { DesignBlock, TypedText, useBlockStage } from './DesignCursorSystem';
+import { DesignBlock, TypedText, useBlockStage, useCursorBuildPhase } from './DesignCursorSystem';
 
 interface WorksSectionProps {
   onSelectProject: (project: ProjectItem) => void;
@@ -36,9 +37,18 @@ const ProjectCardContent: React.FC<{
   onHoverEnd,
   onSelect,
 }) => {
-  const { stage, isCloneHighlight } = useBlockStage();
+  const { stage, cursorsEnabled, isCloneHighlight } = useBlockStage();
+  const { isMonochrome } = useCursorBuildPhase();
   const showingCloneTheme =
     isCloneCard && isCloneHighlight && (stage === 'layout-drag' || stage === 'type-draft');
+  const mediaDropped =
+    !cursorsEnabled ||
+    stage === 'style-color' ||
+    stage === 'place-drop' ||
+    stage === 'done' ||
+    showingCloneTheme;
+  const placingMediaNow =
+    cursorsEnabled && !showingCloneTheme && (stage === 'style-color' || stage === 'place-drop');
 
   return (
     <article
@@ -53,28 +63,62 @@ const ProjectCardContent: React.FC<{
         className="w-full rounded-xl text-left focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-accent"
       >
         <div className="relative overflow-hidden rounded-xl border border-white/10 bg-[#111115] transition-transform duration-200 group-hover:-translate-y-1">
-          <ProductPreviewCanvas
-            theme={showingCloneTheme ? firstProject.previewTheme : project.previewTheme}
-            coverImageUrl={showingCloneTheme ? firstProject.coverImageUrl : project.coverImageUrl}
-            galleryUrls={showingCloneTheme ? firstProject.galleryUrls : project.galleryUrls}
-            coverMediaType={showingCloneTheme ? firstProject.coverMediaType : project.coverMediaType}
-            title={project.title}
-            isAnimating={isHovered}
-          />
+          <div className="relative aspect-video overflow-hidden bg-[#07080C]">
+            {/* Wireframe media slot before cursor places the project photo/video */}
+            {!mediaDropped && (
+              <div
+                aria-hidden="true"
+                className="absolute inset-0 flex flex-col items-center justify-center gap-2 border border-dashed border-[#38BDF8]/35 bg-[#090C14]"
+              >
+                <ImageIcon className="h-6 w-6 text-[#38BDF8]/55" />
+                <span className="font-mono text-[10px] tracking-wider text-zinc-400">
+                  MEDIA SLOT · DROPPING NEXT
+                </span>
+              </div>
+            )}
 
-          {showingCloneTheme && (
-            <div
-              aria-hidden="true"
-              className="pointer-events-none absolute inset-0 bg-[#38BDF8]/12 ring-2 ring-inset ring-[#38BDF8]/70"
-            />
-          )}
+            {/* Cursor visibly drops/places screenshot or video into the card media frame */}
+            <motion.div
+              data-media-drop-target="true"
+              initial={false}
+              animate={{
+                opacity: mediaDropped ? 1 : 0,
+                x: mediaDropped ? 0 : 28,
+                y: mediaDropped ? 0 : -24,
+                scale: mediaDropped ? 1 : 0.9,
+              }}
+              transition={{ duration: 0.44, ease: [0.22, 1, 0.36, 1] }}
+              className="relative h-full w-full"
+            >
+              {placingMediaNow && (
+                <div
+                  data-media-drop-grab="true"
+                  aria-hidden="true"
+                  className="pointer-events-none absolute top-2 left-2 z-20 rounded bg-[#F59E0B] px-1.5 py-0.5 font-mono text-[9px] font-bold tracking-wider text-[#050507] shadow"
+                >
+                  PLACING MEDIA
+                </div>
+              )}
 
-          <div
-            className="pointer-events-none absolute inset-0 bg-gradient-to-t from-black/75 via-transparent to-black/15"
-            aria-hidden="true"
-          />
+              <ProductPreviewCanvas
+                theme={showingCloneTheme ? firstProject.previewTheme : project.previewTheme}
+                coverImageUrl={showingCloneTheme ? firstProject.coverImageUrl : project.coverImageUrl}
+                galleryUrls={showingCloneTheme ? firstProject.galleryUrls : project.galleryUrls}
+                coverMediaType={showingCloneTheme ? firstProject.coverMediaType : project.coverMediaType}
+                title={project.title}
+                isAnimating={isHovered}
+              />
+            </motion.div>
 
-          <div className="absolute inset-x-0 bottom-0 flex items-center justify-between px-4 py-3">
+            {showingCloneTheme && (
+              <div
+                aria-hidden="true"
+                className="pointer-events-none absolute inset-0 bg-[#38BDF8]/12 ring-2 ring-inset ring-[#38BDF8]/70"
+              />
+            )}
+          </div>
+
+          <div className="flex items-center justify-between border-t border-white/10 bg-[#0B0C11] px-4 py-2.5">
             <span className="font-mono text-xs text-zinc-300 tabular-nums">
               <TypedText
                 text={project.platform}
@@ -90,7 +134,12 @@ const ProjectCardContent: React.FC<{
 
         {/* Clean Numbered Title & Unboxed Metadata */}
         <div className="mt-4 flex items-baseline gap-3">
-          <span className="font-display text-2xl font-bold text-accent tabular-nums">
+          <span
+            data-cursor-color-target="true"
+            className={`font-display text-2xl font-bold tabular-nums transition-colors duration-400 ${
+              isMonochrome ? 'text-zinc-400' : 'text-accent'
+            }`}
+          >
             <TypedText
               text={project.index}
               cloneFrom={isCloneCard ? firstProject.index : undefined}
@@ -123,14 +172,158 @@ const ProjectCardContent: React.FC<{
             href={project.liveUrl}
             target="_blank"
             rel="noopener noreferrer"
-            className="inline-flex items-center gap-1.5 rounded-md border border-white/15 bg-[#101116] px-3 py-1.5 text-xs font-semibold text-zinc-100 transition-colors hover:border-accent hover:bg-accent/15 hover:text-white"
+            data-cursor-color-target="true"
+            className={`inline-flex items-center gap-1.5 rounded-md border px-3 py-1.5 text-xs font-semibold transition-colors duration-300 ${
+              isMonochrome
+                ? 'border-dashed border-white/25 bg-[#101116] text-zinc-300'
+                : 'border-white/15 bg-[#101116] text-zinc-100 hover:border-accent hover:bg-accent/15 hover:text-white'
+            }`}
           >
-            <span>Open Live Project</span>
-            <ExternalLink className="h-3.5 w-3.5 text-accent-light" aria-hidden="true" />
+            <TypedText
+              text="Open Live Project"
+              cloneFrom={isCloneCard ? 'Open Live Project' : undefined}
+            />
+            <ExternalLink
+              className={`h-3.5 w-3.5 transition-colors duration-300 ${
+                isMonochrome ? 'text-zinc-500' : 'text-accent-light'
+              }`}
+              aria-hidden="true"
+            />
           </a>
         </div>
       )}
     </article>
+  );
+};
+
+const WorksFilterTabs: React.FC<{
+  activeCategory: ProjectCategory;
+  onSelect: (category: ProjectCategory) => void;
+}> = ({ activeCategory, onSelect }) => {
+  const { isMonochrome } = useCursorBuildPhase();
+
+  return (
+    <div
+      className={`flex flex-wrap items-center gap-1 rounded-lg border p-1 transition-colors duration-300 ${
+        isMonochrome ? 'border-white/15 bg-[#0D0E12]' : 'border-white/10 bg-[#111115]'
+      }`}
+      role="tablist"
+      aria-label="Filter projects by discipline"
+    >
+      {CATEGORIES.map((category) => {
+        const isActive = activeCategory === category;
+        return (
+          <button
+            key={category}
+            type="button"
+            role="tab"
+            aria-selected={isActive}
+            data-cursor-color-target="true"
+            onClick={() => onSelect(category)}
+            className={`rounded-md px-3 py-1.5 text-xs font-medium transition-colors duration-300 whitespace-nowrap shrink-0 focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-accent ${
+              isMonochrome
+                ? isActive
+                  ? 'border border-dashed border-white/35 bg-white/10 text-zinc-200'
+                  : 'text-zinc-400'
+                : isActive
+                  ? 'bg-accent text-white'
+                  : 'text-zinc-400 hover:text-white'
+            }`}
+          >
+            <TypedText text={category} />
+          </button>
+        );
+      })}
+    </div>
+  );
+};
+
+const CanvasLayerTree: React.FC<{
+  featuredTimelineProjects: ProjectItem[];
+  onSelectProject: (project: ProjectItem) => void;
+}> = ({ featuredTimelineProjects, onSelectProject }) => {
+  const { isMonochrome } = useCursorBuildPhase();
+
+  return (
+    <div className="mt-14 rounded-xl border border-white/10 bg-[#0D0D11] p-4 sm:p-5">
+      <div className="flex flex-wrap items-center justify-between gap-2 text-xs text-zinc-400">
+        <span className="font-mono tabular-nums">
+          <TypedText text="CANVAS · COMPONENT ARCHITECTURE" />
+        </span>
+        <span className="font-mono tabular-nums">
+          <TypedText text="WEB · APP · GAME PIPELINE" />
+        </span>
+      </div>
+
+      <div className="design-grid-bg relative mt-3 space-y-1.5 overflow-hidden rounded-lg border border-white/10 bg-[#050507] p-2.5">
+        {/* UI Layer */}
+        <div className="flex items-center gap-2">
+          <span className="w-12 shrink-0 font-mono text-[10px] text-zinc-500">
+            <TypedText text="UI/UX" />
+          </span>
+          <div className="flex flex-1 items-center gap-1.5">
+            <div
+              data-cursor-color-target="true"
+              className={`h-5 w-[22%] truncate rounded-sm border px-2 text-[10px] leading-5 transition-colors duration-400 ${
+                isMonochrome
+                  ? 'border-white/25 bg-white/5 text-zinc-300'
+                  : 'border-[#3B82F6]/50 bg-[#3B82F6]/20 text-blue-200'
+              }`}
+            >
+              <TypedText text="Figma Wireframe Grid" />
+            </div>
+            <div
+              data-cursor-color-target="true"
+              className={`ml-[5%] h-5 w-[30%] truncate rounded-sm border px-2 text-[10px] leading-5 transition-colors duration-400 ${
+                isMonochrome
+                  ? 'border-white/25 bg-white/5 text-zinc-300'
+                  : 'border-[#3B82F6]/50 bg-[#3B82F6]/15 text-blue-200'
+              }`}
+            >
+              <TypedText text="Design Tokens & Motion" />
+            </div>
+            <div
+              data-cursor-color-target="true"
+              className={`ml-[5%] h-5 w-[24%] truncate rounded-sm border px-2 text-[10px] leading-5 transition-colors duration-400 ${
+                isMonochrome
+                  ? 'border-white/25 bg-white/5 text-zinc-300'
+                  : 'border-[#3B82F6]/50 bg-[#3B82F6]/20 text-blue-200'
+              }`}
+            >
+              <TypedText text="Game HUD & Shaders" />
+            </div>
+          </div>
+        </div>
+
+        {/* Build Clips */}
+        <div className="flex items-center gap-2">
+          <span className="w-12 shrink-0 font-mono text-[10px] text-zinc-400">
+            <TypedText text="BUILDS" />
+          </span>
+          <div className="flex flex-1 items-center gap-1 overflow-x-auto">
+            {featuredTimelineProjects.map((proj, idx) => (
+              <button
+                key={proj.id}
+                type="button"
+                data-cursor="plus"
+                data-cursor-color-target="true"
+                onClick={() => onSelectProject(proj)}
+                title={`Inspect ${proj.title}`}
+                className={`h-7 min-w-[110px] flex-1 truncate rounded-sm border px-2 text-left text-[11px] font-medium transition-colors duration-300 ${
+                  isMonochrome
+                    ? 'border-dashed border-white/25 bg-white/5 text-zinc-300'
+                    : idx % 2 === 0
+                      ? 'border-accent/60 bg-accent/25 text-white hover:bg-accent/40'
+                      : 'border-white/15 bg-white/5 text-zinc-300 hover:bg-white/10'
+                }`}
+              >
+                <TypedText text={`${proj.index}. ${proj.title}`} />
+              </button>
+            ))}
+          </div>
+        </div>
+      </div>
+    </div>
   );
 };
 
@@ -165,36 +358,11 @@ export const WorksSection: React.FC<WorksSectionProps> = ({
                 <TypedText text="Websites · Applications · Interactive Games" />
               </p>
               <h2 className="mt-2 font-display text-4xl font-bold tracking-tight text-white sm:text-5xl [text-wrap:balance]">
-                <TypedText text="WORKS THAT " accentText="SHIP." accentClassName="text-accent" />
+                <TypedText text="WORKS THAT " accentText="SHIP." accentClassName="text-accent" resizeScale />
               </h2>
             </div>
 
-            {/* Interactive Category Filter Tabs */}
-            <div
-              className="flex flex-wrap items-center gap-1 rounded-lg border border-white/10 bg-[#111115] p-1"
-              role="tablist"
-              aria-label="Filter projects by discipline"
-            >
-              {CATEGORIES.map((category) => {
-                const isActive = activeCategory === category;
-                return (
-                  <button
-                    key={category}
-                    type="button"
-                    role="tab"
-                    aria-selected={isActive}
-                    onClick={() => setActiveCategory(category)}
-                    className={`rounded-md px-3 py-1.5 text-xs font-medium transition-colors duration-150 whitespace-nowrap shrink-0 focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-accent ${
-                      isActive
-                        ? 'bg-accent text-white'
-                        : 'text-zinc-400 hover:text-white'
-                    }`}
-                  >
-                    {category}
-                  </button>
-                );
-              })}
-            </div>
+            <WorksFilterTabs activeCategory={activeCategory} onSelect={setActiveCategory} />
           </div>
         </DesignBlock>
 
@@ -234,57 +402,10 @@ export const WorksSection: React.FC<WorksSectionProps> = ({
 
         {/* Interactive Component Layer & Build Architecture Strip */}
         <DesignBlock label="Canvas Layer Tree" slotIndex={4}>
-          <div className="mt-14 rounded-xl border border-white/10 bg-[#0D0D11] p-4 sm:p-5">
-            <div className="flex flex-wrap items-center justify-between gap-2 text-xs text-zinc-400">
-              <span className="font-mono tabular-nums">
-                <TypedText text="CANVAS · COMPONENT ARCHITECTURE" />
-              </span>
-              <span className="font-mono tabular-nums">
-                <TypedText text="WEB · APP · GAME PIPELINE" />
-              </span>
-            </div>
-
-            <div className="design-grid-bg relative mt-3 space-y-1.5 overflow-hidden rounded-lg border border-white/10 bg-[#050507] p-2.5">
-              {/* UI Layer */}
-              <div className="flex items-center gap-2">
-                <span className="w-12 shrink-0 font-mono text-[10px] text-zinc-500">UI/UX</span>
-                <div className="flex flex-1 items-center gap-1.5">
-                  <div className="h-5 w-[22%] truncate rounded-sm border border-[#3B82F6]/50 bg-[#3B82F6]/20 px-2 text-[10px] leading-5 text-blue-200">
-                    <TypedText text="Figma Wireframe Grid" />
-                  </div>
-                  <div className="ml-[5%] h-5 w-[30%] truncate rounded-sm border border-[#3B82F6]/50 bg-[#3B82F6]/15 px-2 text-[10px] leading-5 text-blue-200">
-                    <TypedText text="Design Tokens & Motion" />
-                  </div>
-                  <div className="ml-[5%] h-5 w-[24%] truncate rounded-sm border border-[#3B82F6]/50 bg-[#3B82F6]/20 px-2 text-[10px] leading-5 text-blue-200">
-                    <TypedText text="Game HUD & Shaders" />
-                  </div>
-                </div>
-              </div>
-
-              {/* Build Clips */}
-              <div className="flex items-center gap-2">
-                <span className="w-12 shrink-0 font-mono text-[10px] text-zinc-400">BUILDS</span>
-                <div className="flex flex-1 items-center gap-1 overflow-x-auto">
-                  {featuredTimelineProjects.map((proj, idx) => (
-                    <button
-                      key={proj.id}
-                      type="button"
-                      data-cursor="plus"
-                      onClick={() => onSelectProject(proj)}
-                      title={`Inspect ${proj.title}`}
-                      className={`h-7 min-w-[110px] flex-1 truncate rounded-sm border px-2 text-left text-[11px] font-medium transition-colors ${
-                        idx % 2 === 0
-                          ? 'border-accent/60 bg-accent/25 text-white hover:bg-accent/40'
-                          : 'border-white/15 bg-white/5 text-zinc-300 hover:bg-white/10'
-                      }`}
-                    >
-                      {proj.index}. {proj.title}
-                    </button>
-                  ))}
-                </div>
-              </div>
-            </div>
-          </div>
+          <CanvasLayerTree
+            featuredTimelineProjects={featuredTimelineProjects}
+            onSelectProject={onSelectProject}
+          />
         </DesignBlock>
       </div>
     </section>

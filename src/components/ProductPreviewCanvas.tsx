@@ -18,6 +18,7 @@ interface ProductPreviewCanvasProps {
   onSlideChange?: (idx: number) => void;
   showSlideBadge?: boolean;
   accentColor?: string;
+  fitMode?: 'card' | 'natural';
   className?: string;
 }
 
@@ -33,6 +34,7 @@ export const ProductPreviewCanvas: React.FC<ProductPreviewCanvasProps> = ({
   onSlideChange,
   showSlideBadge = true,
   accentColor,
+  fitMode = 'card',
   className = '',
 }) => {
   const effectiveAccentColor =
@@ -345,8 +347,16 @@ export const ProductPreviewCanvas: React.FC<ProductPreviewCanvasProps> = ({
     };
   }, [theme, isAnimating, showCustomCover, effectiveAccentColor]);
 
+  const isNatural = fitMode === 'natural' && showCustomCover;
+
   return (
-    <div className={`relative aspect-video overflow-hidden bg-[#0B0B0F] ${className}`}>
+    <div
+      className={`relative overflow-hidden bg-[#07080C] ${
+        isNatural
+          ? 'flex min-h-[260px] w-full items-center justify-center sm:min-h-[340px]'
+          : 'aspect-video'
+      } ${className}`}
+    >
       {showCustomCover ? (
         isExplicitVideo ? (
           <video
@@ -356,6 +366,7 @@ export const ProductPreviewCanvas: React.FC<ProductPreviewCanvasProps> = ({
             loop
             muted
             playsInline
+            controls={fitMode === 'natural'}
             preload="metadata"
             aria-label={title}
             onError={() => {
@@ -363,13 +374,16 @@ export const ProductPreviewCanvas: React.FC<ProductPreviewCanvasProps> = ({
                 setFailedUrls((prev) => ({ ...prev, [coverImageUrl]: true }));
               }
             }}
-            className="block h-full w-full object-cover"
+            className={
+              isNatural
+                ? 'block max-h-[64dvh] w-auto max-w-full object-contain'
+                : 'block h-full w-full object-contain'
+            }
           />
         ) : imageSlides.length > 1 ? (
           <>
             {imageSlides.map((slideUrl, idx) => {
               const active = idx === currentIdx;
-              const zoomShift = idx % 2 === 0 ? 'scale-[1.06]' : 'scale-[1.04]';
               return (
                 <img
                   key={`${slideUrl.slice(0, 64)}-${idx}`}
@@ -378,14 +392,20 @@ export const ProductPreviewCanvas: React.FC<ProductPreviewCanvasProps> = ({
                   loading={idx === 0 ? 'eager' : 'lazy'}
                   referrerPolicy="no-referrer"
                   onError={() => setFailedUrls((prev) => ({ ...prev, [slideUrl]: true }))}
-                  className={`absolute inset-0 block h-full w-full object-cover transition-all duration-1000 ease-out ${
-                    active ? `opacity-100 ${zoomShift}` : 'pointer-events-none opacity-0 scale-100'
+                  className={`transition-opacity duration-500 ease-out ${
+                    isNatural
+                      ? active
+                        ? 'relative block max-h-[64dvh] w-auto max-w-full object-contain opacity-100'
+                        : 'pointer-events-none absolute inset-0 m-auto max-h-[64dvh] w-auto max-w-full object-contain opacity-0'
+                      : `absolute inset-0 block h-full w-full object-contain ${
+                          active ? 'opacity-100' : 'pointer-events-none opacity-0'
+                        }`
                   }`}
                 />
               );
             })}
             {showSlideBadge && (
-              <div className="pointer-events-none absolute top-2.5 right-2.5 z-10 flex items-center gap-1.5 rounded bg-black/70 px-2 py-0.5 font-mono text-[10px] text-zinc-200 backdrop-blur-sm">
+              <div className="pointer-events-none absolute top-2.5 right-2.5 z-10 flex items-center gap-1.5 rounded bg-black/75 px-2 py-0.5 font-mono text-[10px] text-zinc-200 backdrop-blur-sm">
                 <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-accent-light" />
                 <span className="tabular-nums">
                   {currentIdx + 1}/{imageSlides.length}
@@ -403,13 +423,15 @@ export const ProductPreviewCanvas: React.FC<ProductPreviewCanvasProps> = ({
               const bad = imageSlides[0];
               if (bad) setFailedUrls((prev) => ({ ...prev, [bad]: true }));
             }}
-            className={`block h-full w-full object-cover transition-transform duration-500 ${
-              isAnimating ? 'scale-[1.03]' : 'scale-100'
-            }`}
+            className={
+              isNatural
+                ? 'block max-h-[64dvh] w-auto max-w-full object-contain'
+                : 'block h-full w-full object-contain'
+            }
           />
         )
       ) : (
-        <canvas ref={canvasRef} className="block h-full w-full object-cover" aria-hidden="true" />
+        <canvas ref={canvasRef} className="block h-full w-full object-contain" aria-hidden="true" />
       )}
     </div>
   );

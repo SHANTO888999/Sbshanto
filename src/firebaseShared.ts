@@ -44,15 +44,24 @@ export function sanitizeFirestoreId(raw: string, fallbackPrefix: string): string
 export function isTransientOfflineError(error: unknown): boolean {
   if (!error) return false;
   const code =
-    typeof error === 'object' && 'code' in error ? String((error as { code?: unknown }).code) : '';
+    typeof error === 'object' && 'code' in error
+      ? String((error as { code?: unknown }).code).toLowerCase()
+      : '';
   const msg = error instanceof Error ? error.message.toLowerCase() : String(error).toLowerCase();
   return (
     code === 'unavailable' ||
     code === 'deadline-exceeded' ||
+    code === 'aborted' ||
+    code === 'cancelled' ||
     msg.includes('the client is offline') ||
     msg.includes('could not reach cloud firestore backend') ||
     msg.includes('failed to fetch') ||
-    msg.includes('networkerror')
+    msg.includes('networkerror') ||
+    msg.includes('http error has no status') ||
+    msg.includes('rpc_error') ||
+    msg.includes('load failed') ||
+    msg.includes('network request failed') ||
+    msg.includes('aborted')
   );
 }
 
