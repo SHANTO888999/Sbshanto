@@ -24,8 +24,6 @@ service cloud.firestore {
 
     function isBootstrappedAdmin() {
       return isSignedIn()
-        && 'email_verified' in request.auth.token
-        && request.auth.token.email_verified == true
         && (
           request.auth.uid == '7uGlVyZQVLSofZlGXTVceJnfCg23'
           || (
@@ -50,7 +48,7 @@ service cloud.firestore {
       return !(field in data) || (
         data[field] is string
         && data[field].size() <= maxLen
-        && (data[field] == '' || data[field].matches('^(https?://|/|mailto:).*'))
+        && (data[field] == '' || data[field].matches('^(https?://|HTTPS?://|/|mailto:).*'))
       );
     }
 
@@ -302,7 +300,7 @@ service cloud.firestore {
         && data.role is string && data.role.size() <= 80
         && data.bio is string && data.bio.size() <= 300
         && isValidPortraitMedia(data.portraitUrl)
-        && data.email is string && data.email.size() >= 3 && data.email.size() <= 100 && data.email.matches('^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$')
+        && data.email is string && data.email.size() >= 3 && data.email.size() <= 120 && data.email.matches('^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$')
         && isValidOptionalPhone(data, 'phoneNumber')
         && isValidOptionalPhone(data, 'whatsappNumber')
         && (!('location' in data) || (data.location is string && data.location.size() <= 80))

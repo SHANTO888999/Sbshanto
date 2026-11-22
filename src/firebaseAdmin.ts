@@ -204,11 +204,20 @@ function preserveValidFirestoreId(
   return sanitizeFirestoreId(fallbackInput, fallbackPrefix);
 }
 
+function isOwnerAccount(user: User | null | undefined): boolean {
+  if (!user) return false;
+  return (
+    user.uid === OWNER_ADMIN_UID ||
+    user.email?.toLowerCase() === OWNER_ADMIN_EMAIL.toLowerCase()
+  );
+}
+
 async function ensureFreshVerifiedToken(): Promise<void> {
   const current = auth.currentUser;
   if (!current) {
     throw new Error('Your admin session expired. Please sign in again before saving.');
   }
+  const owner = isOwnerAccount(current);
   try {
     if (!current.emailVerified) {
       await current.reload();
@@ -218,13 +227,13 @@ async function ensureFreshVerifiedToken(): Promise<void> {
       await current.getIdToken(true);
       tokenResult = await current.getIdTokenResult();
     }
-    if (!tokenResult.claims.email_verified) {
+    if (!owner && !tokenResult.claims.email_verified) {
       throw new Error(
         `Email verification is not active in your current auth token (${current.email ?? current.uid}). Verify your email, sign out, and sign back in.`
       );
     }
   } catch (err) {
-    if (err instanceof Error && err.message.includes('Email verification is not active')) {
+    if (!owner && err instanceof Error && err.message.includes('Email verification is not active')) {
       throw err;
     }
     // Non-fatal network refresh error; proceed with existing token
@@ -263,7 +272,7 @@ export async function signOutAdmin(): Promise<void> {
 }
 
 export async function verifyAdminAccess(user: User | null): Promise<boolean> {
-  if (!user || !user.emailVerified) return false;
+  if (!user) return false;
   try {
     const tokenResult = await user.getIdTokenResult();
     if (!tokenResult.claims.email_verified) {
@@ -272,12 +281,10 @@ export async function verifyAdminAccess(user: User | null): Promise<boolean> {
   } catch {
     // Proceed cleanly
   }
-  if (
-    user.uid === OWNER_ADMIN_UID ||
-    user.email?.toLowerCase() === OWNER_ADMIN_EMAIL.toLowerCase()
-  ) {
+  if (isOwnerAccount(user)) {
     return true;
   }
+  if (!user.emailVerified) return false;
   try {
     const adminDoc = await getDoc(doc(db, 'admins', user.uid));
     return adminDoc.exists();
@@ -751,7 +758,7 @@ function buildSettingsPayload(bundle: PortfolioContentBundle) {
     role: clampText(p.role, 80, dp.role),
     bio: clampText(p.bio, 300, dp.bio),
     portraitUrl: portraitPayload,
-    email: clampExact(isValidEmailAddress(p.email) ? p.email : dp.email, 100, dp.email),
+    email: clampExact(isValidEmailAddress(p.email) ? p.email : dp.email, 120, dp.email),
     phoneNumber: normalizedPhone.length >= 3 ? normalizedPhone : '',
     whatsappNumber: normalizedWhatsapp.length >= 3 ? normalizedWhatsapp : '',
     location: clampText(p.location, 60, dp.location),

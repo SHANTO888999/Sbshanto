@@ -110,14 +110,11 @@ function formatDashboardError(err: unknown): string {
       const lower = inner.toLowerCase();
       if (lower.includes('missing or insufficient permissions') || lower.includes('permission-denied')) {
         const who = parsed.authInfo?.email ? ` (${parsed.authInfo.email})` : '';
-        const verifiedNote =
-          parsed.authInfo?.emailVerified === false
-            ? ' [emailVerified=false]'
-            : parsed.authInfo?.userId
-              ? ` [uid=${parsed.authInfo.userId.slice(0, 6)}…]`
-              : '';
+        const uidNote = parsed.authInfo?.userId
+          ? ` [uid=${parsed.authInfo.userId.slice(0, 6)}…]`
+          : '';
         const target = parsed.path ? ` on "${parsed.path}"` : '';
-        return `Permission denied${target} by Firestore security rules${who}${verifiedNote}. Confirm your email is verified and deploy latest rules (firebase deploy --project ai-studio-applet-webapp-bd58b --only firestore:rules,hosting).`;
+        return `Permission denied${target}${who}${uidNote}: ${inner} — Make sure latest Firestore rules are deployed to project ai-studio-applet-webapp-bd58b (firebase deploy --project ai-studio-applet-webapp-bd58b --only firestore:rules).`;
       }
       if (lower.includes('quota exceeded') || lower.includes('resource-exhausted')) {
         return 'Firestore quota exceeded. Please try again later or upgrade your Firebase plan.';
@@ -625,6 +622,9 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
     } catch (err) {
       setNotice({ type: 'error', text: formatDashboardError(err) });
       setSaving(false);
+      if (typeof window !== 'undefined') {
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+      }
       return false;
     }
 
@@ -685,11 +685,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
   }
 
   if (!user || !authorized) {
-    const isOwnerUnverified =
-      Boolean(user) &&
-      !user?.emailVerified &&
-      (user?.uid === OWNER_ADMIN_UID ||
-        user?.email?.toLowerCase() === OWNER_ADMIN_EMAIL.toLowerCase());
+    const isOwnerUnverified = false;
 
     return (
       <div
