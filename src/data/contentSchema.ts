@@ -419,12 +419,30 @@ export function normalizePortfolioContent(
     whatsappNumber: sanitizePhoneInput(rawProfile.whatsappNumber ?? dp.whatsappNumber, 24),
     location: clampText(rawProfile.location, 60, dp.location),
     githubHandle: clampExact(rawProfile.githubHandle, 40, dp.githubHandle),
-    githubUrl: sanitizePublicUrl(rawProfile.githubUrl, dp.githubUrl),
-    twitterUrl: sanitizePublicUrl(rawProfile.twitterUrl, dp.twitterUrl),
-    linkedinUrl: sanitizePublicUrl(rawProfile.linkedinUrl, dp.linkedinUrl),
-    behanceUrl: sanitizePublicUrl(rawProfile.behanceUrl, dp.behanceUrl),
-    facebookUrl: sanitizePublicUrl(rawProfile.facebookUrl, dp.facebookUrl),
-    instagramUrl: sanitizePublicUrl(rawProfile.instagramUrl, dp.instagramUrl),
+    githubUrl: sanitizePublicUrl(
+      rawProfile.githubUrl,
+      Object.prototype.hasOwnProperty.call(rawProfile, 'githubUrl') ? '' : dp.githubUrl
+    ),
+    twitterUrl: sanitizePublicUrl(
+      rawProfile.twitterUrl,
+      Object.prototype.hasOwnProperty.call(rawProfile, 'twitterUrl') ? '' : dp.twitterUrl
+    ),
+    linkedinUrl: sanitizePublicUrl(
+      rawProfile.linkedinUrl,
+      Object.prototype.hasOwnProperty.call(rawProfile, 'linkedinUrl') ? '' : dp.linkedinUrl
+    ),
+    behanceUrl: sanitizePublicUrl(
+      rawProfile.behanceUrl,
+      Object.prototype.hasOwnProperty.call(rawProfile, 'behanceUrl') ? '' : dp.behanceUrl
+    ),
+    facebookUrl: sanitizePublicUrl(
+      rawProfile.facebookUrl,
+      Object.prototype.hasOwnProperty.call(rawProfile, 'facebookUrl') ? '' : dp.facebookUrl
+    ),
+    instagramUrl: sanitizePublicUrl(
+      rawProfile.instagramUrl,
+      Object.prototype.hasOwnProperty.call(rawProfile, 'instagramUrl') ? '' : dp.instagramUrl
+    ),
     socialNames,
     availability: clampText(rawProfile.availability, 40, dp.availability),
     disciplineSummary: clampText(rawProfile.disciplineSummary, 40, dp.disciplineSummary),

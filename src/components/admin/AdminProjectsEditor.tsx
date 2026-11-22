@@ -1,6 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
-  ArrowLeft,
   ChevronLeft,
   ChevronRight,
   ExternalLink,
@@ -18,7 +17,7 @@ import {
   Trash2,
   X,
 } from 'lucide-react';
-import type { PreviewTheme, ProjectCategory } from '../../data/contentSchema';
+import type { ProjectCategory } from '../../data/contentSchema';
 import { isVideoMediaSource, normalizeUserUrlInput, sanitizePublicUrl } from '../../data/contentSchema';
 import type { AdminProjectRecord } from '../../firebaseAdmin';
 import { handleFormEnterToNext } from '../../utils/formKeyboardNav';
@@ -30,15 +29,12 @@ import {
   LimitedInput,
   LimitedTextarea,
   SafeUrlInput,
-  StatusNotice,
 } from './FieldControls';
 
 interface AdminProjectsEditorProps {
   projects: AdminProjectRecord[];
   saving: boolean;
   lang?: AdminLang;
-  saveNotice?: { type: 'success' | 'error'; text: string } | null;
-  onDismissNotice?: () => void;
   onSaveProject: (project: AdminProjectRecord) => Promise<boolean>;
   onDeleteProject: (projectId: string) => Promise<boolean>;
   onSubViewChange?: (label: string | null) => void;
@@ -52,15 +48,6 @@ const CATEGORIES: ReadonlyArray<Exclude<ProjectCategory, 'All'>> = [
   'Apps',
   'Games',
   'UI/UX Design',
-];
-
-const THEMES: ReadonlyArray<{ id: PreviewTheme; label: string }> = [
-  { id: 'web-commerce', label: 'Website Launch Canvas' },
-  { id: 'app-workspace', label: 'App Workspace Canvas' },
-  { id: 'app-realtime', label: 'Mobile / Realtime App Canvas' },
-  { id: 'game-rift', label: 'Action Game World Canvas' },
-  { id: 'game-drift', label: 'Arcade Racer Canvas' },
-  { id: 'ui-system', label: 'UI Component Library Canvas' },
 ];
 
 const MAX_GALLERY_PHOTOS = 5;
@@ -124,8 +111,6 @@ export const AdminProjectsEditor: React.FC<AdminProjectsEditorProps> = ({
   projects,
   saving,
   lang = 'en',
-  saveNotice = null,
-  onDismissNotice,
   onSaveProject,
   onDeleteProject,
   onSubViewChange,
@@ -400,13 +385,11 @@ export const AdminProjectsEditor: React.FC<AdminProjectsEditorProps> = ({
     }
 
     if (
-      !editing.index.trim() ||
       !editing.title.trim() ||
       !editing.year.trim() ||
       !editing.platform.trim() ||
       !editing.client.trim() ||
       !editing.role.trim() ||
-      !editing.dimensions.trim() ||
       !editing.summary.trim() ||
       !editing.architectureNotes.trim()
     ) {
@@ -458,6 +441,8 @@ export const AdminProjectsEditor: React.FC<AdminProjectsEditorProps> = ({
 
     const normalizedRecord: AdminProjectRecord = {
       ...editing,
+      index: editing.index.trim() || String(editing.sortOrder + 1).padStart(2, '0'),
+      dimensions: editing.dimensions.trim() || '1440 × 900',
       coverImageUrl: normalizedCover || nextGallery[0] || '',
       galleryUrls: nextGallery,
       liveUrl: normalizedLive,
@@ -489,21 +474,11 @@ export const AdminProjectsEditor: React.FC<AdminProjectsEditorProps> = ({
         className="space-y-6 pb-8"
       >
         <div className="flex flex-col gap-4 border-b border-white/10 pb-5 sm:flex-row sm:items-center sm:justify-between">
-          <div className="flex items-center gap-3">
-            <button
-              type="button"
-              onClick={() => setEditing(null)}
-              className="inline-flex min-h-[40px] items-center gap-1.5 rounded-md border border-white/15 px-3 py-1.5 text-xs font-medium text-zinc-300 hover:bg-white/5 hover:text-white"
-            >
-              <ArrowLeft className="h-3.5 w-3.5" aria-hidden="true" />
-              {t.projects.backToProjects}
-            </button>
-            <h2 className="font-display text-2xl font-semibold text-white">
-              {projects.some((p) => p.id === editing.id)
-                ? t.projects.editHeading
-                : t.projects.newHeading}
-            </h2>
-          </div>
+          <h2 className="font-display text-2xl font-semibold text-white">
+            {projects.some((p) => p.id === editing.id)
+              ? t.projects.editHeading
+              : t.projects.newHeading}
+          </h2>
 
           <div className="flex items-center gap-3 shrink-0">
             <button
@@ -559,27 +534,15 @@ export const AdminProjectsEditor: React.FC<AdminProjectsEditorProps> = ({
 
         <div className="grid grid-cols-1 gap-8 lg:grid-cols-12">
           <div className="space-y-4 lg:col-span-7">
-            <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
-              <LimitedInput
-                id="proj-index"
-                label="Index"
-                value={editing.index}
-                maxLength={4}
-                required
-                onChange={(v) => setEditing({ ...editing, index: v })}
-              />
-              <div className="sm:col-span-2">
-                <LimitedInput
-                  id="proj-title"
-                  label={lang === 'bn' ? 'প্রজেক্টের নাম' : 'Project Title'}
-                  value={editing.title}
-                  maxLength={56}
-                  required
-                  placeholder="e.g. Nova Commerce Engine"
-                  onChange={(v) => setEditing({ ...editing, title: v })}
-                />
-              </div>
-            </div>
+            <LimitedInput
+              id="proj-title"
+              label={lang === 'bn' ? 'প্রজেক্টের নাম' : 'Project Title'}
+              value={editing.title}
+              maxLength={56}
+              required
+              placeholder="e.g. Nova Commerce Engine"
+              onChange={(v) => setEditing({ ...editing, title: v })}
+            />
 
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
               <div>
@@ -637,7 +600,7 @@ export const AdminProjectsEditor: React.FC<AdminProjectsEditorProps> = ({
               </div>
             </div>
 
-            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
               <LimitedInput
                 id="proj-platform"
                 label={lang === 'bn' ? 'প্ল্যাটফর্ম' : 'Platform'}
@@ -662,15 +625,6 @@ export const AdminProjectsEditor: React.FC<AdminProjectsEditorProps> = ({
                 maxLength={64}
                 required
                 onChange={(v) => setEditing({ ...editing, role: v })}
-              />
-              <LimitedInput
-                id="proj-dims"
-                label={lang === 'bn' ? 'ব্যাজ সাইজ' : 'Viewport Badge Dimensions'}
-                value={editing.dimensions}
-                maxLength={20}
-                required
-                placeholder="1440 × 900"
-                onChange={(v) => setEditing({ ...editing, dimensions: v })}
               />
             </div>
 
@@ -977,26 +931,6 @@ export const AdminProjectsEditor: React.FC<AdminProjectsEditorProps> = ({
               </div>
 
               <div className="mt-4">
-                <label htmlFor="proj-theme" className="block text-xs font-medium text-zinc-200">
-                  {t.projects.fallbackThemeLabel}
-                </label>
-                <select
-                  id="proj-theme"
-                  value={editing.previewTheme}
-                  onChange={(e) =>
-                    setEditing({ ...editing, previewTheme: e.target.value as PreviewTheme })
-                  }
-                  className="mt-1.5 min-h-[44px] w-full rounded-md border border-white/15 bg-[#070709] px-3 py-2 text-sm text-white focus:border-accent focus:outline-none"
-                >
-                  {THEMES.map((th) => (
-                    <option key={th.id} value={th.id}>
-                      {th.label}
-                    </option>
-                  ))}
-                </select>
-              </div>
-
-              <div className="mt-4">
                 <SafeUrlInput
                   id="proj-repo"
                   label={t.projects.repoUrlLabel}
@@ -1011,50 +945,6 @@ export const AdminProjectsEditor: React.FC<AdminProjectsEditorProps> = ({
               </div>
             </div>
           </div>
-        </div>
-
-        {(formError || saveNotice) && (
-          <div className="space-y-2">
-            {formError && (
-              <div
-                role="alert"
-                className="flex items-center justify-between gap-3 rounded-lg border border-[#DC2626]/40 bg-[#DC2626]/10 px-4 py-3 text-xs text-red-200"
-              >
-                <span>{formError}</span>
-                <button
-                  type="button"
-                  onClick={() => setFormError(null)}
-                  aria-label="Dismiss validation error"
-                  className="text-zinc-400 hover:text-white"
-                >
-                  <X className="h-4 w-4" />
-                </button>
-              </div>
-            )}
-            {saveNotice && (
-              <StatusNotice notice={saveNotice} onDismiss={() => onDismissNotice?.()} />
-            )}
-          </div>
-        )}
-
-        {/* Bottom Mobile Action Bar */}
-        <div className="flex flex-wrap items-center justify-between gap-3 border-t border-white/10 pt-5">
-          <button
-            type="button"
-            onClick={() => setEditing(null)}
-            className="inline-flex min-h-[44px] items-center gap-2 rounded-md border border-white/15 px-4 py-2 text-xs font-medium text-zinc-300 hover:bg-white/5 hover:text-white"
-          >
-            <ArrowLeft className="h-3.5 w-3.5" aria-hidden="true" />
-            {t.projects.backToProjects}
-          </button>
-          <button
-            type="submit"
-            disabled={saving || Boolean(mediaBusyLabel)}
-            className="inline-flex min-h-[44px] items-center gap-2 rounded-md bg-accent px-5 py-2 text-xs font-semibold text-white hover:bg-accent-dark disabled:opacity-60"
-          >
-            <Save className="h-3.5 w-3.5" aria-hidden="true" />
-            {saving ? t.common.saving : t.projects.saveProject}
-          </button>
         </div>
       </form>
     );

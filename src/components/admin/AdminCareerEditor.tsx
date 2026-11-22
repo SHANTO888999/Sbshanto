@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { ArrowLeft, Eye, EyeOff, Pencil, Plus, Save, Trash2, X } from 'lucide-react';
+import { Eye, EyeOff, Pencil, Plus, Save, Trash2, X } from 'lucide-react';
 import type { AdminExperienceRecord, AdminMilestoneRecord } from '../../firebaseAdmin';
 import { handleFormEnterToNext } from '../../utils/formKeyboardNav';
 import { getAdminCopy, type AdminLang } from './adminI18n';
@@ -120,21 +120,11 @@ export const AdminCareerEditor: React.FC<AdminCareerEditorProps> = ({
         className="space-y-6 pb-8"
       >
         <div className="flex flex-col gap-4 border-b border-white/10 pb-5 sm:flex-row sm:items-center sm:justify-between">
-          <div className="flex items-center gap-3">
-            <button
-              type="button"
-              onClick={() => setEditingMilestone(null)}
-              className="inline-flex min-h-[40px] items-center gap-1.5 rounded-md border border-white/15 px-3 py-1.5 text-xs font-medium text-zinc-300 hover:bg-white/5"
-            >
-              <ArrowLeft className="h-3.5 w-3.5" aria-hidden="true" />
-              {t.common.back}
-            </button>
-            <h2 className="font-display text-2xl font-semibold text-white">
-              {milestones.some((m) => m.id === editingMilestone.id)
-                ? `${t.common.edit} ${t.career.milestonesTab}`
-                : t.career.addMilestone}
-            </h2>
-          </div>
+          <h2 className="font-display text-2xl font-semibold text-white">
+            {milestones.some((m) => m.id === editingMilestone.id)
+              ? `${t.common.edit} ${t.career.milestonesTab}`
+              : t.career.addMilestone}
+          </h2>
 
           <div className="flex items-center gap-3 shrink-0">
             <button
@@ -246,25 +236,6 @@ export const AdminCareerEditor: React.FC<AdminCareerEditorProps> = ({
             />
           </div>
         </div>
-
-        <div className="flex flex-wrap items-center justify-between gap-3 border-t border-white/10 pt-5">
-          <button
-            type="button"
-            onClick={() => setEditingMilestone(null)}
-            className="inline-flex min-h-[44px] items-center gap-2 rounded-md border border-white/15 px-4 py-2 text-xs font-medium text-zinc-300 hover:bg-white/5 hover:text-white"
-          >
-            <ArrowLeft className="h-3.5 w-3.5" aria-hidden="true" />
-            {t.common.back}
-          </button>
-          <button
-            type="submit"
-            disabled={saving}
-            className="inline-flex min-h-[44px] items-center gap-2 rounded-md bg-accent px-5 py-2 text-xs font-semibold text-white hover:bg-accent-dark disabled:opacity-60"
-          >
-            <Save className="h-3.5 w-3.5" aria-hidden="true" />
-            {saving ? t.common.saving : t.career.saveMilestone}
-          </button>
-        </div>
       </form>
     );
   }
@@ -295,21 +266,11 @@ export const AdminCareerEditor: React.FC<AdminCareerEditorProps> = ({
         className="space-y-6 pb-8"
       >
         <div className="flex flex-col gap-4 border-b border-white/10 pb-5 sm:flex-row sm:items-center sm:justify-between">
-          <div className="flex items-center gap-3">
-            <button
-              type="button"
-              onClick={() => setEditingExp(null)}
-              className="inline-flex min-h-[40px] items-center gap-1.5 rounded-md border border-white/15 px-3 py-1.5 text-xs font-medium text-zinc-300 hover:bg-white/5"
-            >
-              <ArrowLeft className="h-3.5 w-3.5" aria-hidden="true" />
-              {t.common.back}
-            </button>
-            <h2 className="font-display text-2xl font-semibold text-white">
-              {experience.some((ex) => ex.id === editingExp.id)
-                ? `${t.common.edit} ${t.career.experienceTab}`
-                : t.career.addExperience}
-            </h2>
-          </div>
+          <h2 className="font-display text-2xl font-semibold text-white">
+            {experience.some((ex) => ex.id === editingExp.id)
+              ? `${t.common.edit} ${t.career.experienceTab}`
+              : t.career.addExperience}
+          </h2>
 
           <div className="flex items-center gap-3 shrink-0">
             <button
@@ -413,25 +374,6 @@ export const AdminCareerEditor: React.FC<AdminCareerEditorProps> = ({
               className="mt-1.5 min-h-[44px] w-full rounded-md border border-white/15 bg-[#070709] px-3 py-2 font-mono text-sm tabular-nums text-white focus:border-accent focus:outline-none"
             />
           </div>
-        </div>
-
-        <div className="flex flex-wrap items-center justify-between gap-3 border-t border-white/10 pt-5">
-          <button
-            type="button"
-            onClick={() => setEditingExp(null)}
-            className="inline-flex min-h-[44px] items-center gap-2 rounded-md border border-white/15 px-4 py-2 text-xs font-medium text-zinc-300 hover:bg-white/5 hover:text-white"
-          >
-            <ArrowLeft className="h-3.5 w-3.5" aria-hidden="true" />
-            {t.common.back}
-          </button>
-          <button
-            type="submit"
-            disabled={saving}
-            className="inline-flex min-h-[44px] items-center gap-2 rounded-md bg-accent px-5 py-2 text-xs font-semibold text-white hover:bg-accent-dark disabled:opacity-60"
-          >
-            <Save className="h-3.5 w-3.5" aria-hidden="true" />
-            {saving ? t.common.saving : t.career.saveEntry}
-          </button>
         </div>
       </form>
     );

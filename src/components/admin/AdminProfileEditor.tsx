@@ -1,6 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
 import {
-  ArrowLeft,
   ArrowUpRight,
   Download,
   Eye,
@@ -50,7 +49,12 @@ import { processProjectPhotoFile } from '../../utils/mediaCompressor';
 import { ACCENT_PRESETS, applyDocumentAccentTheme } from '../../utils/themeAccent';
 import { SocialBrandLogo } from '../SocialBrandLogo';
 import { getAdminCopy, type AdminLang } from './adminI18n';
-import { LimitedInput, LimitedTextarea, SafeUrlInput, StatusNotice } from './FieldControls';
+import {
+  ConfirmDialog,
+  LimitedInput,
+  LimitedTextarea,
+  SafeUrlInput,
+} from './FieldControls';
 
 export type ProfileSubTab =
   | 'identity'
@@ -66,11 +70,7 @@ const COMPACT_VIEWER_TOGGLES: ReadonlyArray<{
   en: string;
   bn: string;
 }> = [
-  { key: 'showTopScrollBar', en: 'Top Scroll Progress Bar', bn: 'টপ স্ক্রল প্রগ্রেস লাইন' },
-  { key: 'showMultiBackBar', en: 'Floating Back Button', bn: 'ফ্লোটিং ব্যাক বাটন' },
   { key: 'enableCursorsByDefault', en: 'Cursor Build Animation on Load', bn: 'পেজ লোডে কার্সর অ্যানিমেশন' },
-  { key: 'enableAutoScrollByDefault', en: 'Auto-Scroll on Load', bn: 'অটো-স্ক্রল চালু রাখুন' },
-  { key: 'enableSoundByDefault', en: 'Sound FX on Load', bn: 'সাউন্ড এফেক্ট চালু রাখুন' },
 ];
 
 interface AdminProfileEditorProps {
@@ -78,11 +78,8 @@ interface AdminProfileEditorProps {
   saving: boolean;
   lang?: AdminLang;
   hasUnsavedChanges?: boolean;
-  saveNotice?: { type: 'success' | 'error'; text: string } | null;
-  onDismissNotice?: () => void;
   subTab?: ProfileSubTab;
   onChangeSubTab?: (tab: ProfileSubTab) => void;
-  onBack?: () => void;
   onChange: (next: PortfolioContentBundle) => void;
   onSave: (bundleOverride?: PortfolioContentBundle) => Promise<boolean>;
 }
@@ -92,11 +89,8 @@ export const AdminProfileEditor: React.FC<AdminProfileEditorProps> = ({
   saving,
   lang = 'en',
   hasUnsavedChanges = false,
-  saveNotice = null,
-  onDismissNotice,
   subTab: controlledSubTab,
   onChangeSubTab,
-  onBack,
   onChange,
   onSave,
 }) => {
@@ -113,6 +107,7 @@ export const AdminProfileEditor: React.FC<AdminProfileEditorProps> = ({
   const [cvBusy, setCvBusy] = useState(false);
   const [cvNote, setCvNote] = useState<string | null>(null);
   const [formError, setFormError] = useState<string | null>(null);
+  const [confirmDefaultsOpen, setConfirmDefaultsOpen] = useState(false);
   const portraitInputRef = useRef<HTMLInputElement | null>(null);
   const cvFileInputRef = useRef<HTMLInputElement | null>(null);
   const errorAlertRef = useRef<HTMLDivElement | null>(null);
@@ -271,25 +266,29 @@ export const AdminProfileEditor: React.FC<AdminProfileEditorProps> = ({
     }
   };
 
-  const buildNormalizedDraft = (): PortfolioContentBundle => {
+  const buildNormalizedFrom = (sourceDraft: PortfolioContentBundle): PortfolioContentBundle => {
+    const sp = sourceDraft.profile;
+    const scv = sourceDraft.cvSettings ?? DEFAULT_CV_SETTINGS;
     return {
-      ...draft,
+      ...sourceDraft,
       profile: {
-        ...p,
-        portraitUrl: normalizeUserUrlInput(p.portraitUrl),
-        githubUrl: normalizeUserUrlInput(p.githubUrl),
-        twitterUrl: normalizeUserUrlInput(p.twitterUrl),
-        linkedinUrl: normalizeUserUrlInput(p.linkedinUrl),
-        behanceUrl: normalizeUserUrlInput(p.behanceUrl),
-        facebookUrl: normalizeUserUrlInput(p.facebookUrl),
-        instagramUrl: normalizeUserUrlInput(p.instagramUrl),
+        ...sp,
+        portraitUrl: normalizeUserUrlInput(sp.portraitUrl),
+        githubUrl: normalizeUserUrlInput(sp.githubUrl),
+        twitterUrl: normalizeUserUrlInput(sp.twitterUrl),
+        linkedinUrl: normalizeUserUrlInput(sp.linkedinUrl),
+        behanceUrl: normalizeUserUrlInput(sp.behanceUrl),
+        facebookUrl: normalizeUserUrlInput(sp.facebookUrl),
+        instagramUrl: normalizeUserUrlInput(sp.instagramUrl),
       },
       cvSettings: {
-        ...cv,
-        customUrl: normalizeUserUrlInput(cv.customUrl),
+        ...scv,
+        customUrl: normalizeUserUrlInput(scv.customUrl),
       },
     };
   };
+
+  const buildNormalizedDraft = (): PortfolioContentBundle => buildNormalizedFrom(draft);
 
   const validateBeforeSave = (
     targetDraft: PortfolioContentBundle
@@ -330,11 +329,11 @@ export const AdminProfileEditor: React.FC<AdminProfileEditorProps> = ({
     }
     if (!isValidPhoneIfPresent(prof.whatsappNumber)) {
       return {
-        tab: subTab === 'social' ? 'social' : 'contact',
+        tab: 'social',
         message: 'WhatsApp number must contain 6–18 digits (e.g. +880 1XXX-XXXXXX).',
       };
     }
-    if (!sanitizePublicUrl(prof.githubUrl, '', false)) {
+    if (prof.githubUrl.trim() && !sanitizePublicUrl(prof.githubUrl, '', false)) {
       return {
         tab: 'social',
         message: 'GitHub Profile URL must start with https:// or http://.',
@@ -371,27 +370,16 @@ export const AdminProfileEditor: React.FC<AdminProfileEditorProps> = ({
       };
     }
     if (
-      !reqText(prof.githubHandle) ||
       !reqText(prof.availability) ||
-      !reqText(prof.disciplineSummary) ||
-      !reqText(prof.prototypeTurnaround) ||
       !reqText(prof.quoteText) ||
-      !reqText(prof.quoteAuthor) ||
-      !reqText(prof.quoteRole) ||
       !reqText(prof.manifestoLead) ||
       !reqText(prof.manifestoAvailability)
     ) {
       return { tab: 'contact', message: 'Complete all Contact, Quote & CTA fields before saving.' };
     }
 
-    if (
-      !reqText(prof.craftMetricValue) ||
-      !reqText(prof.craftMetricLabel) ||
-      !reqText(prof.craftSummary) ||
-      targetDraft.heroMetrics.some((m) => !reqText(m.value) || !reqText(m.label)) ||
-      targetDraft.techPartners.some((tp) => !reqText(tp))
-    ) {
-      return { tab: 'metrics', message: 'Every KPI metric and partner badge needs non-empty text.' };
+    if (targetDraft.heroMetrics.some((m) => !reqText(m.value) || !reqText(m.label))) {
+      return { tab: 'metrics', message: 'Every KPI metric needs non-empty text.' };
     }
 
     if (
@@ -464,24 +452,7 @@ export const AdminProfileEditor: React.FC<AdminProfileEditorProps> = ({
           <button
             type="button"
             disabled={saving}
-            onClick={() => {
-              applyDocumentAccentTheme(DEFAULT_VIEWER_CONTROLS.accentColor);
-              setPortraitLoadFailed(false);
-              setPortraitNote(null);
-              setCvNote(null);
-              setFormError(null);
-              onChange({
-                ...draft,
-                profile: ADMIN_INITIAL_BUNDLE.profile,
-                viewerControls: DEFAULT_VIEWER_CONTROLS,
-                cvSettings: DEFAULT_CV_SETTINGS,
-                heroMetrics: ADMIN_INITIAL_BUNDLE.heroMetrics,
-                techStack: ADMIN_INITIAL_BUNDLE.techStack,
-                services: ADMIN_INITIAL_BUNDLE.services,
-                wireframeScenes: ADMIN_INITIAL_BUNDLE.wireframeScenes,
-                techPartners: ADMIN_INITIAL_BUNDLE.techPartners,
-              });
-            }}
+            onClick={() => setConfirmDefaultsOpen(true)}
             className="inline-flex min-h-[42px] items-center gap-2 rounded-md border border-white/15 px-3.5 py-2 text-xs font-medium text-zinc-300 transition-colors hover:bg-white/5 hover:text-white whitespace-nowrap shrink-0"
           >
             <RotateCcw className="h-3.5 w-3.5" aria-hidden="true" />
@@ -725,7 +696,7 @@ export const AdminProfileEditor: React.FC<AdminProfileEditorProps> = ({
                   className="inline-flex items-center gap-1.5 rounded-md border border-accent/40 bg-accent/10 px-2.5 py-1 text-[11px] font-semibold text-accent-light hover:bg-accent/20"
                 >
                   <Share2 className="h-3 w-3" aria-hidden="true" />
-                  {lang === 'bn' ? 'সোশ্যাল মিডিয়া যোগ করুন' : 'Social Media Links →'}
+                  {lang === 'bn' ? 'হোয়াটসঅ্যাপ ও সোশ্যাল মিডিয়া' : 'WhatsApp & Social Links →'}
                 </button>
               </div>
 
@@ -741,15 +712,6 @@ export const AdminProfileEditor: React.FC<AdminProfileEditorProps> = ({
 
               <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                 <LimitedInput
-                  id="prof-whatsapp"
-                  label={lang === 'bn' ? 'হোয়াটসঅ্যাপ নম্বর (WhatsApp)' : 'WhatsApp Number'}
-                  type="tel"
-                  value={p.whatsappNumber}
-                  maxLength={24}
-                  placeholder="+880 1XXX-XXXXXX"
-                  onChange={(v) => updateProfile('whatsappNumber', v)}
-                />
-                <LimitedInput
                   id="prof-phone"
                   label={lang === 'bn' ? 'ফোন / কন্টাক্ট নম্বর (Phone)' : 'Contact / Phone Number'}
                   type="tel"
@@ -758,54 +720,25 @@ export const AdminProfileEditor: React.FC<AdminProfileEditorProps> = ({
                   placeholder="+880 1XXX-XXXXXX"
                   onChange={(v) => updateProfile('phoneNumber', v)}
                 />
+                <LimitedInput
+                  id="prof-location"
+                  label={lang === 'bn' ? 'ঠিকানা / শহর (Location)' : 'Location / City'}
+                  value={p.location}
+                  maxLength={60}
+                  placeholder="Dhaka, Bangladesh"
+                  onChange={(v) => updateProfile('location', v)}
+                />
               </div>
-
-              <LimitedInput
-                id="prof-location"
-                label={lang === 'bn' ? 'ঠিকানা / শহর (Location)' : 'Location / City'}
-                value={p.location}
-                maxLength={60}
-                placeholder="Dhaka, Bangladesh"
-                onChange={(v) => updateProfile('location', v)}
-              />
             </div>
 
-            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-              <LimitedInput
-                id="prof-gh-handle"
-                label={lang === 'bn' ? 'গিটহাব হ্যান্ডেল (CV-এর জন্য)' : 'GitHub Handle Label'}
-                value={p.githubHandle}
-                maxLength={40}
-                required
-                onChange={(v) => updateProfile('githubHandle', v)}
-              />
-              <LimitedInput
-                id="prof-avail"
-                label="Availability Label"
-                value={p.availability}
-                maxLength={40}
-                required
-                onChange={(v) => updateProfile('availability', v)}
-              />
-            </div>
-            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-              <LimitedInput
-                id="prof-disc"
-                label="Footer Discipline Summary"
-                value={p.disciplineSummary}
-                maxLength={40}
-                required
-                onChange={(v) => updateProfile('disciplineSummary', v)}
-              />
-              <LimitedInput
-                id="prof-turnaround"
-                label="Prototype Turnaround Stat"
-                value={p.prototypeTurnaround}
-                maxLength={24}
-                required
-                onChange={(v) => updateProfile('prototypeTurnaround', v)}
-              />
-            </div>
+            <LimitedInput
+              id="prof-avail"
+              label="Availability Label"
+              value={p.availability}
+              maxLength={40}
+              required
+              onChange={(v) => updateProfile('availability', v)}
+            />
           </div>
 
           <div className="space-y-4">
@@ -818,24 +751,6 @@ export const AdminProfileEditor: React.FC<AdminProfileEditorProps> = ({
               required
               onChange={(v) => updateProfile('quoteText', v)}
             />
-            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-              <LimitedInput
-                id="prof-quote-author"
-                label="Quote Author"
-                value={p.quoteAuthor}
-                maxLength={32}
-                required
-                onChange={(v) => updateProfile('quoteAuthor', v)}
-              />
-              <LimitedInput
-                id="prof-quote-role"
-                label="Quote Role"
-                value={p.quoteRole}
-                maxLength={60}
-                required
-                onChange={(v) => updateProfile('quoteRole', v)}
-              />
-            </div>
             <LimitedTextarea
               id="prof-manifesto"
               label="Storytelling Lead Statement"
@@ -945,7 +860,6 @@ export const AdminProfileEditor: React.FC<AdminProfileEditorProps> = ({
                   title: 'GitHub',
                   bnTitle: 'গিটহাব (GitHub)',
                   urlKey: 'githubUrl',
-                  required: true,
                   placeholder: 'https://github.com/your-username',
                   namePlaceholder: p.githubHandle || 'Shanto',
                 },
@@ -967,14 +881,40 @@ export const AdminProfileEditor: React.FC<AdminProfileEditorProps> = ({
               }>
             ).map((platform) => {
               const urlKey = platform.urlKey;
-              const rawValue = urlKey ? p[urlKey] : '';
+              const rawValue = platform.isPhone ? p.whatsappNumber : urlKey ? p[urlKey] : '';
               const isActive = platform.isPhone
                 ? Boolean(formatWhatsappHref(p.whatsappNumber))
                 : Boolean(sanitizePublicUrl(rawValue, '', false));
               const accountName = socialNames[platform.id] ?? '';
+              const hasAnyInput = isActive || Boolean(rawValue.trim()) || Boolean(accountName.trim());
               const previewLabel =
                 accountName.trim() ||
                 (platform.id === 'github' ? p.githubHandle.trim() || 'GitHub' : platform.title);
+
+              const handleRemoveSocial = async () => {
+                if (saving || portraitBusy || cvBusy) return;
+                const nextProfile: SiteProfile = {
+                  ...p,
+                  ...(platform.isPhone ? { whatsappNumber: '' } : urlKey ? { [urlKey]: '' } : {}),
+                  socialNames: {
+                    ...socialNames,
+                    [platform.id]: '',
+                  },
+                };
+                const nextDraft = buildNormalizedFrom({
+                  ...draft,
+                  profile: nextProfile,
+                });
+                onChange(nextDraft);
+                const issue = validateBeforeSave(nextDraft);
+                if (issue) {
+                  setSubTab(issue.tab);
+                  setFormError(issue.message);
+                  return;
+                }
+                setFormError(null);
+                await onSave(nextDraft);
+              };
 
               return (
                 <div
@@ -991,17 +931,32 @@ export const AdminProfileEditor: React.FC<AdminProfileEditorProps> = ({
                       <span>{lang === 'bn' ? platform.bnTitle : platform.title}</span>
                     </div>
 
-                    {isActive ? (
-                      <span className="inline-flex items-center gap-1.5 rounded-md border border-emerald-500/35 bg-emerald-500/10 px-2.5 py-1 text-[11px] font-medium text-emerald-200">
-                        <SocialBrandLogo id={platform.id} className="h-3.5 w-3.5 shrink-0 fill-current" />
-                        <span>{previewLabel}</span>
-                        <ArrowUpRight className="h-3 w-3 opacity-75" aria-hidden="true" />
-                      </span>
-                    ) : (
-                      <span className="rounded border border-white/10 bg-white/5 px-2 py-0.5 font-mono text-[10px] text-zinc-500">
-                        {lang === 'bn' ? 'যুক্ত নেই' : 'Not Added'}
-                      </span>
-                    )}
+                    <div className="flex items-center gap-2">
+                      {isActive ? (
+                        <span className="inline-flex items-center gap-1.5 rounded-md border border-emerald-500/35 bg-emerald-500/10 px-2.5 py-1 text-[11px] font-medium text-emerald-200">
+                          <SocialBrandLogo id={platform.id} className="h-3.5 w-3.5 shrink-0 fill-current" />
+                          <span>{previewLabel}</span>
+                          <ArrowUpRight className="h-3 w-3 opacity-75" aria-hidden="true" />
+                        </span>
+                      ) : (
+                        <span className="rounded border border-white/10 bg-white/5 px-2 py-0.5 font-mono text-[10px] text-zinc-500">
+                          {lang === 'bn' ? 'যুক্ত নেই' : 'Not Added'}
+                        </span>
+                      )}
+
+                      {hasAnyInput && (
+                        <button
+                          type="button"
+                          disabled={saving || portraitBusy || cvBusy}
+                          onClick={() => void handleRemoveSocial()}
+                          aria-label={`Remove ${platform.title}`}
+                          className="inline-flex items-center gap-1 rounded-md border border-[#DC2626]/35 bg-[#DC2626]/10 px-2.5 py-1 text-[11px] font-medium text-red-200 transition-colors hover:bg-[#DC2626]/20 hover:text-white disabled:opacity-50"
+                        >
+                          <Trash2 className="h-3 w-3" aria-hidden="true" />
+                          <span>{lang === 'bn' ? 'মুছুন' : 'Remove'}</span>
+                        </button>
+                      )}
+                    </div>
                   </div>
 
                   {platform.isPhone || !urlKey ? (
@@ -1012,11 +967,6 @@ export const AdminProfileEditor: React.FC<AdminProfileEditorProps> = ({
                       value={p.whatsappNumber}
                       maxLength={24}
                       placeholder={platform.placeholder}
-                      hint={
-                        lang === 'bn'
-                          ? 'Contact & Quote ট্যাবের হোয়াটসঅ্যাপ নম্বরের সাথে যুক্ত থাকবে।'
-                          : 'Synced with the WhatsApp number in Contact & Quote.'
-                      }
                       onChange={(v) => updateProfile('whatsappNumber', v)}
                     />
                   ) : (
@@ -1057,46 +1007,7 @@ export const AdminProfileEditor: React.FC<AdminProfileEditorProps> = ({
       )}
 
       {subTab === 'metrics' && (
-        <div className="space-y-8">
-          <div className="grid grid-cols-1 gap-4 rounded-xl border border-white/10 bg-[#090A0F] p-5 md:grid-cols-4">
-            <LimitedInput
-              id="prof-craft-val"
-              label="Craft Metric Number"
-              value={p.craftMetricValue}
-              maxLength={8}
-              required
-              onChange={(v) => updateProfile('craftMetricValue', v)}
-            />
-            <LimitedInput
-              id="prof-craft-suf"
-              label="Suffix (+ / %)"
-              value={p.craftMetricSuffix}
-              maxLength={4}
-              onChange={(v) => updateProfile('craftMetricSuffix', v)}
-            />
-            <div className="md:col-span-2">
-              <LimitedInput
-                id="prof-craft-label"
-                label="Craft Metric Heading"
-                value={p.craftMetricLabel}
-                maxLength={48}
-                required
-                onChange={(v) => updateProfile('craftMetricLabel', v)}
-              />
-            </div>
-            <div className="md:col-span-4">
-              <LimitedTextarea
-                id="prof-craft-sum"
-                label="Craft Statement Paragraph"
-                value={p.craftSummary}
-                maxLength={220}
-                rows={2}
-                required
-                onChange={(v) => updateProfile('craftSummary', v)}
-              />
-            </div>
-          </div>
-
+        <div className="space-y-6">
           <div>
             <div className="mb-3 flex items-center justify-between">
               <h3 className="text-sm font-semibold text-white">
@@ -1158,65 +1069,6 @@ export const AdminProfileEditor: React.FC<AdminProfileEditorProps> = ({
                       }
                       aria-label={`Remove metric ${idx + 1}`}
                       className="mt-6 inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-md border border-white/10 text-zinc-400 hover:border-[#DC2626]/40 hover:text-[#EF4444]"
-                    >
-                      <Trash2 className="h-4 w-4" />
-                    </button>
-                  )}
-                </div>
-              ))}
-            </div>
-          </div>
-
-          <div>
-            <div className="mb-3 flex items-center justify-between">
-              <h3 className="text-sm font-semibold text-white">
-                Core Technologies Marquee Strip ({draft.techPartners.length}/8)
-              </h3>
-              {draft.techPartners.length < 8 && (
-                <button
-                  type="button"
-                  onClick={() =>
-                    onChange({
-                      ...draft,
-                      techPartners: [...draft.techPartners, 'FIREBASE'],
-                    })
-                  }
-                  className="inline-flex min-h-[36px] items-center gap-1.5 rounded-md border border-white/15 px-3 py-1.5 text-xs font-medium text-zinc-200 hover:bg-white/5"
-                >
-                  <Plus className="h-3.5 w-3.5" aria-hidden="true" />
-                  Add Tech
-                </button>
-              )}
-            </div>
-            <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-              {draft.techPartners.map((partner, idx) => (
-                <div key={idx} className="flex items-end gap-2">
-                  <div className="min-w-0 flex-1">
-                    <LimitedInput
-                      id={`partner-${idx}`}
-                      label={`Tech ${idx + 1}`}
-                      value={partner}
-                      maxLength={24}
-                      required
-                      onChange={(v) => {
-                        const next = draft.techPartners.map((item, i) =>
-                          i === idx ? v.toUpperCase() : item
-                        );
-                        onChange({ ...draft, techPartners: next });
-                      }}
-                    />
-                  </div>
-                  {draft.techPartners.length > 1 && (
-                    <button
-                      type="button"
-                      onClick={() =>
-                        onChange({
-                          ...draft,
-                          techPartners: draft.techPartners.filter((_, i) => i !== idx),
-                        })
-                      }
-                      aria-label={`Remove tech partner ${idx + 1}`}
-                      className="inline-flex h-11 w-10 shrink-0 items-center justify-center rounded-md border border-white/10 text-zinc-400 hover:text-[#EF4444]"
                     >
                       <Trash2 className="h-4 w-4" />
                     </button>
@@ -1786,52 +1638,37 @@ export const AdminProfileEditor: React.FC<AdminProfileEditorProps> = ({
         </div>
       )}
 
-      {(formError || saveNotice) && (
-        <div className="space-y-2">
-          {formError && (
-            <div
-              role="alert"
-              className="flex items-center justify-between gap-3 rounded-lg border border-[#DC2626]/40 bg-[#DC2626]/10 px-4 py-3 text-xs text-red-200"
-            >
-              <span>{formError}</span>
-              <button
-                type="button"
-                onClick={() => setFormError(null)}
-                aria-label="Dismiss validation error"
-                className="text-zinc-400 hover:text-white"
-              >
-                <X className="h-4 w-4" />
-              </button>
-            </div>
-          )}
-          {saveNotice && (
-            <StatusNotice notice={saveNotice} onDismiss={() => onDismissNotice?.()} />
-          )}
-        </div>
-      )}
-
-      <div className="flex flex-wrap items-center justify-between gap-3 border-t border-white/10 pt-5">
-        {onBack ? (
-          <button
-            type="button"
-            onClick={onBack}
-            className="inline-flex min-h-[44px] items-center gap-2 rounded-md border border-white/15 px-4 py-2 text-xs font-medium text-zinc-300 hover:bg-white/5 hover:text-white"
-          >
-            <ArrowLeft className="h-3.5 w-3.5" aria-hidden="true" />
-            {t.common.back}
-          </button>
-        ) : (
-          <span />
-        )}
-        <button
-          type="submit"
-          disabled={saving || portraitBusy || cvBusy}
-          className="inline-flex min-h-[44px] items-center gap-2 rounded-md bg-accent px-5 py-2 text-xs font-semibold text-white transition-colors hover:bg-accent-dark disabled:opacity-60"
-        >
-          <Save className="h-3.5 w-3.5" aria-hidden="true" />
-          {saving ? t.common.saving : t.profile.saveSettings}
-        </button>
-      </div>
+      <ConfirmDialog
+        open={confirmDefaultsOpen}
+        title={lang === 'bn' ? 'ডিফল্ট সেটিংস লোড করবেন?' : 'Load Default Settings?'}
+        description={
+          lang === 'bn'
+            ? 'এতে বর্তমান ফর্মের সব আনসেভড পরিবর্তন মুছে ডিফল্ট কনটেন্ট ফিরে আসবে (সেভ না করা পর্যন্ত ক্লাউডে বদলাবে না)।'
+            : 'This replaces the current form draft with default starter values (cloud stays unchanged until you save).'
+        }
+        confirmLabel={t.profile.loadDefaults}
+        lang={lang}
+        onCancel={() => setConfirmDefaultsOpen(false)}
+        onConfirm={() => {
+          applyDocumentAccentTheme(DEFAULT_VIEWER_CONTROLS.accentColor);
+          setPortraitLoadFailed(false);
+          setPortraitNote(null);
+          setCvNote(null);
+          setFormError(null);
+          onChange({
+            ...draft,
+            profile: ADMIN_INITIAL_BUNDLE.profile,
+            viewerControls: DEFAULT_VIEWER_CONTROLS,
+            cvSettings: DEFAULT_CV_SETTINGS,
+            heroMetrics: ADMIN_INITIAL_BUNDLE.heroMetrics,
+            techStack: ADMIN_INITIAL_BUNDLE.techStack,
+            services: ADMIN_INITIAL_BUNDLE.services,
+            wireframeScenes: ADMIN_INITIAL_BUNDLE.wireframeScenes,
+            techPartners: ADMIN_INITIAL_BUNDLE.techPartners,
+          });
+          setConfirmDefaultsOpen(false);
+        }}
+      />
     </form>
   );
 };

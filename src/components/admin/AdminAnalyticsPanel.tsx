@@ -1,15 +1,11 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import {
-  Activity,
   BarChart3,
-  Download,
   Eye,
   FolderKanban,
   Globe2,
   MousePointerClick,
   Send,
-  TrendingUp,
-  UserCheck,
   Users,
 } from 'lucide-react';
 import type {
@@ -36,7 +32,6 @@ interface AdminAnalyticsPanelProps {
 }
 
 const LIVE_ACTIVE_WINDOW_MS = 75_000;
-const AGE_BUCKET_ORDER = ['<18', '18-24', '25-34', '35-44', '45+'];
 
 function formatShortDate(isoDate: string): string {
   const parts = isoDate.split('-');
@@ -234,19 +229,6 @@ export const AdminAnalyticsPanel: React.FC<AdminAnalyticsPanelProps> = ({
     return { rows: rows.slice(0, 10), total };
   }, [demographics]);
 
-  const ageStats = useMemo(() => {
-    const byCode = new Map(
-      demographics.filter((d) => d.bucketType === 'age').map((d) => [d.code, d])
-    );
-    const ordered = AGE_BUCKET_ORDER.map((code) => ({
-      code,
-      label: byCode.get(code)?.label || `${code} yrs`,
-      count: byCode.get(code)?.count ?? 0,
-    }));
-    const total = ordered.reduce((sum, r) => sum + r.count, 0);
-    return { ordered, total };
-  }, [demographics]);
-
   const maxProjectClicks = Math.max(1, ...rankedProjects.map((p) => p.clicks));
 
   return (
@@ -368,92 +350,52 @@ export const AdminAnalyticsPanel: React.FC<AdminAnalyticsPanelProps> = ({
         </div>
       </div>
 
-      {/* Visitor Countries & Age Groups Row */}
-      <div className="grid grid-cols-1 gap-4 lg:grid-cols-12">
-        {/* Visitor Countries */}
-        <div className="rounded-lg border border-white/10 bg-[#090A0F] p-4 lg:col-span-7">
-          <div className="flex items-center justify-between border-b border-white/10 pb-3">
-            <div className="flex items-center gap-2">
-              <Globe2 className="h-4 w-4 text-[#38BDF8]" aria-hidden="true" />
-              <h2 className="text-sm font-semibold text-white">{t.analytics.countriesTitle}</h2>
-            </div>
-            <span className="font-mono text-xs text-zinc-400 tabular-nums">
-              <AnimatedCounter value={countryStats.total} /> {t.overview.totalSuffix}
-            </span>
+      {/* Visitor Countries */}
+      <div className="rounded-lg border border-white/10 bg-[#090A0F] p-4">
+        <div className="flex items-center justify-between border-b border-white/10 pb-3">
+          <div className="flex items-center gap-2">
+            <Globe2 className="h-4 w-4 text-[#38BDF8]" aria-hidden="true" />
+            <h2 className="text-sm font-semibold text-white">{t.analytics.countriesTitle}</h2>
           </div>
-
-          {countryStats.rows.length === 0 ? (
-            <p className="mt-4 text-xs text-zinc-500">{t.analytics.noCountryData}</p>
-          ) : (
-            <div className="mt-4 space-y-3">
-              {countryStats.rows.map((country) => {
-                const pct =
-                  countryStats.total > 0
-                    ? Math.round((country.count / countryStats.total) * 100)
-                    : 0;
-                return (
-                  <div key={country.bucketId} className="space-y-1.5">
-                    <div className="flex items-center justify-between gap-2 text-xs">
-                      <span className="flex items-center gap-2 font-medium text-zinc-100">
-                        <span className="text-base leading-none" aria-hidden="true">
-                          {countryCodeToFlag(country.code)}
-                        </span>
-                        <span>{country.label}</span>
-                        <span className="font-mono text-[10px] text-zinc-500">{country.code}</span>
-                      </span>
-                      <span className="font-mono text-xs text-[#38BDF8] tabular-nums">
-                        <AnimatedCounter value={country.count} /> ({pct}%)
-                      </span>
-                    </div>
-                    <div className="h-1.5 w-full overflow-hidden rounded-full bg-white/10">
-                      <div
-                        className="h-full rounded-full bg-[#38BDF8] transition-all duration-300"
-                        style={{ width: `${Math.max(4, pct)}%` }}
-                      />
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          )}
+          <span className="font-mono text-xs text-zinc-400 tabular-nums">
+            <AnimatedCounter value={countryStats.total} /> {t.overview.totalSuffix}
+          </span>
         </div>
 
-        {/* Reported Visitor Age Groups */}
-        <div className="rounded-lg border border-white/10 bg-[#090A0F] p-4 lg:col-span-5">
-          <div className="flex items-center justify-between border-b border-white/10 pb-3">
-            <div className="flex items-center gap-2">
-              <UserCheck className="h-4 w-4 text-accent-light" aria-hidden="true" />
-              <h2 className="text-sm font-semibold text-white">{t.analytics.ageGroupsTitle}</h2>
-            </div>
-            <span className="font-mono text-xs text-zinc-400 tabular-nums">
-              <AnimatedCounter value={ageStats.total} />
-            </span>
-          </div>
-
-          <div className="mt-4 space-y-3">
-            {ageStats.ordered.map((bucket) => {
+        {countryStats.rows.length === 0 ? (
+          <p className="mt-4 text-xs text-zinc-500">{t.analytics.noCountryData}</p>
+        ) : (
+          <div className="mt-4 grid grid-cols-1 gap-x-6 gap-y-3 md:grid-cols-2">
+            {countryStats.rows.map((country) => {
               const pct =
-                ageStats.total > 0 ? Math.round((bucket.count / ageStats.total) * 100) : 0;
+                countryStats.total > 0
+                  ? Math.round((country.count / countryStats.total) * 100)
+                  : 0;
               return (
-                <div key={bucket.code} className="space-y-1.5">
-                  <div className="flex items-center justify-between text-xs">
-                    <span className="font-mono font-medium text-zinc-200">{bucket.code}</span>
-                    <span className="font-mono text-xs text-zinc-300 tabular-nums">
-                      <AnimatedCounter value={bucket.count} />{' '}
-                      <span className="text-zinc-500">({pct}%)</span>
+                <div key={country.bucketId} className="space-y-1.5">
+                  <div className="flex items-center justify-between gap-2 text-xs">
+                    <span className="flex items-center gap-2 font-medium text-zinc-100">
+                      <span className="text-base leading-none" aria-hidden="true">
+                        {countryCodeToFlag(country.code)}
+                      </span>
+                      <span>{country.label}</span>
+                      <span className="font-mono text-[10px] text-zinc-500">{country.code}</span>
+                    </span>
+                    <span className="font-mono text-xs text-[#38BDF8] tabular-nums">
+                      <AnimatedCounter value={country.count} /> ({pct}%)
                     </span>
                   </div>
                   <div className="h-1.5 w-full overflow-hidden rounded-full bg-white/10">
                     <div
-                      className="h-full rounded-full bg-accent transition-all duration-300"
-                      style={{ width: `${bucket.count > 0 ? Math.max(6, pct) : 0}%` }}
+                      className="h-full rounded-full bg-[#38BDF8] transition-all duration-300"
+                      style={{ width: `${Math.max(4, pct)}%` }}
                     />
                   </div>
                 </div>
               );
             })}
           </div>
-        </div>
+        )}
       </div>
 
       {/* Traffic Chart + Top Projects */}
@@ -588,57 +530,6 @@ export const AdminAnalyticsPanel: React.FC<AdminAnalyticsPanelProps> = ({
               })}
             </div>
           )}
-        </div>
-      </div>
-
-      {/* Hire Me Funnel & CV Summary */}
-      <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
-        <div className="rounded-lg border border-white/10 bg-[#090A0F] p-4">
-          <div className="flex items-center gap-2 text-xs font-medium text-zinc-400">
-            <TrendingUp className="h-4 w-4 text-emerald-400" aria-hidden="true" />
-            <span>{t.analytics.hireFunnelTitle}</span>
-          </div>
-          <div className="mt-3 flex items-baseline justify-between">
-            <span className="text-xs text-zinc-300">{t.analytics.modalOpens}</span>
-            <span className="font-mono text-sm font-semibold text-white tabular-nums">
-              <AnimatedCounter value={summary.totalHireOpens} />
-            </span>
-          </div>
-          <div className="mt-1.5 flex items-baseline justify-between">
-            <span className="text-xs text-zinc-300">{t.analytics.submittedBriefs}</span>
-            <span className="font-mono text-sm font-semibold text-emerald-300 tabular-nums">
-              <AnimatedCounter value={summary.totalHireSubmits} />
-            </span>
-          </div>
-          <div className="mt-3 h-1.5 w-full overflow-hidden rounded-full bg-white/10">
-            <div
-              className="h-full rounded-full bg-emerald-500 transition-all duration-300"
-              style={{ width: `${summary.hireConvRate}%` }}
-            />
-          </div>
-        </div>
-
-        <div className="rounded-lg border border-white/10 bg-[#090A0F] p-4">
-          <div className="flex items-center gap-2 text-xs font-medium text-zinc-400">
-            <Download className="h-4 w-4 text-[#38BDF8]" aria-hidden="true" />
-            <span>{t.analytics.cvDownloadsTitle}</span>
-          </div>
-          <p className="mt-3 font-display text-2xl font-bold text-white tabular-nums">
-            <AnimatedCounter value={summary.totalCvDownloads} />
-          </p>
-        </div>
-
-        <div className="rounded-lg border border-white/10 bg-[#090A0F] p-4">
-          <div className="flex items-center gap-2 text-xs font-medium text-zinc-400">
-            <Activity className="h-4 w-4 text-accent-light" aria-hidden="true" />
-            <span>{t.analytics.allTimeViewsTitle}</span>
-          </div>
-          <p className="mt-3 font-display text-2xl font-bold text-white tabular-nums">
-            <AnimatedCounter value={summary.totalViews} />
-          </p>
-          <p className="mt-1 font-mono text-[11px] text-zinc-500 tabular-nums">
-            <AnimatedCounter value={dailyAnalytics.length} /> {t.analytics.daysRecorded}
-          </p>
         </div>
       </div>
     </div>

@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { ArrowLeft, Check, Copy, Mail, Trash2 } from 'lucide-react';
+import { Check, Copy, Mail, Trash2 } from 'lucide-react';
 import type { InquiryRecord, InquiryStatus } from '../../firebaseAdmin';
 import { copyTextSafely } from '../../utils/clipboard';
 import { getAdminCopy, type AdminLang } from './adminI18n';
@@ -11,7 +11,6 @@ interface AdminInquiriesInboxProps {
   lang?: AdminLang;
   onUpdateStatus: (id: string, status: InquiryStatus) => Promise<boolean>;
   onDelete: (id: string) => Promise<boolean>;
-  onBack?: () => void;
   closeDialogNonce?: number;
   onDialogOpenChange?: (open: boolean) => void;
 }
@@ -37,7 +36,6 @@ export const AdminInquiriesInbox: React.FC<AdminInquiriesInboxProps> = ({
   lang = 'en',
   onUpdateStatus,
   onDelete,
-  onBack,
   closeDialogNonce = 0,
   onDialogOpenChange,
 }) => {
@@ -220,19 +218,6 @@ export const AdminInquiriesInbox: React.FC<AdminInquiriesInboxProps> = ({
           }
         }}
       />
-
-      {onBack && (
-        <div className="border-t border-white/10 pt-5">
-          <button
-            type="button"
-            onClick={onBack}
-            className="inline-flex min-h-[42px] items-center gap-2 rounded-md border border-white/15 px-4 py-2 text-xs font-medium text-zinc-300 hover:bg-white/5 hover:text-white"
-          >
-            <ArrowLeft className="h-3.5 w-3.5" aria-hidden="true" />
-            {t.common.back}
-          </button>
-        </div>
-      )}
     </div>
   );
 };

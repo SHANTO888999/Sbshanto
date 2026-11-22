@@ -756,7 +756,7 @@ function buildSettingsPayload(bundle: PortfolioContentBundle) {
     whatsappNumber: normalizedWhatsapp.length >= 3 ? normalizedWhatsapp : '',
     location: clampText(p.location, 60, dp.location),
     githubHandle: clampExact(p.githubHandle, 48, dp.githubHandle),
-    githubUrl: clampExact(sanitizePublicUrl(p.githubUrl, dp.githubUrl), 300, dp.githubUrl),
+    githubUrl: sanitizePublicUrl(p.githubUrl, '', false).slice(0, 300),
     twitterUrl: sanitizePublicUrl(p.twitterUrl, '', false).slice(0, 300),
     linkedinUrl: sanitizePublicUrl(p.linkedinUrl, '', false).slice(0, 300),
     behanceUrl: sanitizePublicUrl(p.behanceUrl, '', false).slice(0, 300),
