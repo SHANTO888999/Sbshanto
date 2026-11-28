@@ -317,6 +317,35 @@ export const AdminProjectsEditor: React.FC<AdminProjectsEditorProps> = ({
       coverImageUrl: nextGallery[0] ?? '',
       coverMediaType: nextGallery.length > 0 ? 'image' : undefined,
     });
+    setMediaError(null);
+    setMediaStatusNote(
+      lang === 'bn'
+        ? 'ছবি সরানো হয়েছে। আপডেট করতে "সেভ প্রজেক্ট" চাপুন।'
+        : 'Photo removed. Click "Save Project" to update.'
+    );
+  };
+
+  const handleClearAllMedia = () => {
+    if (!editing) return;
+    const hadVideo = Boolean(
+      editing.coverImageUrl && isVideoMediaSource(editing.coverImageUrl, editing.coverMediaType)
+    );
+    setEditing({
+      ...editing,
+      coverImageUrl: '',
+      galleryUrls: [],
+      coverMediaType: undefined,
+    });
+    setMediaError(null);
+    setMediaStatusNote(
+      hadVideo
+        ? lang === 'bn'
+          ? 'ভিডিও মুছে ফেলা হয়েছে। আপডেট করতে "সেভ প্রজেক্ট" চাপুন।'
+          : 'Video removed. Click "Save Project" to update.'
+        : lang === 'bn'
+          ? 'সব ছবি মুছে ফেলা হয়েছে। আপডেট করতে "সেভ প্রজেক্ট" চাপুন।'
+          : 'All photos removed. Click "Save Project" to update.'
+    );
   };
 
   const handleMoveGallerySlide = (idx: number, dir: -1 | 1) => {
@@ -380,7 +409,11 @@ export const AdminProjectsEditor: React.FC<AdminProjectsEditorProps> = ({
     e.preventDefault();
     if (!editing || saving) return;
     if (mediaBusyLabel) {
-      setFormError('Please wait until the photo or video finishes optimizing before saving.');
+      setFormError(
+        lang === 'bn'
+          ? 'ছবি বা ভিডিও প্রস্তুত হওয়া পর্যন্ত একটু অপেক্ষা করুন।'
+          : 'Please wait a moment while your photo or video finishes preparing.'
+      );
       return;
     }
 
@@ -405,21 +438,33 @@ export const AdminProjectsEditor: React.FC<AdminProjectsEditorProps> = ({
     const normalizedRepo = normalizeUserUrlInput(editing.repoUrl ?? '');
 
     if (normalizedCover && !normalizedCover.startsWith('data:') && !sanitizePublicUrl(normalizedCover, '')) {
-      setFormError('Cover media URL must be a valid https:// link or /assets/... path.');
+      setFormError(
+        lang === 'bn'
+          ? 'ছবি বা ভিডিওর লিংকটি https:// দিয়ে শুরু হতে হবে।'
+          : 'Photo or video link must start with https:// or /assets/...'
+      );
       window.requestAnimationFrame(() => {
         formErrorRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
       });
       return;
     }
     if (normalizedLive && !sanitizePublicUrl(normalizedLive, '')) {
-      setFormError('Live Project URL must start with https:// or http://.');
+      setFormError(
+        lang === 'bn'
+          ? 'লাইভ ওয়েবসাইট/অ্যাপ লিংকটি https:// দিয়ে শুরু হতে হবে।'
+          : 'Live Website / App Link must start with https:// or http://.'
+      );
       window.requestAnimationFrame(() => {
         formErrorRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
       });
       return;
     }
     if (normalizedRepo && !sanitizePublicUrl(normalizedRepo, '')) {
-      setFormError('Source Code URL must start with https:// or http://.');
+      setFormError(
+        lang === 'bn'
+          ? 'কোড / গিটহাব লিংকটি https:// দিয়ে শুরু হতে হবে।'
+          : 'Code / GitHub Link must start with https:// or http://.'
+      );
       window.requestAnimationFrame(() => {
         formErrorRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
       });
@@ -580,7 +625,7 @@ export const AdminProjectsEditor: React.FC<AdminProjectsEditorProps> = ({
 
               <div>
                 <label htmlFor="proj-order" className="block text-xs font-medium text-zinc-200">
-                  {lang === 'bn' ? 'ক্রমিক নম্বর (0–1000)' : 'Display Order (0–1000)'}
+                  {lang === 'bn' ? 'কত নম্বরে দেখাবে (0 = আগে)' : 'Position Order (0 first)'}
                 </label>
                 <input
                   id="proj-order"
@@ -603,7 +648,7 @@ export const AdminProjectsEditor: React.FC<AdminProjectsEditorProps> = ({
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
               <LimitedInput
                 id="proj-platform"
-                label={lang === 'bn' ? 'প্ল্যাটফর্ম' : 'Platform'}
+                label={lang === 'bn' ? 'কিসের জন্য (যেমন: ওয়েব / অ্যাপ)' : 'Platform (Web / App)'}
                 value={editing.platform}
                 maxLength={36}
                 required
@@ -612,7 +657,7 @@ export const AdminProjectsEditor: React.FC<AdminProjectsEditorProps> = ({
               />
               <LimitedInput
                 id="proj-client"
-                label={lang === 'bn' ? 'ক্লায়েন্ট / লেবেল' : 'Client / Label'}
+                label={lang === 'bn' ? 'কার জন্য তৈরি (ক্লায়েন্ট)' : 'Client / Made For'}
                 value={editing.client}
                 maxLength={36}
                 required
@@ -620,7 +665,7 @@ export const AdminProjectsEditor: React.FC<AdminProjectsEditorProps> = ({
               />
               <LimitedInput
                 id="proj-role"
-                label={lang === 'bn' ? 'আপনার ভূমিকা' : 'Your Role'}
+                label={lang === 'bn' ? 'আপনার কাজ / ভূমিকা' : 'Your Role'}
                 value={editing.role}
                 maxLength={64}
                 required
@@ -630,23 +675,31 @@ export const AdminProjectsEditor: React.FC<AdminProjectsEditorProps> = ({
 
             <LimitedTextarea
               id="proj-summary"
-              label={lang === 'bn' ? 'প্রজেক্টের সংক্ষিপ্ত বিবরণ' : 'Project Summary'}
+              label={lang === 'bn' ? 'প্রজেক্ট সম্পর্কে সংক্ষিপ্ত কথা' : 'Short Project Summary'}
               value={editing.summary}
               maxLength={280}
               rows={3}
               required
-              placeholder="Concise summary of what you built and the outcome..."
+              placeholder={
+                lang === 'bn'
+                  ? 'এই প্রজেক্টটি কী কাজ করে সংক্ষেপে লিখুন...'
+                  : 'Write a short summary of what you built...'
+              }
               onChange={(v) => setEditing({ ...editing, summary: v })}
             />
 
             <LimitedTextarea
               id="proj-arch"
-              label={lang === 'bn' ? 'টেকনিক্যাল নোটস' : 'Architecture & Craft Notes'}
+              label={lang === 'bn' ? 'কীভাবে তৈরি করেছেন (বিস্তারিত)' : 'How You Built It (Details)'}
               value={editing.architectureNotes}
               maxLength={300}
               rows={2}
               required
-              placeholder="Technical highlights shown inside the inspection modal..."
+              placeholder={
+                lang === 'bn'
+                  ? 'প্রজেক্টের মূল ফিচার বা টেকনিক্যাল দিক লিখুন...'
+                  : 'Key features or highlights visitors will see...'
+              }
               onChange={(v) => setEditing({ ...editing, architectureNotes: v })}
             />
 
@@ -654,7 +707,9 @@ export const AdminProjectsEditor: React.FC<AdminProjectsEditorProps> = ({
             <div className="rounded-lg border border-white/10 bg-[#090A0F] p-4">
               <div className="flex items-center justify-between">
                 <span className="text-xs font-medium text-zinc-200">
-                  Tech Stack ({editing.stack.length}/6)
+                  {lang === 'bn'
+                    ? `যেসব টুলস ব্যবহার করেছেন (${editing.stack.length}/6)`
+                    : `Tools & Technologies Used (${editing.stack.length}/6)`}
                 </span>
               </div>
 
@@ -699,7 +754,9 @@ export const AdminProjectsEditor: React.FC<AdminProjectsEditorProps> = ({
                         addStackTag();
                       }
                     }}
-                    placeholder="Add technology (e.g. Next.js, Unity)"
+                    placeholder={
+                      lang === 'bn' ? 'নাম লিখুন (যেমন: React, Unity)' : 'Add tool (e.g. React, Unity)'
+                    }
                     className="min-h-[42px] flex-1 rounded-md border border-white/15 bg-[#070709] px-3 py-1.5 text-xs text-white placeholder:text-zinc-500 focus:border-accent focus:outline-none"
                   />
                   <button
@@ -707,7 +764,7 @@ export const AdminProjectsEditor: React.FC<AdminProjectsEditorProps> = ({
                     onClick={addStackTag}
                     className="min-h-[42px] rounded-md border border-white/15 px-3.5 py-1.5 text-xs font-medium text-zinc-200 hover:bg-white/5"
                   >
-                    + Tag
+                    {lang === 'bn' ? '+ যোগ করুন' : '+ Add'}
                   </button>
                 </div>
               )}
@@ -730,7 +787,7 @@ export const AdminProjectsEditor: React.FC<AdminProjectsEditorProps> = ({
                     rel="noopener noreferrer"
                     className="inline-flex items-center gap-1 font-mono text-[11px] text-accent-light hover:underline"
                   >
-                    Test
+                    {lang === 'bn' ? 'খুলে দেখুন' : 'Open'}
                     <ExternalLink className="h-3 w-3" aria-hidden="true" />
                   </a>
                 )}
@@ -756,20 +813,11 @@ export const AdminProjectsEditor: React.FC<AdminProjectsEditorProps> = ({
                 {(gallerySlides.length > 0 || isVideoCover) && (
                   <button
                     type="button"
-                    onClick={() => {
-                      setEditing({
-                        ...editing,
-                        coverImageUrl: '',
-                        galleryUrls: [],
-                        coverMediaType: undefined,
-                      });
-                      setMediaStatusNote(null);
-                      setMediaError(null);
-                    }}
-                    className="inline-flex items-center gap-1 rounded px-2 py-1 text-[11px] font-medium text-zinc-400 hover:bg-white/5 hover:text-[#EF4444]"
+                    onClick={handleClearAllMedia}
+                    className="inline-flex items-center gap-1 rounded-md border border-[#DC2626]/35 bg-[#DC2626]/10 px-2.5 py-1 text-[11px] font-medium text-red-200 transition-colors hover:bg-[#DC2626]/20 hover:text-white"
                   >
-                    <X className="h-3 w-3" aria-hidden="true" />
-                    {t.common.clear}
+                    <Trash2 className="h-3 w-3" aria-hidden="true" />
+                    {isVideoCover ? t.projects.deleteVideo : t.projects.deleteAllMedia}
                   </button>
                 )}
               </div>
@@ -851,6 +899,36 @@ export const AdminProjectsEditor: React.FC<AdminProjectsEditorProps> = ({
                 </p>
               )}
 
+              {/* Attached Video Control Bar */}
+              {isVideoCover && (
+                <div className="mt-4 flex flex-wrap items-center justify-between gap-3 rounded-lg border border-white/15 bg-[#050507] px-3.5 py-2.5">
+                  <div className="flex min-w-0 items-center gap-2.5">
+                    <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md border border-accent/30 bg-accent/15 text-accent-light">
+                      <Film className="h-4 w-4" aria-hidden="true" />
+                    </div>
+                    <div className="min-w-0">
+                      <p className="truncate text-xs font-semibold text-white">
+                        {t.projects.videoAttachedLabel}
+                      </p>
+                      <p className="truncate font-mono text-[10px] text-zinc-400">
+                        {coverValue.startsWith('data:')
+                          ? `${Math.round(coverValue.length / 1024)} KB`
+                          : coverValue}
+                      </p>
+                    </div>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={handleClearAllMedia}
+                    aria-label={t.projects.deleteVideo}
+                    className="inline-flex min-h-[34px] items-center gap-1.5 rounded-md border border-[#DC2626]/40 bg-[#DC2626]/15 px-3 py-1.5 text-xs font-semibold text-red-200 transition-colors hover:bg-[#DC2626] hover:text-white shrink-0"
+                  >
+                    <Trash2 className="h-3.5 w-3.5" aria-hidden="true" />
+                    <span>{t.projects.deleteVideo}</span>
+                  </button>
+                </div>
+              )}
+
               {/* Reorderable Slideshow Thumbnails */}
               {gallerySlides.length > 0 && (
                 <div className="mt-4 grid grid-cols-2 gap-2.5 sm:grid-cols-3">
@@ -859,6 +937,15 @@ export const AdminProjectsEditor: React.FC<AdminProjectsEditorProps> = ({
                       key={`${idx}-${slideUrl.slice(0, 32)}`}
                       className="group relative overflow-hidden rounded-lg border border-white/15 bg-[#050507]"
                     >
+                      <button
+                        type="button"
+                        onClick={() => handleRemoveGallerySlide(idx)}
+                        title={t.projects.deletePhoto}
+                        aria-label={`${t.projects.deletePhoto} ${idx + 1}`}
+                        className="absolute top-1.5 right-1.5 z-10 inline-flex h-7 w-7 items-center justify-center rounded-md border border-[#DC2626]/50 bg-black/80 text-red-200 backdrop-blur-sm transition-colors hover:bg-[#DC2626] hover:text-white"
+                      >
+                        <Trash2 className="h-3.5 w-3.5" aria-hidden="true" />
+                      </button>
                       <div className="aspect-[16/10] w-full overflow-hidden">
                         <img
                           src={slideUrl}
@@ -896,7 +983,7 @@ export const AdminProjectsEditor: React.FC<AdminProjectsEditorProps> = ({
                           <button
                             type="button"
                             onClick={() => handleSetPrimarySlide(idx)}
-                            title="Make primary cover"
+                            title={lang === 'bn' ? 'প্রথম ছবি বানান' : 'Make main photo'}
                             className="inline-flex items-center gap-0.5 rounded px-1.5 py-0.5 text-[10px] text-zinc-300 hover:bg-white/10 hover:text-white"
                           >
                             <Star className="h-2.5 w-2.5" />
@@ -907,10 +994,11 @@ export const AdminProjectsEditor: React.FC<AdminProjectsEditorProps> = ({
                         <button
                           type="button"
                           onClick={() => handleRemoveGallerySlide(idx)}
+                          title={t.projects.deletePhoto}
                           aria-label={`Remove slide ${idx + 1}`}
-                          className="rounded p-1 text-zinc-400 hover:bg-[#DC2626]/20 hover:text-[#EF4444]"
+                          className="inline-flex items-center justify-center rounded border border-[#DC2626]/30 bg-[#DC2626]/10 p-1 text-red-300 transition-colors hover:bg-[#DC2626] hover:text-white"
                         >
-                          <Trash2 className="h-3 w-3" />
+                          <Trash2 className="h-3.5 w-3.5" />
                         </button>
                       </div>
                     </div>
@@ -945,6 +1033,32 @@ export const AdminProjectsEditor: React.FC<AdminProjectsEditorProps> = ({
               </div>
             </div>
           </div>
+        </div>
+
+        <div className="flex flex-wrap items-center justify-end gap-3 border-t border-white/10 pt-5">
+          <button
+            type="button"
+            disabled={saving}
+            onClick={() => {
+              setEditing(null);
+              setMediaError(null);
+              setMediaStatusNote(null);
+              setFormError(null);
+              setPhotoUrlInput('');
+            }}
+            className="inline-flex min-h-[42px] items-center gap-2 rounded-md border border-white/15 px-4 py-2 text-xs font-medium text-zinc-300 transition-colors hover:bg-white/5 hover:text-white"
+          >
+            {t.common.cancel}
+          </button>
+
+          <button
+            type="submit"
+            disabled={saving || Boolean(mediaBusyLabel)}
+            className="inline-flex min-h-[42px] items-center gap-2 rounded-md bg-accent px-5 py-2 text-xs font-semibold text-white hover:bg-accent-dark disabled:opacity-60"
+          >
+            <Save className="h-3.5 w-3.5" aria-hidden="true" />
+            {saving ? t.common.saving : t.projects.saveProject}
+          </button>
         </div>
       </form>
     );
@@ -1052,7 +1166,7 @@ export const AdminProjectsEditor: React.FC<AdminProjectsEditorProps> = ({
                       <>
                         <span aria-hidden="true">·</span>
                         <span className="font-mono text-[11px] text-zinc-300">
-                          {proj.galleryUrls.length} photos
+                          {proj.galleryUrls.length} {lang === 'bn' ? 'টি ছবি' : 'photos'}
                         </span>
                       </>
                     )}

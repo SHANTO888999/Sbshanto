@@ -82,16 +82,16 @@ export const AdminCareerEditor: React.FC<AdminCareerEditorProps> = ({
     if (!onSubViewChange) return;
     if (editingMilestone) {
       const isExisting = milestones.some((m) => m.id === editingMilestone.id);
-      onSubViewChange(isExisting ? 'Edit Milestone' : 'New Milestone');
+      onSubViewChange(isExisting ? `${t.common.edit} ${t.career.milestonesTab}` : t.career.addMilestone);
       return;
     }
     if (editingExp) {
       const isExisting = experience.some((ex) => ex.id === editingExp.id);
-      onSubViewChange(isExisting ? 'Edit Experience' : 'New Experience');
+      onSubViewChange(isExisting ? `${t.common.edit} ${t.career.experienceTab}` : t.career.addExperience);
       return;
     }
     onSubViewChange(null);
-  }, [editingMilestone, editingExp, milestones, experience, onSubViewChange]);
+  }, [editingMilestone, editingExp, milestones, experience, onSubViewChange, t]);
 
   if (editingMilestone) {
     return (
@@ -107,7 +107,11 @@ export const AdminCareerEditor: React.FC<AdminCareerEditorProps> = ({
             !editingMilestone.year.trim() ||
             !editingMilestone.outcome.trim()
           ) {
-            setFormError('Fill in all required milestone fields before saving.');
+            setFormError(
+              lang === 'bn'
+                ? 'সেভ করার আগে * চিহ্নিত সব ঘর পূরণ করুন।'
+                : 'Please fill in all required fields marked with *.'
+            );
             return;
           }
           setFormError(null);
@@ -174,16 +178,17 @@ export const AdminCareerEditor: React.FC<AdminCareerEditorProps> = ({
         <div className="grid max-w-2xl grid-cols-1 gap-4">
           <LimitedInput
             id="ms-title"
-            label="Milestone Headline"
+            label={lang === 'bn' ? 'অর্জনের শিরোনাম' : 'Achievement Title'}
             value={editingMilestone.title}
             maxLength={88}
             required
+            placeholder={lang === 'bn' ? 'যেমন: সেরা ওয়েব ডিজাইন পুরস্কার' : 'e.g. Best Web Design Award'}
             onChange={(v) => setEditingMilestone({ ...editingMilestone, title: v })}
           />
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
             <LimitedInput
               id="ms-context"
-              label="Discipline Context"
+              label={lang === 'bn' ? 'কোন ধরনের কাজ' : 'Category / Field'}
               value={editingMilestone.context}
               maxLength={52}
               required
@@ -191,7 +196,7 @@ export const AdminCareerEditor: React.FC<AdminCareerEditorProps> = ({
             />
             <LimitedInput
               id="ms-project"
-              label="Related Project"
+              label={lang === 'bn' ? 'প্রজেক্টের নাম' : 'Project Name'}
               value={editingMilestone.project}
               maxLength={44}
               required
@@ -199,7 +204,7 @@ export const AdminCareerEditor: React.FC<AdminCareerEditorProps> = ({
             />
             <LimitedInput
               id="ms-year"
-              label="Year"
+              label={lang === 'bn' ? 'সাল' : 'Year'}
               value={editingMilestone.year}
               maxLength={10}
               required
@@ -208,16 +213,16 @@ export const AdminCareerEditor: React.FC<AdminCareerEditorProps> = ({
           </div>
           <LimitedTextarea
             id="ms-outcome"
-            label="Measurable Outcome"
+            label={lang === 'bn' ? 'ফলাফল বা বিস্তারিত' : 'Result / Achievement Details'}
             value={editingMilestone.outcome}
             maxLength={220}
             rows={3}
             required
             onChange={(v) => setEditingMilestone({ ...editingMilestone, outcome: v })}
           />
-          <div className="w-40">
+          <div className="w-48">
             <label htmlFor="ms-order" className="block text-xs font-medium text-zinc-200">
-              Sort Order
+              {lang === 'bn' ? 'কত নম্বরে দেখাবে (0 = আগে)' : 'Position Order (0 first)'}
             </label>
             <input
               id="ms-order"
@@ -236,6 +241,28 @@ export const AdminCareerEditor: React.FC<AdminCareerEditorProps> = ({
             />
           </div>
         </div>
+
+        <div className="flex flex-wrap items-center justify-end gap-3 border-t border-white/10 pt-5">
+          <button
+            type="button"
+            disabled={saving}
+            onClick={() => {
+              setEditingMilestone(null);
+              setFormError(null);
+            }}
+            className="inline-flex min-h-[42px] items-center gap-2 rounded-md border border-white/15 px-4 py-2 text-xs font-medium text-zinc-300 hover:bg-white/5 hover:text-white"
+          >
+            {t.common.cancel}
+          </button>
+          <button
+            type="submit"
+            disabled={saving}
+            className="inline-flex min-h-[42px] items-center gap-2 rounded-md bg-accent px-5 py-2 text-xs font-semibold text-white hover:bg-accent-dark disabled:opacity-60"
+          >
+            <Save className="h-3.5 w-3.5" aria-hidden="true" />
+            {saving ? t.common.saving : t.career.saveMilestone}
+          </button>
+        </div>
       </form>
     );
   }
@@ -253,7 +280,11 @@ export const AdminCareerEditor: React.FC<AdminCareerEditorProps> = ({
             !editingExp.org.trim() ||
             !editingExp.description.trim()
           ) {
-            setFormError('Fill in all required career timeline fields before saving.');
+            setFormError(
+              lang === 'bn'
+                ? 'সেভ করার আগে * চিহ্নিত সব ঘর পূরণ করুন।'
+                : 'Please fill in all required fields marked with *.'
+            );
             return;
           }
           setFormError(null);
@@ -316,7 +347,7 @@ export const AdminCareerEditor: React.FC<AdminCareerEditorProps> = ({
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
             <LimitedInput
               id="exp-period"
-              label="Time Period"
+              label={lang === 'bn' ? 'সময়কাল' : 'Time Period'}
               value={editingExp.period}
               maxLength={24}
               required
@@ -326,7 +357,7 @@ export const AdminCareerEditor: React.FC<AdminCareerEditorProps> = ({
             <div className="sm:col-span-2">
               <LimitedInput
                 id="exp-role"
-                label="Role / Title"
+                label={lang === 'bn' ? 'আপনার পদবি / কাজ' : 'Your Role / Title'}
                 value={editingExp.role}
                 maxLength={64}
                 required
@@ -337,7 +368,7 @@ export const AdminCareerEditor: React.FC<AdminCareerEditorProps> = ({
 
           <LimitedInput
             id="exp-org"
-            label="Studio / Organization"
+            label={lang === 'bn' ? 'প্রতিষ্ঠান বা স্টুডিওর নাম' : 'Company / Studio Name'}
             value={editingExp.org}
             maxLength={64}
             required
@@ -346,7 +377,7 @@ export const AdminCareerEditor: React.FC<AdminCareerEditorProps> = ({
 
           <LimitedTextarea
             id="exp-desc"
-            label="Summary"
+            label={lang === 'bn' ? 'কাজের সংক্ষিপ্ত বিবরণ' : 'What You Worked On'}
             value={editingExp.description}
             maxLength={240}
             rows={3}
@@ -354,9 +385,9 @@ export const AdminCareerEditor: React.FC<AdminCareerEditorProps> = ({
             onChange={(v) => setEditingExp({ ...editingExp, description: v })}
           />
 
-          <div className="w-40">
+          <div className="w-48">
             <label htmlFor="exp-order" className="block text-xs font-medium text-zinc-200">
-              Sort Order
+              {lang === 'bn' ? 'কত নম্বরে দেখাবে (0 = আগে)' : 'Position Order (0 first)'}
             </label>
             <input
               id="exp-order"
@@ -374,6 +405,28 @@ export const AdminCareerEditor: React.FC<AdminCareerEditorProps> = ({
               className="mt-1.5 min-h-[44px] w-full rounded-md border border-white/15 bg-[#070709] px-3 py-2 font-mono text-sm tabular-nums text-white focus:border-accent focus:outline-none"
             />
           </div>
+        </div>
+
+        <div className="flex flex-wrap items-center justify-end gap-3 border-t border-white/10 pt-5">
+          <button
+            type="button"
+            disabled={saving}
+            onClick={() => {
+              setEditingExp(null);
+              setFormError(null);
+            }}
+            className="inline-flex min-h-[42px] items-center gap-2 rounded-md border border-white/15 px-4 py-2 text-xs font-medium text-zinc-300 hover:bg-white/5 hover:text-white"
+          >
+            {t.common.cancel}
+          </button>
+          <button
+            type="submit"
+            disabled={saving}
+            className="inline-flex min-h-[42px] items-center gap-2 rounded-md bg-accent px-5 py-2 text-xs font-semibold text-white hover:bg-accent-dark disabled:opacity-60"
+          >
+            <Save className="h-3.5 w-3.5" aria-hidden="true" />
+            {saving ? t.common.saving : t.career.saveEntry}
+          </button>
         </div>
       </form>
     );
@@ -583,7 +636,11 @@ export const AdminCareerEditor: React.FC<AdminCareerEditorProps> = ({
             : t.career.deleteExperienceTitle
         }
         description={
-          deleteConfirm ? `Remove "${deleteConfirm.label}" from your cloud database?` : ''
+          deleteConfirm
+            ? lang === 'bn'
+              ? `"${deleteConfirm.label}" চিরতরে মুছে ফেলবেন?`
+              : `Delete "${deleteConfirm.label}" permanently?`
+            : ''
         }
         busy={saving}
         lang={lang}

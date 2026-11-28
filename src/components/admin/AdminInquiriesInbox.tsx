@@ -23,13 +23,6 @@ const STATUS_FILTERS: ReadonlyArray<'all' | InquiryStatus> = [
   'archived',
 ];
 
-const STATUS_LABELS: Record<InquiryStatus, string> = {
-  new: 'New',
-  read: 'Read',
-  replied: 'Replied',
-  archived: 'Archived',
-};
-
 export const AdminInquiriesInbox: React.FC<AdminInquiriesInboxProps> = ({
   inquiries,
   saving,
@@ -126,7 +119,7 @@ export const AdminInquiriesInbox: React.FC<AdminInquiriesInboxProps> = ({
                   <div className="min-w-0">
                     <div className="flex flex-wrap items-center gap-2 text-xs text-zinc-400">
                       <span className={`font-semibold uppercase ${statusTone}`}>
-                        {STATUS_LABELS[inq.status]}
+                        {t.inquiries.statuses[inq.status]}
                       </span>
                       <span aria-hidden="true">·</span>
                       <span>{inq.scope}</span>
@@ -145,10 +138,10 @@ export const AdminInquiriesInbox: React.FC<AdminInquiriesInboxProps> = ({
                       onChange={(e) => onUpdateStatus(inq.id, e.target.value as InquiryStatus)}
                       className="min-h-[38px] rounded-md border border-white/15 bg-[#070709] px-3 py-1.5 text-xs font-medium text-white focus:border-accent focus:outline-none"
                     >
-                      <option value="new">New</option>
-                      <option value="read">Read</option>
-                      <option value="replied">Replied</option>
-                      <option value="archived">Archived</option>
+                      <option value="new">{t.inquiries.statuses.new}</option>
+                      <option value="read">{t.inquiries.statuses.read}</option>
+                      <option value="replied">{t.inquiries.statuses.replied}</option>
+                      <option value="archived">{t.inquiries.statuses.archived}</option>
                     </select>
 
                     <button
@@ -204,7 +197,9 @@ export const AdminInquiriesInbox: React.FC<AdminInquiriesInboxProps> = ({
         title={t.inquiries.deleteTitle}
         description={
           deleteTarget
-            ? `Permanently delete project brief from ${deleteTarget.name} (${deleteTarget.email})?`
+            ? lang === 'bn'
+              ? `${deleteTarget.name} (${deleteTarget.email})-এর এই মেসেজটি চিরতরে মুছে ফেলবেন?`
+              : `Delete this message from ${deleteTarget.name} (${deleteTarget.email}) permanently?`
             : ''
         }
         busy={saving}

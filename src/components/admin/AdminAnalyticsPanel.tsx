@@ -494,7 +494,9 @@ export const AdminAnalyticsPanel: React.FC<AdminAnalyticsPanelProps> = ({
               <FolderKanban className="h-4 w-4 text-accent-light" aria-hidden="true" />
               <h2 className="text-sm font-semibold text-white">{t.analytics.mostClickedTitle}</h2>
             </div>
-            <span className="font-mono text-[11px] text-zinc-500">Top {rankedProjects.length}</span>
+            <span className="font-mono text-[11px] text-zinc-500">
+              {lang === 'bn' ? `শীর্ষ ${rankedProjects.length}` : `Top ${rankedProjects.length}`}
+            </span>
           </div>
 
           {rankedProjects.length === 0 ? (

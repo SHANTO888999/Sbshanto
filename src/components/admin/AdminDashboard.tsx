@@ -72,27 +72,12 @@ import { ConfirmDialog, StatusNotice } from './FieldControls';
 
 type AdminTab = 'overview' | 'analytics' | 'profile' | 'projects' | 'career' | 'inquiries';
 
-const PROFILE_SUB_LABELS: Record<ProfileSubTab, string> = {
-  identity: 'Hero & Portrait',
-  contact: 'Contact & Quote',
-  social: 'Social Media',
-  metrics: 'Metrics & Partners',
-  process: 'Services & Stack',
-  viewer: 'Viewer Controls',
-  cv: 'Resume / CV',
-};
-
-const CAREER_SUB_LABELS: Record<'milestones' | 'experience', string> = {
-  milestones: 'Milestones',
-  experience: 'Career Timeline',
-};
-
 interface AdminDashboardProps {
   onOpenViewerPreview?: () => void;
   onContentSaved?: () => Promise<void> | void;
 }
 
-function formatDashboardError(err: unknown): string {
+function formatDashboardError(err: unknown, lang: AdminLang = 'en'): string {
   const raw = err instanceof Error ? err.message : String(err);
   try {
     const parsed = JSON.parse(raw) as {
@@ -109,44 +94,58 @@ function formatDashboardError(err: unknown): string {
       const inner = parsed.error;
       const lower = inner.toLowerCase();
       if (lower.includes('missing or insufficient permissions') || lower.includes('permission-denied')) {
-        const who = parsed.authInfo?.email ? ` (${parsed.authInfo.email})` : '';
-        const uidNote = parsed.authInfo?.userId
-          ? ` [uid=${parsed.authInfo.userId.slice(0, 6)}…]`
-          : '';
-        const target = parsed.path ? ` on "${parsed.path}"` : '';
-        return `Permission denied${target}${who}${uidNote}: ${inner} — Make sure latest Firestore rules are deployed to project ai-studio-applet-webapp-bd58b (firebase deploy --project ai-studio-applet-webapp-bd58b --only firestore:rules).`;
+        return lang === 'bn'
+          ? 'সেভ করার অনুমতি মেলেনি। অনুগ্রহ করে আবার লগইন করুন বা অ্যাডমিন ইমেইল ভেরিফাই আছে কি না দেখুন।'
+          : 'Permission denied. Please sign out and sign in again with your verified admin email.';
       }
       if (lower.includes('quota exceeded') || lower.includes('resource-exhausted')) {
-        return 'Firestore quota exceeded. Please try again later or upgrade your Firebase plan.';
+        return lang === 'bn'
+          ? 'ডাটাবেস সীমা শেষ হয়ে গেছে। কিছুক্ষণ পরে আবার চেষ্টা করুন।'
+          : 'Database limit reached. Please try again later.';
       }
       if (lower.includes('exceeds the maximum allowed size') || lower.includes('invalid-argument')) {
-        return 'Document exceeds Firestore size or format limits. Reduce attached media size or count and retry.';
+        return lang === 'bn'
+          ? 'ফাইলের সাইজ অনেক বড় হয়ে গেছে। ছবি বা ভিডিও কমিয়ে আবার চেষ্টা করুন।'
+          : 'Too much data in one item. Try smaller or fewer photos/videos and save again.';
       }
       if (lower.includes('client is offline') || lower.includes('unavailable') || lower.includes('failed to fetch')) {
-        return 'Network or Firestore connection unavailable. Check your internet connection and retry.';
+        return lang === 'bn'
+          ? 'ইন্টারনেট সংযোগ নেই। নেট চালু করে আবার চেষ্টা করুন।'
+          : 'No internet connection. Check your network and try again.';
       }
       return parsed.path ? `${inner} (${parsed.path})` : inner;
     }
   } catch {
     // plain non-JSON error message
   }
-  return raw || 'Something went wrong. Please retry.';
+  return (
+    raw ||
+    (lang === 'bn'
+      ? 'কিছু একটা সমস্যা হয়েছে। অনুগ্রহ করে আবার চেষ্টা করুন।'
+      : 'Something went wrong. Please try again.')
+  );
 }
 
-function formatAuthError(err: unknown): string {
+function formatAuthError(err: unknown, lang: AdminLang = 'en'): string {
   const raw = err instanceof Error ? err.message : String(err);
   if (raw.includes('auth/operation-not-allowed')) {
-    return 'Email/Password sign-in is disabled. Enable Email/Password in Firebase Console → Authentication → Sign-in method.';
+    return lang === 'bn'
+      ? 'ইমেইল লগইন চালু নেই। Firebase Console থেকে Email/Password চালু করুন।'
+      : 'Email login is disabled in Firebase Console.';
   }
   if (
     raw.includes('auth/invalid-credential') ||
     raw.includes('auth/wrong-password') ||
     raw.includes('auth/user-not-found')
   ) {
-    return 'Invalid email or password. Verify the credentials created in Firebase Console → Authentication → Users.';
+    return lang === 'bn'
+      ? 'ইমেইল বা পাসওয়ার্ড ভুল হয়েছে। ঠিক করে আবার দিন।'
+      : 'Wrong email or password. Please check and try again.';
   }
   if (raw.includes('auth/too-many-requests')) {
-    return 'Too many failed attempts. Please wait a minute and try again.';
+    return lang === 'bn'
+      ? 'অনেকবার ভুল চেষ্টা হয়েছে। ১ মিনিট পরে আবার চেষ্টা করুন।'
+      : 'Too many attempts. Please wait a minute and try again.';
   }
   return raw;
 }
@@ -455,15 +454,15 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
           applyDocumentAccentTheme(retryData.settingsBundle.viewerControls.accentColor);
           return;
         } catch (retryErr) {
-          setNotice({ type: 'error', text: formatDashboardError(retryErr) });
+          setNotice({ type: 'error', text: formatDashboardError(retryErr, lang) });
           return;
         }
       }
-      setNotice({ type: 'error', text: formatDashboardError(err) });
+      setNotice({ type: 'error', text: formatDashboardError(err, lang) });
     } finally {
       setLoadingData(false);
     }
-  }, []);
+  }, [lang]);
 
   useEffect(() => {
     const unsub = subscribeAdminAuth(async (nextUser) => {
@@ -560,7 +559,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
       await signInAdminWithEmail(loginEmail, loginPassword);
       setLoginPassword('');
     } catch (err) {
-      setAuthError(formatAuthError(err));
+      setAuthError(formatAuthError(err, lang));
     } finally {
       setAuthBusy(false);
     }
@@ -574,7 +573,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
       await sendAdminVerificationEmail(user);
       setVerificationSent(true);
     } catch (err) {
-      setAuthError(formatAuthError(err));
+      setAuthError(formatAuthError(err, lang));
     } finally {
       setAuthBusy(false);
     }
@@ -591,10 +590,14 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
       if (isOk) {
         void loadDashboard();
       } else {
-        setAuthError('Email is not verified yet. Open the link in your inbox, then tap Unlock.');
+        setAuthError(
+          lang === 'bn'
+            ? 'ইমেইল এখনো ভেরিফাই হয়নি। ইনবক্সের লিংকে ক্লিক করে আবার চেষ্টা করুন।'
+            : 'Email is not verified yet. Open the link in your inbox, then tap again.'
+        );
       }
     } catch (err) {
-      setAuthError(formatAuthError(err));
+      setAuthError(formatAuthError(err, lang));
     } finally {
       setAuthBusy(false);
     }
@@ -606,7 +609,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
     try {
       await signOutAdmin();
     } catch (err) {
-      setAuthError(formatAuthError(err));
+      setAuthError(formatAuthError(err, lang));
     } finally {
       setAuthBusy(false);
     }
@@ -620,7 +623,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
       await fn();
       mutationCommitted = true;
     } catch (err) {
-      setNotice({ type: 'error', text: formatDashboardError(err) });
+      setNotice({ type: 'error', text: formatDashboardError(err, lang) });
       setSaving(false);
       if (typeof window !== 'undefined') {
         window.scrollTo({ top: 0, behavior: 'smooth' });
@@ -1158,7 +1161,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                 <>
                   <ChevronRight className="h-3.5 w-3.5 text-zinc-600" aria-hidden="true" />
                   <span className="rounded bg-white/10 px-2.5 py-1 font-semibold text-white">
-                    {t.nav.subProfile[activeProfileSubTab] ?? PROFILE_SUB_LABELS[activeProfileSubTab]}
+                    {t.nav.subProfile[activeProfileSubTab]}
                   </span>
                 </>
               )}
@@ -1167,7 +1170,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                 <>
                   <ChevronRight className="h-3.5 w-3.5 text-zinc-600" aria-hidden="true" />
                   <span className="rounded bg-white/10 px-2.5 py-1 font-semibold text-white">
-                    {t.nav.subCareer[activeCareerSubTab] ?? CAREER_SUB_LABELS[activeCareerSubTab]}
+                    {t.nav.subCareer[activeCareerSubTab]}
                   </span>
                 </>
               )}
@@ -1250,6 +1253,73 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                 </button>
               </div>
 
+              <div className="rounded-lg border border-white/10 bg-[#090A0F] p-4">
+                <h2 className="text-xs font-semibold uppercase tracking-wider text-zinc-400">
+                  {t.overview.quickShortcuts}
+                </h2>
+                <div className="mt-3 grid grid-cols-1 gap-2.5 sm:grid-cols-2 lg:grid-cols-3">
+                  <button
+                    type="button"
+                    onClick={() => navigateToTab('profile')}
+                    className="flex items-center justify-between gap-3 rounded-md border border-white/10 bg-[#0D0F14] px-3.5 py-3 text-left text-xs font-medium text-zinc-200 transition-colors hover:border-accent/50 hover:text-white"
+                  >
+                    <span className="flex items-center gap-2.5">
+                      <UserCog className="h-4 w-4 shrink-0 text-accent-light" aria-hidden="true" />
+                      <span>{t.overview.editNamePhotoBio}</span>
+                    </span>
+                    <ChevronRight className="h-3.5 w-3.5 shrink-0 text-zinc-500" aria-hidden="true" />
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => navigateToTab('projects')}
+                    className="flex items-center justify-between gap-3 rounded-md border border-white/10 bg-[#0D0F14] px-3.5 py-3 text-left text-xs font-medium text-zinc-200 transition-colors hover:border-accent/50 hover:text-white"
+                  >
+                    <span className="flex items-center gap-2.5">
+                      <FolderKanban className="h-4 w-4 shrink-0 text-accent-light" aria-hidden="true" />
+                      <span>{t.overview.addUpdateProjects}</span>
+                    </span>
+                    <ChevronRight className="h-3.5 w-3.5 shrink-0 text-zinc-500" aria-hidden="true" />
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => navigateToTab('career')}
+                    className="flex items-center justify-between gap-3 rounded-md border border-white/10 bg-[#0D0F14] px-3.5 py-3 text-left text-xs font-medium text-zinc-200 transition-colors hover:border-accent/50 hover:text-white"
+                  >
+                    <span className="flex items-center gap-2.5">
+                      <Award className="h-4 w-4 shrink-0 text-accent-light" aria-hidden="true" />
+                      <span>{t.overview.milestonesExperience}</span>
+                    </span>
+                    <ChevronRight className="h-3.5 w-3.5 shrink-0 text-zinc-500" aria-hidden="true" />
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => navigateToTab('inquiries')}
+                    className="flex items-center justify-between gap-3 rounded-md border border-white/10 bg-[#0D0F14] px-3.5 py-3 text-left text-xs font-medium text-zinc-200 transition-colors hover:border-accent/50 hover:text-white"
+                  >
+                    <span className="flex items-center gap-2.5">
+                      <Inbox className="h-4 w-4 shrink-0 text-accent-light" aria-hidden="true" />
+                      <span>{t.overview.openInquiries}</span>
+                    </span>
+                    <ChevronRight className="h-3.5 w-3.5 shrink-0 text-zinc-500" aria-hidden="true" />
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => navigateToTab('analytics')}
+                    className="flex items-center justify-between gap-3 rounded-md border border-white/10 bg-[#0D0F14] px-3.5 py-3 text-left text-xs font-medium text-zinc-200 transition-colors hover:border-accent/50 hover:text-white"
+                  >
+                    <span className="flex items-center gap-2.5">
+                      <BarChart3 className="h-4 w-4 shrink-0 text-accent-light" aria-hidden="true" />
+                      <span>{t.overview.viewAnalytics}</span>
+                    </span>
+                    <ChevronRight className="h-3.5 w-3.5 shrink-0 text-zinc-500" aria-hidden="true" />
+                  </button>
+                </div>
+              </div>
+
               <div className="flex flex-col justify-between gap-4 rounded-lg border border-white/10 bg-[#090A0F] p-4 sm:flex-row sm:items-center">
                 <div className="flex items-center gap-3">
                   <h2 className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-zinc-400">
@@ -1318,7 +1388,9 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
               onSave={(overrideBundle) =>
                 runMutation(
                   () => savePortfolioSettings(overrideBundle ?? profileDraft),
-                  'Profile and site copy saved live to Firestore.'
+                  lang === 'bn'
+                    ? 'আপনার তথ্য সফলভাবে সেভ হয়েছে!'
+                    : 'Your changes have been saved!'
                 )
               }
             />
@@ -1336,11 +1408,16 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
               onSaveProject={(proj: AdminProjectRecord) =>
                 runMutation(
                   () => saveAdminProject(proj).then(() => undefined),
-                  `Project "${proj.title}" saved.`
+                  lang === 'bn'
+                    ? `প্রজেক্ট "${proj.title}" সেভ হয়েছে!`
+                    : `Project "${proj.title}" saved!`
                 )
               }
               onDeleteProject={(id: string) =>
-                runMutation(() => deleteAdminProject(id), 'Project removed from cloud database.')
+                runMutation(
+                  () => deleteAdminProject(id),
+                  lang === 'bn' ? 'প্রজেক্ট ডিলিট হয়েছে।' : 'Project deleted.'
+                )
               }
             />
           )}
@@ -1360,20 +1437,30 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
               onSaveMilestone={(item: AdminMilestoneRecord) =>
                 runMutation(
                   () => saveAdminMilestone(item).then(() => undefined),
-                  `Milestone "${item.title}" saved.`
+                  lang === 'bn'
+                    ? `অর্জন "${item.title}" সেভ হয়েছে!`
+                    : `Achievement "${item.title}" saved!`
                 )
               }
               onDeleteMilestone={(id: string) =>
-                runMutation(() => deleteAdminMilestone(id), 'Milestone deleted.')
+                runMutation(
+                  () => deleteAdminMilestone(id),
+                  lang === 'bn' ? 'অর্জন ডিলিট হয়েছে।' : 'Achievement deleted.'
+                )
               }
               onSaveExperience={(item: AdminExperienceRecord) =>
                 runMutation(
                   () => saveAdminExperience(item).then(() => undefined),
-                  `Experience "${item.role}" saved.`
+                  lang === 'bn'
+                    ? `"${item.role}" সেভ হয়েছে!`
+                    : `"${item.role}" saved!`
                 )
               }
               onDeleteExperience={(id: string) =>
-                runMutation(() => deleteAdminExperience(id), 'Experience entry deleted.')
+                runMutation(
+                  () => deleteAdminExperience(id),
+                  lang === 'bn' ? 'কাজের ইতিহাস ডিলিট হয়েছে।' : 'Entry deleted.'
+                )
               }
             />
           )}
@@ -1388,11 +1475,16 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
               onUpdateStatus={(id: string, status: InquiryStatus) =>
                 runMutation(
                   () => updateAdminInquiryStatus(id, status),
-                  `Inquiry marked as "${status}".`
+                  lang === 'bn'
+                    ? `মেসেজ "${t.inquiries.statuses[status]}" হিসেবে চিহ্নিত হয়েছে।`
+                    : `Message marked as "${t.inquiries.statuses[status]}".`
                 )
               }
               onDelete={(id: string) =>
-                runMutation(() => deleteAdminInquiry(id), 'Inquiry deleted.')
+                runMutation(
+                  () => deleteAdminInquiry(id),
+                  lang === 'bn' ? 'মেসেজ ডিলিট হয়েছে।' : 'Message deleted.'
+                )
               }
             />
           )}
@@ -1410,7 +1502,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
         onConfirm={async () => {
           await runMutation(
             () => seedDefaultPortfolioToFirestore(profileDraft),
-            'Cloud settings initialized cleanly in Firestore!'
+            lang === 'bn' ? 'ওয়েবসাইটের প্রাথমিক তথ্য সেটআপ সম্পন্ন হয়েছে!' : 'Website starter data saved!'
           );
           setSeedConfirmOpen(false);
         }}

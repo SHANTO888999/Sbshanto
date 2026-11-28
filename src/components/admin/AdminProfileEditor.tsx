@@ -203,12 +203,18 @@ export const AdminProfileEditor: React.FC<AdminProfileEditorProps> = ({
     setCvNote(null);
 
     if (file.type !== 'application/pdf' && !file.name.toLowerCase().endsWith('.pdf')) {
-      setFormError('Please select a PDF (.pdf) file for your custom CV.');
+      setFormError(
+        lang === 'bn'
+          ? 'অনুগ্রহ করে শুধু PDF (.pdf) ফাইল বাছাই করুন।'
+          : 'Please choose a PDF (.pdf) file for your CV.'
+      );
       return;
     }
     if (file.size > 380 * 1024) {
       setFormError(
-        'Selected PDF exceeds 380 KB for direct cloud storage. Compress the PDF under 380 KB or paste an external Google Drive / hosted PDF link instead.'
+        lang === 'bn'
+          ? 'PDF ফাইলটি ৩৮০ KB-এর বেশি বড়। ছোট PDF দিন অথবা Google Drive লিংক পেস্ট করুন।'
+          : 'This PDF is over 380 KB. Choose a smaller PDF or paste a Google Drive / PDF link instead.'
       );
       return;
     }
@@ -219,14 +225,19 @@ export const AdminProfileEditor: React.FC<AdminProfileEditorProps> = ({
         const reader = new FileReader();
         reader.onload = () => {
           if (typeof reader.result === 'string') resolve(reader.result);
-          else reject(new Error('Could not read PDF file.'));
+          else reject(new Error(lang === 'bn' ? 'PDF ফাইলটি পড়া যায়নি।' : 'Could not read PDF file.'));
         };
-        reader.onerror = () => reject(new Error('Failed to read selected PDF file.'));
+        reader.onerror = () =>
+          reject(new Error(lang === 'bn' ? 'PDF ফাইলটি পড়া যায়নি।' : 'Failed to read selected PDF file.'));
         reader.readAsDataURL(file);
       });
       const safe = sanitizeCvSourceUrl(dataUrl);
       if (!safe) {
-        setFormError('PDF could not be encoded within safe cloud document limits. Use a smaller PDF or URL.');
+        setFormError(
+          lang === 'bn'
+            ? 'PDF ফাইলটি সেভ করা যাচ্ছে না। ছোট ফাইল বা লিংক ব্যবহার করুন।'
+            : 'This PDF could not be attached. Try a smaller PDF or paste a link.'
+        );
         return;
       }
       onChange({
@@ -237,9 +248,19 @@ export const AdminProfileEditor: React.FC<AdminProfileEditorProps> = ({
           customUrl: safe,
         },
       });
-      setCvNote(`Attached "${file.name}" (${Math.round(file.size / 1024)} KB)`);
+      setCvNote(
+        lang === 'bn'
+          ? `যুক্ত হয়েছে: "${file.name}" (${Math.round(file.size / 1024)} KB)`
+          : `Attached "${file.name}" (${Math.round(file.size / 1024)} KB)`
+      );
     } catch (err) {
-      setFormError(err instanceof Error ? err.message : 'Unable to attach PDF.');
+      setFormError(
+        err instanceof Error
+          ? err.message
+          : lang === 'bn'
+            ? 'PDF ফাইলটি যুক্ত করা যায়নি।'
+            : 'Unable to attach PDF.'
+      );
     } finally {
       setCvBusy(false);
     }
@@ -258,9 +279,19 @@ export const AdminProfileEditor: React.FC<AdminProfileEditorProps> = ({
         hardCapLength: 315_000,
       });
       updateProfile('portraitUrl', result.dataUrl);
-      setPortraitNote(`Portrait photo ready (${result.sizeKB} KB)`);
+      setPortraitNote(
+        lang === 'bn'
+          ? `ছবি প্রস্তুত হয়েছে (${result.sizeKB} KB)। সেভ করতে ভুলবেন না।`
+          : `Photo ready (${result.sizeKB} KB). Remember to click Save.`
+      );
     } catch (err) {
-      setFormError(err instanceof Error ? err.message : 'Unable to process selected portrait image.');
+      setFormError(
+        err instanceof Error
+          ? err.message
+          : lang === 'bn'
+            ? 'ছবিটি প্রসেস করা যায়নি।'
+            : 'Unable to process selected photo.'
+      );
     } finally {
       setPortraitBusy(false);
     }
@@ -304,7 +335,13 @@ export const AdminProfileEditor: React.FC<AdminProfileEditorProps> = ({
       !reqText(prof.role) ||
       !reqText(prof.bio)
     ) {
-      return { tab: 'identity', message: 'Fill in all required Hero & Identity fields before saving.' };
+      return {
+        tab: 'identity',
+        message:
+          lang === 'bn'
+            ? 'অনুগ্রহ করে "নাম ও ছবি" অংশের সব জরুরি ঘর পূরণ করুন।'
+            : 'Please fill in all required fields under Name & Photo.',
+      };
     }
     const rawPortrait = prof.portraitUrl.trim();
     const isValidPortrait =
@@ -314,59 +351,92 @@ export const AdminProfileEditor: React.FC<AdminProfileEditorProps> = ({
     if (!isValidPortrait) {
       return {
         tab: 'identity',
-        message: 'Portrait URL must be empty, a valid https:// link, /assets/... path, or picked image.',
+        message:
+          lang === 'bn'
+            ? 'ছবির লিংকটি সঠিক নয়। ডিভাইস থেকে ছবি নিন অথবা https:// লিংক দিন।'
+            : 'Photo link is not valid. Upload a photo or enter a valid https:// link.',
       };
     }
 
     if (!isValidEmailAddress(prof.email)) {
-      return { tab: 'contact', message: 'Enter a valid public studio contact email address.' };
+      return {
+        tab: 'contact',
+        message:
+          lang === 'bn'
+            ? 'অনুগ্রহ করে সঠিক ইমেইল অ্যাড্রেস লিখুন।'
+            : 'Please enter a valid contact email address.',
+      };
     }
     if (!isValidPhoneIfPresent(prof.phoneNumber)) {
       return {
         tab: 'contact',
-        message: 'Contact / Phone number must contain 6–18 digits (e.g. +880 1XXX-XXXXXX).',
+        message:
+          lang === 'bn'
+            ? 'ফোন নম্বরে ৬ থেকে ১৮টি সংখ্যা থাকতে হবে (যেমন: +880 1XXX-XXXXXX)।'
+            : 'Phone number must have 6–18 digits (e.g. +880 1XXX-XXXXXX).',
       };
     }
     if (!isValidPhoneIfPresent(prof.whatsappNumber)) {
       return {
         tab: 'social',
-        message: 'WhatsApp number must contain 6–18 digits (e.g. +880 1XXX-XXXXXX).',
+        message:
+          lang === 'bn'
+            ? 'হোয়াটসঅ্যাপ নম্বরে ৬ থেকে ১৮টি সংখ্যা থাকতে হবে (যেমন: +880 1XXX-XXXXXX)।'
+            : 'WhatsApp number must have 6–18 digits (e.g. +880 1XXX-XXXXXX).',
       };
     }
     if (prof.githubUrl.trim() && !sanitizePublicUrl(prof.githubUrl, '', false)) {
       return {
         tab: 'social',
-        message: 'GitHub Profile URL must start with https:// or http://.',
+        message:
+          lang === 'bn'
+            ? 'GitHub লিংকটি https:// বা http:// দিয়ে শুরু হতে হবে।'
+            : 'GitHub link must start with https:// or http://.',
       };
     }
     if (prof.twitterUrl.trim() && !sanitizePublicUrl(prof.twitterUrl, '', false)) {
       return {
         tab: 'social',
-        message: 'Twitter / X URL must start with https:// or http://.',
+        message:
+          lang === 'bn'
+            ? 'Twitter / X লিংকটি https:// বা http:// দিয়ে শুরু হতে হবে।'
+            : 'Twitter / X link must start with https:// or http://.',
       };
     }
     if (prof.behanceUrl.trim() && !sanitizePublicUrl(prof.behanceUrl, '', false)) {
       return {
         tab: 'social',
-        message: 'Behance URL must start with https:// or http://.',
+        message:
+          lang === 'bn'
+            ? 'Behance লিংকটি https:// বা http:// দিয়ে শুরু হতে হবে।'
+            : 'Behance link must start with https:// or http://.',
       };
     }
     if (prof.facebookUrl.trim() && !sanitizePublicUrl(prof.facebookUrl, '', false)) {
       return {
         tab: 'social',
-        message: 'Facebook URL must start with https:// or http://.',
+        message:
+          lang === 'bn'
+            ? 'Facebook লিংকটি https:// বা http:// দিয়ে শুরু হতে হবে।'
+            : 'Facebook link must start with https:// or http://.',
       };
     }
     if (prof.linkedinUrl.trim() && !sanitizePublicUrl(prof.linkedinUrl, '', false)) {
       return {
         tab: 'social',
-        message: 'LinkedIn URL must start with https:// or http://.',
+        message:
+          lang === 'bn'
+            ? 'LinkedIn লিংকটি https:// বা http:// দিয়ে শুরু হতে হবে।'
+            : 'LinkedIn link must start with https:// or http://.',
       };
     }
     if (prof.instagramUrl.trim() && !sanitizePublicUrl(prof.instagramUrl, '', false)) {
       return {
         tab: 'social',
-        message: 'Instagram URL must start with https:// or http://.',
+        message:
+          lang === 'bn'
+            ? 'Instagram লিংকটি https:// বা http:// দিয়ে শুরু হতে হবে।'
+            : 'Instagram link must start with https:// or http://.',
       };
     }
     if (
@@ -375,11 +445,23 @@ export const AdminProfileEditor: React.FC<AdminProfileEditorProps> = ({
       !reqText(prof.manifestoLead) ||
       !reqText(prof.manifestoAvailability)
     ) {
-      return { tab: 'contact', message: 'Complete all Contact, Quote & CTA fields before saving.' };
+      return {
+        tab: 'contact',
+        message:
+          lang === 'bn'
+            ? 'অনুগ্রহ করে "যোগাযোগ তথ্য" অংশের সব জরুরি ঘর পূরণ করুন।'
+            : 'Please fill in all required fields under Contact Info.',
+      };
     }
 
     if (targetDraft.heroMetrics.some((m) => !reqText(m.value) || !reqText(m.label))) {
-      return { tab: 'metrics', message: 'Every KPI metric needs non-empty text.' };
+      return {
+        tab: 'metrics',
+        message:
+          lang === 'bn'
+            ? '"মূল সংখ্যা" অংশের কোনো ঘর খালি রাখা যাবে না।'
+            : 'Every highlight card needs both a number and text.',
+      };
     }
 
     if (
@@ -389,14 +471,20 @@ export const AdminProfileEditor: React.FC<AdminProfileEditorProps> = ({
     ) {
       return {
         tab: 'process',
-        message: 'All Services, Tech Stack rows, and Wireframe Scenes must be filled out.',
+        message:
+          lang === 'bn'
+            ? '"কাজ ও স্কিল" অংশের সব ঘর পূরণ করুন।'
+            : 'Please fill in all fields under Services & Skills.',
       };
     }
 
     if (cvCfg.mode === 'custom' && !sanitizeCvSourceUrl(cvCfg.customUrl)) {
       return {
         tab: 'cv',
-        message: 'Custom CV mode needs a valid https:// PDF link or an uploaded PDF file.',
+        message:
+          lang === 'bn'
+            ? 'নিজের সিভি দেখাতে হলে PDF আপলোড করুন অথবা https:// লিংক দিন।'
+            : 'Please upload a PDF or enter a valid https:// CV link.',
       };
     }
 
@@ -407,7 +495,11 @@ export const AdminProfileEditor: React.FC<AdminProfileEditorProps> = ({
     e.preventDefault();
     if (saving) return;
     if (portraitBusy || cvBusy) {
-      setFormError('Please wait a moment for the selected image or PDF to finish preparing.');
+      setFormError(
+        lang === 'bn'
+          ? 'ছবি বা PDF ফাইল প্রস্তুত হওয়া পর্যন্ত একটু অপেক্ষা করুন।'
+          : 'Please wait a moment for the photo or PDF to finish preparing.'
+      );
       return;
     }
 
@@ -522,7 +614,7 @@ export const AdminProfileEditor: React.FC<AdminProfileEditorProps> = ({
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
               <LimitedInput
                 id="prof-wordmark"
-                label="Navbar Brand Wordmark"
+                label={lang === 'bn' ? 'উপরের ব্র্যান্ড নাম' : 'Top Bar Name'}
                 value={p.wordmark}
                 maxLength={16}
                 required
@@ -530,7 +622,7 @@ export const AdminProfileEditor: React.FC<AdminProfileEditorProps> = ({
               />
               <LimitedInput
                 id="prof-greeting"
-                label="Hero Greeting Line"
+                label={lang === 'bn' ? 'স্বাগতম কথা' : 'Welcome Greeting'}
                 value={p.greeting}
                 maxLength={32}
                 required
@@ -538,7 +630,7 @@ export const AdminProfileEditor: React.FC<AdminProfileEditorProps> = ({
               />
               <LimitedInput
                 id="prof-display-name"
-                label="Hero Display Name"
+                label={lang === 'bn' ? 'আপনার মূল নাম' : 'Your Main Name'}
                 value={p.displayName}
                 maxLength={18}
                 required
@@ -546,7 +638,7 @@ export const AdminProfileEditor: React.FC<AdminProfileEditorProps> = ({
               />
               <LimitedInput
                 id="prof-backdrop"
-                label="Hero Backdrop Watermark"
+                label={lang === 'bn' ? 'পেছনের বড় নাম' : 'Big Background Name'}
                 value={p.backdropName}
                 maxLength={10}
                 required
@@ -556,7 +648,7 @@ export const AdminProfileEditor: React.FC<AdminProfileEditorProps> = ({
 
             <LimitedInput
               id="prof-role"
-              label="Primary Discipline Role Line"
+              label={lang === 'bn' ? 'আপনার পেশা / কাজ' : 'Your Profession / Title'}
               value={p.role}
               maxLength={64}
               required
@@ -565,7 +657,7 @@ export const AdminProfileEditor: React.FC<AdminProfileEditorProps> = ({
 
             <LimitedTextarea
               id="prof-bio"
-              label="Hero Bio Summary"
+              label={lang === 'bn' ? 'আপনার সম্পর্কে সংক্ষেপে' : 'About You (Short Bio)'}
               value={p.bio}
               maxLength={260}
               rows={3}
@@ -575,19 +667,22 @@ export const AdminProfileEditor: React.FC<AdminProfileEditorProps> = ({
 
             <div className="space-y-3 rounded-lg border border-white/10 bg-[#090A0F] p-4">
               <div className="flex flex-wrap items-center justify-between gap-2">
-                <span className="text-xs font-medium text-zinc-200">Hero Portrait Photo</span>
-                {p.portraitUrl !== ADMIN_INITIAL_BUNDLE.profile.portraitUrl && (
+                <span className="text-xs font-medium text-zinc-200">
+                  {lang === 'bn' ? 'আপনার প্রোফাইল ছবি' : 'Your Profile Photo'}
+                </span>
+                {p.portraitUrl.trim() && (
                   <button
                     type="button"
+                    disabled={saving || portraitBusy}
                     onClick={() => {
-                      updateProfile('portraitUrl', ADMIN_INITIAL_BUNDLE.profile.portraitUrl);
+                      updateProfile('portraitUrl', '');
                       setPortraitNote(null);
                       setFormError(null);
                     }}
-                    className="inline-flex items-center gap-1 rounded px-2 py-1 text-[11px] font-medium text-zinc-400 hover:bg-white/5 hover:text-white"
+                    className="inline-flex items-center gap-1 rounded-md border border-[#DC2626]/35 bg-[#DC2626]/10 px-2.5 py-1 text-[11px] font-medium text-red-200 transition-colors hover:bg-[#DC2626]/20 hover:text-white disabled:opacity-50"
                   >
-                    <X className="h-3 w-3" aria-hidden="true" />
-                    Reset Portrait Path
+                    <Trash2 className="h-3 w-3" aria-hidden="true" />
+                    {lang === 'bn' ? 'ছবি মুছুন' : 'Delete Photo'}
                   </button>
                 )}
               </div>
@@ -612,20 +707,29 @@ export const AdminProfileEditor: React.FC<AdminProfileEditorProps> = ({
                   ) : (
                     <ImagePlus className="h-4 w-4 text-accent-light" aria-hidden="true" />
                   )}
-                  {portraitBusy ? 'Optimizing Photo...' : 'Pick Portrait From Device'}
+                  {portraitBusy
+                    ? lang === 'bn'
+                      ? 'ছবি প্রস্তুত হচ্ছে...'
+                      : 'Preparing Photo...'
+                    : lang === 'bn'
+                      ? 'ফোন বা পিসি থেকে ছবি দিন'
+                      : 'Upload Photo From Device'}
                 </button>
               </div>
 
               {(portraitNote || isUploadedPortrait) && (
                 <p className="rounded-md border border-emerald-500/30 bg-emerald-500/10 px-3 py-2 text-xs text-emerald-200">
-                  {portraitNote ?? 'Custom portrait photo attached from device.'}
+                  {portraitNote ??
+                    (lang === 'bn'
+                      ? 'ডিভাইস থেকে প্রোফাইল ছবি যুক্ত হয়েছে।'
+                      : 'Profile photo attached from device.')}
                 </p>
               )}
 
               {!isUploadedPortrait && (
                 <SafeUrlInput
                   id="prof-portrait"
-                  label="Portrait Path / URL (optional)"
+                  label={lang === 'bn' ? 'অথবা ছবির লিংক দিন (ঐচ্ছিক)' : 'Or Paste Photo Link (Optional)'}
                   value={p.portraitUrl}
                   maxLength={500}
                   autoPrefixHttps
@@ -640,7 +744,7 @@ export const AdminProfileEditor: React.FC<AdminProfileEditorProps> = ({
           <div className="lg:col-span-5">
             <div className="rounded-xl border border-white/10 bg-[#090A0F] p-5">
               <p className="font-mono text-[11px] uppercase tracking-wider text-zinc-400">
-                Live Hero Safety Preview
+                {lang === 'bn' ? 'লাইভ প্রিভিউ' : 'Live Preview'}
               </p>
               <div className="mt-4 flex items-center gap-4 border-b border-white/10 pb-4">
                 <div className="flex h-20 w-16 shrink-0 items-center justify-center overflow-hidden rounded-lg border border-white/10 bg-[#12131A]">
@@ -671,8 +775,9 @@ export const AdminProfileEditor: React.FC<AdminProfileEditorProps> = ({
               <p className="mt-3 text-xs leading-relaxed text-zinc-300">{p.bio}</p>
               {portraitLoadFailed && (
                 <p className="mt-3 text-xs text-amber-300">
-                  Preview image could not load in this browser, but saving changes is still allowed—fallback
-                  initials will protect the live hero layout.
+                  {lang === 'bn'
+                    ? 'ছবিটি প্রিভিউতে দেখা যাচ্ছে না, তবে সেভ করতে পারবেন — ছবি না পেলে নামের প্রথম দুই অক্ষর দেখাবে।'
+                    : 'Preview could not load the photo, but you can still save — initials will show if needed.'}
                 </p>
               )}
             </div>
@@ -711,15 +816,49 @@ export const AdminProfileEditor: React.FC<AdminProfileEditorProps> = ({
               />
 
               <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-                <LimitedInput
-                  id="prof-phone"
-                  label={lang === 'bn' ? 'ফোন / কন্টাক্ট নম্বর (Phone)' : 'Contact / Phone Number'}
-                  type="tel"
-                  value={p.phoneNumber}
-                  maxLength={24}
-                  placeholder="+880 1XXX-XXXXXX"
-                  onChange={(v) => updateProfile('phoneNumber', v)}
-                />
+                <div className="space-y-1.5">
+                  <LimitedInput
+                    id="prof-phone"
+                    label={lang === 'bn' ? 'ফোন / কন্টাক্ট নম্বর (Phone)' : 'Contact / Phone Number'}
+                    type="tel"
+                    value={p.phoneNumber}
+                    maxLength={24}
+                    placeholder="+880 1XXX-XXXXXX"
+                    onChange={(v) => updateProfile('phoneNumber', v)}
+                  />
+                  {p.phoneNumber.trim() && (
+                    <button
+                      type="button"
+                      disabled={saving || portraitBusy || cvBusy}
+                      onClick={async () => {
+                        if (saving || portraitBusy || cvBusy) return;
+                        const nextDraft = buildNormalizedFrom({
+                          ...draft,
+                          profile: {
+                            ...p,
+                            phoneNumber: '',
+                          },
+                        });
+                        onChange(nextDraft);
+                        const issue = validateBeforeSave(nextDraft);
+                        if (issue) {
+                          setSubTab(issue.tab);
+                          setFormError(issue.message);
+                          window.requestAnimationFrame(() => {
+                            errorAlertRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                          });
+                          return;
+                        }
+                        setFormError(null);
+                        await onSave(nextDraft);
+                      }}
+                      className="inline-flex items-center gap-1 rounded-md border border-[#DC2626]/35 bg-[#DC2626]/10 px-2.5 py-1 text-[11px] font-medium text-red-200 transition-colors hover:bg-[#DC2626]/20 hover:text-white disabled:opacity-50"
+                    >
+                      <Trash2 className="h-3 w-3" aria-hidden="true" />
+                      <span>{lang === 'bn' ? 'নম্বর মুছুন' : 'Remove Number'}</span>
+                    </button>
+                  )}
+                </div>
                 <LimitedInput
                   id="prof-location"
                   label={lang === 'bn' ? 'ঠিকানা / শহর (Location)' : 'Location / City'}
@@ -733,7 +872,7 @@ export const AdminProfileEditor: React.FC<AdminProfileEditorProps> = ({
 
             <LimitedInput
               id="prof-avail"
-              label="Availability Label"
+              label={lang === 'bn' ? 'কাজের অবস্থা (Available?)' : 'Work Availability'}
               value={p.availability}
               maxLength={40}
               required
@@ -744,7 +883,7 @@ export const AdminProfileEditor: React.FC<AdminProfileEditorProps> = ({
           <div className="space-y-4">
             <LimitedTextarea
               id="prof-quote"
-              label="Featured Quote"
+              label={lang === 'bn' ? 'পছন্দের উক্তি / কোট' : 'Featured Quote'}
               value={p.quoteText}
               maxLength={180}
               rows={3}
@@ -753,7 +892,7 @@ export const AdminProfileEditor: React.FC<AdminProfileEditorProps> = ({
             />
             <LimitedTextarea
               id="prof-manifesto"
-              label="Storytelling Lead Statement"
+              label={lang === 'bn' ? 'কাজের গল্পের মূল কথা' : 'Story Headline'}
               value={p.manifestoLead}
               maxLength={200}
               rows={2}
@@ -762,7 +901,7 @@ export const AdminProfileEditor: React.FC<AdminProfileEditorProps> = ({
             />
             <LimitedTextarea
               id="prof-manifesto-avail"
-              label="Contact Closing Availability Note"
+              label={lang === 'bn' ? 'সাইটের নিচে ক্লায়েন্টের জন্য বার্তা' : 'Footer Note for Clients'}
               value={p.manifestoAvailability}
               maxLength={160}
               rows={2}
@@ -910,6 +1049,9 @@ export const AdminProfileEditor: React.FC<AdminProfileEditorProps> = ({
                 if (issue) {
                   setSubTab(issue.tab);
                   setFormError(issue.message);
+                  window.requestAnimationFrame(() => {
+                    errorAlertRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                  });
                   return;
                 }
                 setFormError(null);
@@ -1011,7 +1153,9 @@ export const AdminProfileEditor: React.FC<AdminProfileEditorProps> = ({
           <div>
             <div className="mb-3 flex items-center justify-between">
               <h3 className="text-sm font-semibold text-white">
-                Hero KPI Strip ({draft.heroMetrics.length}/4)
+                {lang === 'bn'
+                  ? `মূল সংখ্যা ও অর্জন (${draft.heroMetrics.length}/4)`
+                  : `Highlight Numbers (${draft.heroMetrics.length}/4)`}
               </h3>
               {draft.heroMetrics.length < 4 && (
                 <button
@@ -1021,14 +1165,17 @@ export const AdminProfileEditor: React.FC<AdminProfileEditorProps> = ({
                       ...draft,
                       heroMetrics: [
                         ...draft.heroMetrics,
-                        { value: '10+', label: 'New Metric Label' },
+                        {
+                          value: '10+',
+                          label: lang === 'bn' ? 'নতুন অর্জন' : 'Projects Completed',
+                        },
                       ],
                     })
                   }
                   className="inline-flex min-h-[36px] items-center gap-1.5 rounded-md border border-white/15 px-3 py-1.5 text-xs font-medium text-zinc-200 hover:bg-white/5"
                 >
                   <Plus className="h-3.5 w-3.5" aria-hidden="true" />
-                  Add KPI
+                  {lang === 'bn' ? 'যোগ করুন' : 'Add Highlight'}
                 </button>
               )}
             </div>
@@ -1041,7 +1188,7 @@ export const AdminProfileEditor: React.FC<AdminProfileEditorProps> = ({
                   <div className="w-24 shrink-0">
                     <LimitedInput
                       id={`hm-val-${idx}`}
-                      label="Value"
+                      label={lang === 'bn' ? 'সংখ্যা' : 'Number'}
                       value={metric.value}
                       maxLength={10}
                       required
@@ -1051,7 +1198,7 @@ export const AdminProfileEditor: React.FC<AdminProfileEditorProps> = ({
                   <div className="min-w-0 flex-1">
                     <LimitedInput
                       id={`hm-lbl-${idx}`}
-                      label="Label"
+                      label={lang === 'bn' ? 'বিবরণ' : 'Text'}
                       value={metric.label}
                       maxLength={52}
                       required
@@ -1085,7 +1232,9 @@ export const AdminProfileEditor: React.FC<AdminProfileEditorProps> = ({
           <div>
             <div className="mb-3 flex items-center justify-between">
               <h3 className="text-sm font-semibold text-white">
-                Studio Services ({draft.services.length}/6)
+                {lang === 'bn'
+                  ? `আপনার সার্ভিসসমূহ (${draft.services.length}/6)`
+                  : `Services You Offer (${draft.services.length}/6)`}
               </h3>
               {draft.services.length < 6 && (
                 <button
@@ -1102,7 +1251,7 @@ export const AdminProfileEditor: React.FC<AdminProfileEditorProps> = ({
                         {
                           index: String(maxNum + 1).padStart(2, '0'),
                           title: 'Custom Solution',
-                          detail: 'End-to-end engineering from wireframe to shipped product.',
+                          detail: 'Complete website or app from design to launch.',
                         },
                       ],
                     });
@@ -1110,7 +1259,7 @@ export const AdminProfileEditor: React.FC<AdminProfileEditorProps> = ({
                   className="inline-flex min-h-[36px] items-center gap-1.5 rounded-md border border-white/15 px-3 py-1.5 text-xs font-medium text-zinc-200 hover:bg-white/5"
                 >
                   <Plus className="h-3.5 w-3.5" aria-hidden="true" />
-                  Add Service
+                  {lang === 'bn' ? 'সার্ভিস যোগ' : 'Add Service'}
                 </button>
               )}
             </div>
@@ -1124,7 +1273,7 @@ export const AdminProfileEditor: React.FC<AdminProfileEditorProps> = ({
                     <div className="w-20 shrink-0">
                       <LimitedInput
                         id={`srv-idx-${idx}`}
-                        label="No."
+                        label={lang === 'bn' ? 'নং' : 'No.'}
                         value={srv.index}
                         maxLength={4}
                         required
@@ -1134,7 +1283,7 @@ export const AdminProfileEditor: React.FC<AdminProfileEditorProps> = ({
                     <div className="min-w-0 flex-1">
                       <LimitedInput
                         id={`srv-title-${idx}`}
-                        label="Service Title"
+                        label={lang === 'bn' ? 'সার্ভিসের নাম' : 'Service Name'}
                         value={srv.title}
                         maxLength={48}
                         required
@@ -1159,7 +1308,7 @@ export const AdminProfileEditor: React.FC<AdminProfileEditorProps> = ({
                   </div>
                   <LimitedTextarea
                     id={`srv-detail-${idx}`}
-                    label="Service Description"
+                    label={lang === 'bn' ? 'সংক্ষিপ্ত বিবরণ' : 'Short Details'}
                     value={srv.detail}
                     maxLength={140}
                     rows={2}
@@ -1174,7 +1323,9 @@ export const AdminProfileEditor: React.FC<AdminProfileEditorProps> = ({
           <div>
             <div className="mb-3 flex items-center justify-between">
               <h3 className="text-sm font-semibold text-white">
-                Primary Tech Stack Rows ({draft.techStack.length}/8)
+                {lang === 'bn'
+                  ? `টুলস ও স্কিল (${draft.techStack.length}/8)`
+                  : `Tools & Skills (${draft.techStack.length}/8)`}
               </h3>
               {draft.techStack.length < 8 && (
                 <button
@@ -1191,7 +1342,7 @@ export const AdminProfileEditor: React.FC<AdminProfileEditorProps> = ({
                   className="inline-flex min-h-[36px] items-center gap-1.5 rounded-md border border-white/15 px-3 py-1.5 text-xs font-medium text-zinc-200 hover:bg-white/5"
                 >
                   <Plus className="h-3.5 w-3.5" aria-hidden="true" />
-                  Add Stack Row
+                  {lang === 'bn' ? 'স্কিল যোগ' : 'Add Skill'}
                 </button>
               )}
             </div>
@@ -1204,7 +1355,7 @@ export const AdminProfileEditor: React.FC<AdminProfileEditorProps> = ({
                   <div className="min-w-0 flex-1 space-y-3">
                     <LimitedInput
                       id={`ts-name-${idx}`}
-                      label="Technology"
+                      label={lang === 'bn' ? 'টুলস / স্কিল' : 'Tool / Skill'}
                       value={item.name}
                       maxLength={40}
                       required
@@ -1212,7 +1363,7 @@ export const AdminProfileEditor: React.FC<AdminProfileEditorProps> = ({
                     />
                     <LimitedInput
                       id={`ts-role-${idx}`}
-                      label="Engineering Role"
+                      label={lang === 'bn' ? 'কী কাজে ব্যবহার করেন' : 'What You Use It For'}
                       value={item.role}
                       maxLength={56}
                       required
@@ -1241,7 +1392,9 @@ export const AdminProfileEditor: React.FC<AdminProfileEditorProps> = ({
 
           <div>
             <h3 className="mb-3 text-sm font-semibold text-white">
-              Raw-to-Real Wireframe Scenes ({draft.wireframeScenes.length}/6)
+              {lang === 'bn'
+                ? `কাজের আগে ও পরের প্রিভিউ (${draft.wireframeScenes.length}/6)`
+                : `Before & After Showcase (${draft.wireframeScenes.length}/6)`}
             </h3>
             <div className="space-y-4">
               {draft.wireframeScenes.map((scene, idx) => (
@@ -1252,7 +1405,7 @@ export const AdminProfileEditor: React.FC<AdminProfileEditorProps> = ({
                   <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
                     <LimitedInput
                       id={`sc-lbl-${idx}`}
-                      label="Scene Title"
+                      label={lang === 'bn' ? 'শিরোনাম' : 'Title'}
                       value={scene.label}
                       maxLength={64}
                       required
@@ -1260,7 +1413,7 @@ export const AdminProfileEditor: React.FC<AdminProfileEditorProps> = ({
                     />
                     <LimitedInput
                       id={`sc-spec-${idx}`}
-                      label="Technical Specs"
+                      label={lang === 'bn' ? 'মূল তথ্য' : 'Key Highlights'}
                       value={scene.specs}
                       maxLength={72}
                       required
@@ -1271,7 +1424,7 @@ export const AdminProfileEditor: React.FC<AdminProfileEditorProps> = ({
                         htmlFor={`sc-theme-${idx}`}
                         className="block text-xs font-medium text-zinc-200"
                       >
-                        Canvas Render Scene
+                        {lang === 'bn' ? 'প্রিভিউয়ের ধরন' : 'Preview Type'}
                       </label>
                       <select
                         id={`sc-theme-${idx}`}
@@ -1283,15 +1436,21 @@ export const AdminProfileEditor: React.FC<AdminProfileEditorProps> = ({
                         }
                         className="mt-1.5 min-h-[44px] w-full rounded-md border border-white/15 bg-[#070709] px-3 py-2 text-sm text-white focus:border-accent focus:outline-none"
                       >
-                        <option value="web-build">Website Wireframe vs Live</option>
-                        <option value="app-ui">App Wireframe vs Live</option>
-                        <option value="game-engine">Game Greybox vs Playable</option>
+                        <option value="web-build">
+                          {lang === 'bn' ? 'ওয়েবসাইট প্রিভিউ' : 'Website'}
+                        </option>
+                        <option value="app-ui">
+                          {lang === 'bn' ? 'মোবাইল / ওয়েব অ্যাপ' : 'Mobile / Web App'}
+                        </option>
+                        <option value="game-engine">
+                          {lang === 'bn' ? 'গেম প্রিভিউ' : 'Game'}
+                        </option>
                       </select>
                     </div>
                   </div>
                   <LimitedTextarea
                     id={`sc-notes-${idx}`}
-                    label="Process Notes"
+                    label={lang === 'bn' ? 'কাজের নোট' : 'Notes'}
                     value={scene.notes}
                     maxLength={200}
                     rows={2}
@@ -1315,7 +1474,7 @@ export const AdminProfileEditor: React.FC<AdminProfileEditorProps> = ({
                 <div className="flex items-center gap-2">
                   <Gauge className="h-4 w-4 text-accent-light" aria-hidden="true" />
                   <h4 className="text-sm font-semibold text-white">
-                    {lang === 'bn' ? 'কার্সর স্পিড' : 'Cursor Speed'}
+                    {lang === 'bn' ? 'অ্যানিমেশনের গতি' : 'Animation Speed'}
                   </h4>
                 </div>
                 <button
@@ -1336,9 +1495,9 @@ export const AdminProfileEditor: React.FC<AdminProfileEditorProps> = ({
               <div className="mt-3 grid grid-cols-3 gap-2">
                 {(
                   [
-                    { id: 'slow', label: lang === 'bn' ? 'স্লো · 0.65×' : 'Slow · 0.65×' },
-                    { id: 'normal', label: lang === 'bn' ? 'নরমাল · 1.0×' : 'Normal · 1.0×' },
-                    { id: 'fast', label: lang === 'bn' ? 'ফাস্ট · 1.7×' : 'Fast · 1.7×' },
+                    { id: 'slow', label: lang === 'bn' ? 'ধীরে' : 'Slow' },
+                    { id: 'normal', label: lang === 'bn' ? 'সাধারণ' : 'Normal' },
+                    { id: 'fast', label: lang === 'bn' ? 'দ্রুত' : 'Fast' },
                   ] as ReadonlyArray<{ id: CursorSpeed; label: string }>
                 ).map((opt) => {
                   const selected = (vc.cursorSpeed ?? 'normal') === opt.id;
@@ -1494,7 +1653,7 @@ export const AdminProfileEditor: React.FC<AdminProfileEditorProps> = ({
                       : 'bg-zinc-800 text-zinc-400'
                   }`}
                 >
-                  {vc.showCvDownloadOnViewer ? 'PUBLIC' : 'HIDDEN'}
+                  {vc.showCvDownloadOnViewer ? t.common.published : t.common.draft}
                 </span>
               </div>
             </div>
@@ -1542,8 +1701,12 @@ export const AdminProfileEditor: React.FC<AdminProfileEditorProps> = ({
               >
                 <FileText className="h-4 w-4 shrink-0 text-accent-light" aria-hidden="true" />
                 <div>
-                  <div className="text-sm font-semibold">Auto PDF</div>
-                  <div className="font-mono text-[11px] text-zinc-400">Generated from profile</div>
+                  <div className="text-sm font-semibold">
+                    {lang === 'bn' ? 'অটো তৈরি সিভি (Auto PDF)' : 'Auto-Created CV'}
+                  </div>
+                  <div className="font-mono text-[11px] text-zinc-400">
+                    {lang === 'bn' ? 'আপনার প্রোফাইল থেকেই তৈরি হবে' : 'Created from your profile info'}
+                  </div>
                 </div>
               </button>
 
@@ -1558,15 +1721,19 @@ export const AdminProfileEditor: React.FC<AdminProfileEditorProps> = ({
               >
                 <Upload className="h-4 w-4 shrink-0 text-accent-light" aria-hidden="true" />
                 <div>
-                  <div className="text-sm font-semibold">Custom PDF / URL</div>
-                  <div className="font-mono text-[11px] text-zinc-400">&lt; 380 KB PDF or https://</div>
+                  <div className="text-sm font-semibold">
+                    {lang === 'bn' ? 'নিজের সিভি দিন (PDF / লিংক)' : 'Upload Own CV'}
+                  </div>
+                  <div className="font-mono text-[11px] text-zinc-400">
+                    {lang === 'bn' ? '৩৮০ KB এর কম PDF বা লিংক' : 'PDF under 380 KB or https:// link'}
+                  </div>
                 </div>
               </button>
             </div>
 
             <LimitedInput
               id="cv-headline"
-              label="CV Subtitle"
+              label={lang === 'bn' ? 'সিভির শিরোনাম (Subtitle)' : 'CV Headline'}
               value={cv.headline}
               maxLength={96}
               onChange={(v) => updateCvSettings('headline', v)}
@@ -1576,7 +1743,7 @@ export const AdminProfileEditor: React.FC<AdminProfileEditorProps> = ({
               <div className="space-y-3 rounded-lg border border-white/10 bg-[#050507] p-4">
                 <div className="flex flex-wrap items-center justify-between gap-2">
                   <span className="text-xs font-medium text-zinc-200">
-                    Custom PDF / URL
+                    {lang === 'bn' ? 'নিজের PDF ফাইল বা লিংক' : 'Your Custom PDF or Link'}
                   </span>
                   {cv.customUrl && (
                     <button
@@ -1613,22 +1780,25 @@ export const AdminProfileEditor: React.FC<AdminProfileEditorProps> = ({
                     ) : (
                       <Upload className="h-4 w-4 text-accent-light" aria-hidden="true" />
                     )}
-                    {cvBusy ? t.common.working : 'Upload PDF'}
+                    {cvBusy ? t.common.working : lang === 'bn' ? 'PDF আপলোড করুন' : 'Upload PDF'}
                   </button>
                 </div>
 
                 {(cvNote || cv.customUrl.startsWith('data:application/pdf')) && (
                   <p className="rounded-md border border-emerald-500/30 bg-emerald-500/10 px-3 py-2 text-xs text-emerald-200">
-                    {cvNote ?? 'Custom PDF attached.'}
+                    {cvNote ?? (lang === 'bn' ? 'নিজের PDF ফাইল যুক্ত আছে।' : 'Custom PDF attached.')}
                   </p>
                 )}
 
                 {!cv.customUrl.startsWith('data:application/pdf') && (
                   <SafeUrlInput
                     id="cv-custom-url"
-                    label="External PDF URL"
+                    label={
+                      lang === 'bn' ? 'অথবা Google Drive / PDF লিংক দিন' : 'Or Paste PDF Link'
+                    }
                     value={cv.customUrl}
                     maxLength={500}
+                    lang={lang}
                     onChange={(v) => updateCvSettings('customUrl', v)}
                   />
                 )}
@@ -1637,6 +1807,32 @@ export const AdminProfileEditor: React.FC<AdminProfileEditorProps> = ({
           </div>
         </div>
       )}
+
+      <div className="flex flex-wrap items-center justify-end gap-2.5 border-t border-white/10 pt-5">
+        {hasUnsavedChanges && (
+          <span className="mr-auto rounded border border-amber-500/40 bg-amber-500/15 px-2.5 py-1 font-mono text-[10px] font-semibold uppercase tracking-wide text-amber-300">
+            {t.common.unsavedChanges}
+          </span>
+        )}
+        <button
+          type="button"
+          disabled={saving}
+          onClick={() => setConfirmDefaultsOpen(true)}
+          className="inline-flex min-h-[42px] items-center gap-2 rounded-md border border-white/15 px-3.5 py-2 text-xs font-medium text-zinc-300 transition-colors hover:bg-white/5 hover:text-white whitespace-nowrap shrink-0"
+        >
+          <RotateCcw className="h-3.5 w-3.5" aria-hidden="true" />
+          {t.profile.loadDefaults}
+        </button>
+
+        <button
+          type="submit"
+          disabled={saving || portraitBusy || cvBusy}
+          className="inline-flex min-h-[42px] items-center gap-2 rounded-md bg-accent px-5 py-2 text-xs font-semibold text-white transition-colors hover:bg-accent-dark disabled:opacity-60 whitespace-nowrap shrink-0"
+        >
+          <Save className="h-3.5 w-3.5" aria-hidden="true" />
+          {saving ? t.common.saving : t.profile.saveSettings}
+        </button>
+      </div>
 
       <ConfirmDialog
         open={confirmDefaultsOpen}
